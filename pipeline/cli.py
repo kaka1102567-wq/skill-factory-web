@@ -9,10 +9,12 @@ Usage:
   python3 pipeline/cli.py status --output ./output
 """
 
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import argparse
 import json
-import os
-import sys
 
 from dotenv import load_dotenv
 
@@ -55,9 +57,9 @@ def main():
 
 def cmd_build(args) -> int:
     """Run the full pipeline build."""
-    from .core.config import load_config
-    from .core.errors import PipelineError
-    from .orchestrator.runner import PipelineRunner
+    from pipeline.core.config import load_config
+    from pipeline.core.errors import PipelineError
+    from pipeline.orchestrator.runner import PipelineRunner
 
     try:
         config = load_config(args.config, args.output)
@@ -78,11 +80,11 @@ def cmd_build(args) -> int:
 
 def cmd_resolve(args) -> int:
     """Resume pipeline after conflict resolution."""
-    from .core.config import load_config
-    from .core.errors import PipelineError
-    from .core.utils import read_json
-    from .orchestrator.runner import PipelineRunner
-    from .orchestrator.state import load_checkpoint
+    from pipeline.core.config import load_config
+    from pipeline.core.errors import PipelineError
+    from pipeline.core.utils import read_json
+    from pipeline.orchestrator.runner import PipelineRunner
+    from pipeline.orchestrator.state import load_checkpoint
 
     # Find config path from checkpoint
     state = load_checkpoint(args.output)
@@ -117,7 +119,7 @@ def cmd_resolve(args) -> int:
 
 def cmd_status(args) -> int:
     """Print current build status as JSON."""
-    from .orchestrator.state import load_checkpoint
+    from pipeline.orchestrator.state import load_checkpoint
 
     state = load_checkpoint(args.output)
     if not state:
