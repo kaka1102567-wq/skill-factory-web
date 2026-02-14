@@ -18,18 +18,20 @@ def load_config(config_path: str, output_dir: str) -> BuildConfig:
     if not isinstance(raw, dict):
         raise ConfigError(f"Invalid config format: {config_path}")
 
-    # Auto-discover transcripts from uploads dir
-    upload_dir = Path(output_dir).parent / "uploads"
+    # Auto-discover transcripts from input dir
+    # build-queue.ts layout: data/builds/<id>/input/, output/, config.yaml
+    build_dir = Path(output_dir).parent
+    search_dirs = [
+        build_dir / "input",       # build-queue.ts copies files here
+        build_dir / "uploads",     # legacy fallback
+    ]
+    transcript_exts = {'.txt', '.md', '.srt', '.vtt'}
     transcript_paths = []
-    if upload_dir.exists():
-        transcript_paths = sorted(
-            str(p) for p in upload_dir.glob("*")
-            if p.suffix in ('.txt', '.md', '.srt', '.vtt')
-        )
-    # Also check output dir itself for uploaded files
-    for p in Path(output_dir).glob("*.txt"):
-        if str(p) not in transcript_paths:
-            transcript_paths.append(str(p))
+    for search_dir in search_dirs:
+        if search_dir.exists():
+            for p in sorted(search_dir.iterdir()):
+                if p.suffix.lower() in transcript_exts and str(p) not in transcript_paths:
+                    transcript_paths.append(str(p))
 
     tier_map = {"draft": "draft", "standard": "standard", "premium": "premium"}
 

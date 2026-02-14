@@ -65,6 +65,11 @@ class PipelineRunner:
         """
         self.logger.info(f"Pipeline started: {self.config.name} (build {self.build_id})")
         self.logger.info(f"Domain: {self.config.domain}, Tier: {self.config.quality_tier}")
+        self.logger.debug(f"Output dir: {self.config.output_dir}")
+        self.logger.debug(f"Config path: {self.config.config_path}")
+        self.logger.debug(f"Transcripts found: {len(self.config.transcript_paths)}")
+        for tp in self.config.transcript_paths:
+            self.logger.debug(f"  transcript: {tp}")
 
         # Load or create state
         state = load_checkpoint(self.config.output_dir)
