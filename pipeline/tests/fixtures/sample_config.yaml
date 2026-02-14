@@ -1,0 +1,7 @@
+name: "Test Skill"
+domain: "fb_ads"
+language: "vi"
+quality_tier: "draft"
+platforms:
+  - claude
+baseline_sources: []

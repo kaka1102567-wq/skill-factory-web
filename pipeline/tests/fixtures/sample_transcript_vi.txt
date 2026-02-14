@@ -1,0 +1,15 @@
+Xin chào các bạn, hôm nay mình sẽ chia sẻ về cách chạy quảng cáo Facebook Ads hiệu quả cho người mới bắt đầu.
+
+Đầu tiên, chúng ta cần hiểu về cấu trúc tài khoản quảng cáo. Một tài khoản Facebook Ads bao gồm ba cấp: Campaign (chiến dịch), Ad Set (nhóm quảng cáo), và Ad (quảng cáo). Mỗi cấp có vai trò riêng và cần được thiết lập đúng cách.
+
+Ở cấp Campaign, bạn chọn mục tiêu quảng cáo. Facebook cung cấp nhiều mục tiêu khác nhau như Awareness (nhận diện thương hiệu), Traffic (lưu lượng truy cập), Engagement (tương tác), Leads (thu thập khách hàng tiềm năng), và Conversions (chuyển đổi). Với người mới, mình khuyên nên bắt đầu với mục tiêu Traffic hoặc Engagement vì dễ đo lường và chi phí thấp hơn.
+
+Tiếp theo là phần Audience Targeting - đây là phần quan trọng nhất. Facebook cho phép bạn nhắm mục tiêu dựa trên: độ tuổi, giới tính, vị trí địa lý, sở thích, hành vi, và Custom Audience. Custom Audience là tính năng mạnh mẽ cho phép bạn tải lên danh sách email khách hàng hoặc tạo audience từ những người đã tương tác với website thông qua Facebook Pixel.
+
+Nói về Facebook Pixel, đây là đoạn mã JavaScript mà bạn cần cài đặt trên website. Pixel theo dõi hành vi người dùng như: xem trang, thêm vào giỏ hàng, bắt đầu thanh toán, và hoàn tất mua hàng. Dữ liệu này giúp Facebook tối ưu quảng cáo và tìm kiếm những người có khả năng chuyển đổi cao nhất.
+
+Về phần ngân sách, có hai loại: Daily Budget (ngân sách hàng ngày) và Lifetime Budget (ngân sách trọn đời). Với người mới, mình khuyên bắt đầu với Daily Budget khoảng 100.000 - 200.000 VNĐ mỗi ngày để test. Sau khi tìm được quảng cáo hiệu quả, bạn có thể tăng dần ngân sách theo quy tắc 20% mỗi 3-5 ngày.
+
+Cuối cùng là phần tối ưu. Bạn cần theo dõi các chỉ số quan trọng như CPM (cost per 1000 impressions), CPC (cost per click), CTR (click-through rate), và ROAS (return on ad spend). Nếu CTR dưới 1% thì cần xem lại creative. Nếu CPC quá cao thì cần mở rộng audience. Và luôn nhớ A/B testing để tìm ra combination tốt nhất giữa audience, creative, và placement.
+
+Một mẹo quan trọng nữa là về Ad Creative. Hình ảnh và video chất lượng cao sẽ tạo ra kết quả tốt hơn nhiều. Sử dụng kích thước 1080x1080 cho feed post và 1080x1920 cho Stories. Headline nên ngắn gọn, rõ ràng, và có call-to-action mạnh mẽ.

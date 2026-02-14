@@ -24,7 +24,11 @@ class PipelineLogger:
         self._start = time.time()
 
     def _emit(self, data: dict) -> None:
-        print(json.dumps(data, ensure_ascii=False), flush=True)
+        try:
+            print(json.dumps(data, ensure_ascii=False), flush=True)
+        except UnicodeEncodeError:
+            # Fallback for Windows consoles without UTF-8 support
+            print(json.dumps(data, ensure_ascii=True), flush=True)
 
     # ── Phase events ──
 
