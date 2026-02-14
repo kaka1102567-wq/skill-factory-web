@@ -41,6 +41,11 @@ export function startBuild(config: BuildConfig): ChildProcess {
   insertBuildLog(config.id, startLog);
   sseManager.broadcast(config.id, "log", { ...startLog, timestamp: new Date().toISOString() });
 
+  // Read API keys and pipeline settings from Settings DB
+  const claudeApiKey = getSetting("claude_api_key") || process.env.CLAUDE_API_KEY || "";
+  const claudeModel = getSetting("claude_model") || process.env.CLAUDE_MODEL || "claude-sonnet-4-20250514";
+  const seekersCacheDir = getSetting("seekers_cache_dir") || process.env.SEEKERS_CACHE_DIR || "./data/cache";
+
   const proc = spawn(pythonPath, [
     cliPath,
     "build",
@@ -52,6 +57,9 @@ export function startBuild(config: BuildConfig): ChildProcess {
     env: {
       ...process.env,
       PYTHONUNBUFFERED: "1",
+      CLAUDE_API_KEY: claudeApiKey,
+      CLAUDE_MODEL: claudeModel,
+      SEEKERS_CACHE_DIR: seekersCacheDir,
     },
   });
 
