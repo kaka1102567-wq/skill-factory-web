@@ -48,8 +48,18 @@ export default function BuildDetailPage() {
   // Fetch initial build data
   useEffect(() => {
     fetch(`/api/builds/${buildId}`)
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) {
+          router.push("/");
+          return null;
+        }
+        return res.json();
+      })
       .then((data) => {
+        if (!data || data.error) {
+          router.push("/");
+          return;
+        }
         setBuild(data);
         if (data.review_data) {
           try {
@@ -60,8 +70,8 @@ export default function BuildDetailPage() {
         }
         setLoading(false);
       })
-      .catch(() => setLoading(false));
-  }, [buildId]);
+      .catch(() => router.push("/"));
+  }, [buildId, router]);
 
   // Update build from SSE state
   useEffect(() => {
@@ -82,18 +92,25 @@ export default function BuildDetailPage() {
   }, [finished, buildId]);
 
   const handleStop = async () => {
-    await fetch(`/api/builds/${buildId}/stop`, { method: "POST" });
-    const res = await fetch(`/api/builds/${buildId}`);
-    setBuild(await res.json());
+    try {
+      await fetch(`/api/builds/${buildId}/stop`, { method: "POST" });
+      const res = await fetch(`/api/builds/${buildId}`);
+      if (res.ok) setBuild(await res.json());
+    } catch {
+      // Network error — ignore, SSE will update state
+    }
   };
 
   const handleRetry = async () => {
     if (!build) return;
-    const res = await fetch(`/api/builds/${buildId}/retry`, {
-      method: "POST",
-    });
-    const result = await res.json();
-    router.push(`/build/${result.id}`);
+    try {
+      const res = await fetch(`/api/builds/${buildId}/retry`, { method: "POST" });
+      if (!res.ok) return;
+      const result = await res.json();
+      router.push(`/build/${result.id}`);
+    } catch {
+      // Network error
+    }
   };
 
   if (loading || !build) {
@@ -194,6 +211,14 @@ export default function BuildDetailPage() {
           )}
         </div>
       </div>
+
+      {/* SSE Disconnected Banner */}
+      {isActive && !connected && (
+        <div className="p-2 rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-xs text-yellow-400 flex items-center gap-2">
+          <WifiOff className="w-3.5 h-3.5" />
+          Mất kết nối live stream. Đang tự động kết nối lại...
+        </div>
+      )}
 
       {/* Error Message */}
       {isFailed && build.error_message && (

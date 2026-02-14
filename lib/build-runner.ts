@@ -2,6 +2,7 @@ import { spawn, ChildProcess } from "child_process";
 import path from "path";
 import { updateBuild, insertBuildLog, getBuild, getSetting } from "./db";
 import { sseManager } from "./sse-manager";
+import { notifyBuildComplete } from "./notifications";
 import type { PhaseId } from "@/types/build";
 
 // Track running processes globally (survives hot reload)
@@ -128,6 +129,11 @@ export function startBuild(config: BuildConfig): ChildProcess {
       package_path: build?.package_path,
       completed_at: now,
     });
+
+    // Send Telegram notification
+    if (build) {
+      notifyBuildComplete(build).catch(() => {});
+    }
 
     // Process queue: start next pending build
     const processQueue = (globalThis as Record<string, unknown>).__processQueue as (() => void) | undefined;

@@ -1,36 +1,104 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Skill Factory Web
 
-## Getting Started
+Bien raw data thanh production-ready AI skills qua giao dien web.
 
-First, run the development server:
+## Quick Start
+
+### Prerequisites
+- Node.js 20+
+- Python 3.11+
+- PM2 (auto-installed by deploy script)
+
+### Deploy
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+# 1. Clone/upload project
+cd /opt/skill-factory-web
+
+# 2. Create .env.local
+cp .env.example .env.local
+# Edit: set FACTORY_PASSWORD, API keys
+
+# 3. Deploy
+chmod +x deploy.sh
+./deploy.sh
+
+# 4. Access
+# http://YOUR_IP:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Nginx (Optional — for domain + SSL)
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```nginx
+server {
+    listen 80;
+    server_name factory.xs10k.com;
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+    location / {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_cache_bypass $http_upgrade;
 
-## Learn More
+        # CRITICAL for SSE streaming:
+        proxy_buffering off;
+        proxy_cache off;
+        proxy_read_timeout 86400s;
+    }
+}
+```
 
-To learn more about Next.js, take a look at the following resources:
+Then: `sudo certbot --nginx -d factory.xs10k.com`
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Usage Guide (for Team)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Tao Build Moi
+1. Login bang mat khau team
+2. Click **"New Build"**
+3. Chon template (FB Ads / Google Ads / Blockchain / Custom)
+4. Dat ten, chon quality tier
+5. Upload transcripts hoac paste URLs
+6. Review > **"Bat dau Build"**
 
-## Deploy on Vercel
+### Theo Doi Build
+- Dashboard: xem tat ca builds + stats
+- Click vao build card > Live View:
+  - Phase stepper (P0>P5)
+  - Real-time logs
+  - Quality scores per phase
+- Build xong > Quality Report + Download .zip
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### Tips
+- **Quality tier**: Draft (~5 phut, $2-3) vs Standard (~15 phut, $5-10) vs Premium (~30 phut, $15-25)
+- **Conflict review**: Neu build tam dung > vao review, chon Keep A/B/Merge/Discard cho tung conflict
+- **Retry**: Build fail > click Retry > tao build moi voi cung config
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Troubleshooting
+
+| Issue | Solution |
+|-------|----------|
+| Login khong duoc | Check FACTORY_PASSWORD trong .env.local |
+| Build stuck | Check `pm2 logs skill-factory`, verify Python path |
+| SSE khong hoat dong | Nginx: them `proxy_buffering off;` |
+| Database locked | Restart: `pm2 restart skill-factory` |
+| Disk full | Settings > Cleanup Now, hoac giam auto_cleanup_days |
+
+## Architecture
+
+```
+Browser <-> Next.js (API + SSE) <-> Python CLI (subprocess)
+                |
+            SQLite (data/skill-factory.db)
+```
+
+## Commands
+
+```bash
+pm2 status              # Check process status
+pm2 logs skill-factory  # View logs
+pm2 restart skill-factory  # Restart
+pm2 stop skill-factory  # Stop
+```
