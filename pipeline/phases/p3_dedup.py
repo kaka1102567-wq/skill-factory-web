@@ -1,7 +1,9 @@
 """Phase 3 — Dedup: Deduplicate atoms and detect conflicts via Claude."""
 
 import json
+import re
 import time
+from collections import Counter
 from datetime import datetime, timezone
 
 from ..core.types import BuildConfig, PhaseResult, KnowledgeAtom, Conflict
@@ -50,6 +52,20 @@ def run_p3(config: BuildConfig, claude: ClaudeClient,
 
         logger.info(f"Deduplicating {len(raw_atoms)} raw atoms", phase=phase_id)
 
+        # ── Cross-source dedup (transcript vs baseline) ──
+        cross_result = _cross_source_dedup(raw_atoms, logger)
+        raw_atoms = cross_result["atoms"]
+        cross_conflicts = cross_result["conflicts"]
+        cross_stats = cross_result["stats"]
+
+        if cross_stats["total_actions"] > 0:
+            logger.info(
+                f"Cross-source: {cross_stats['duplicates_merged']} merged, "
+                f"{cross_stats['contradictions_flagged']} conflicts, "
+                f"{cross_stats['outdated_replaced']} outdated replaced",
+                phase=phase_id,
+            )
+
         # Group atoms by category
         groups = {}
         for atom in raw_atoms:
@@ -58,7 +74,7 @@ def run_p3(config: BuildConfig, claude: ClaudeClient,
 
         all_unique_atoms = []
         all_conflicts = []
-        total_duplicates = 0
+        total_duplicates = cross_stats["duplicates_merged"]
         total_groups = len(groups)
 
         for gi, (category, atoms) in enumerate(groups.items()):
@@ -141,12 +157,18 @@ def run_p3(config: BuildConfig, claude: ClaudeClient,
 
         # Save outputs
         dedup_path = f"{config.output_dir}/atoms_deduplicated.json"
-        write_json({
+        dedup_output = {
             "atoms": all_unique_atoms,
             "total_atoms": len(all_unique_atoms),
             "duplicates_merged": total_duplicates,
             "score": round(score, 1),
-        }, dedup_path)
+        }
+        if cross_conflicts:
+            dedup_output["conflict_summary"] = {
+                "conflicts": cross_conflicts,
+                "stats": cross_stats,
+            }
+        write_json(dedup_output, dedup_path)
 
         conflicts_path = f"{config.output_dir}/conflicts.json"
         conflicts_data = [c.to_dict() for c in all_conflicts]
@@ -159,16 +181,40 @@ def run_p3(config: BuildConfig, claude: ClaudeClient,
 
         output_files = [dedup_path, conflicts_path]
 
+        # Log summary
+        input_count = raw_data.get("total_atoms", len(raw_atoms))
+        parts = []
+        if total_duplicates > 0:
+            parts.append(f"{total_duplicates} merged")
+        if cross_stats["contradictions_flagged"] > 0:
+            parts.append(
+                f"{cross_stats['contradictions_flagged']} conflict flagged"
+            )
+        if cross_stats["outdated_replaced"] > 0:
+            parts.append(
+                f"{cross_stats['outdated_replaced']} outdated replaced"
+            )
+        detail = ", ".join(parts) if parts else "no changes"
+        logger.info(
+            f"Dedup: {input_count} -> {len(all_unique_atoms)} atoms"
+            f" ({detail})",
+            phase=phase_id,
+        )
+
         # Emit conflict event if unresolved conflicts exist → pipeline PAUSES
         if unresolved:
             logger.warn(
-                f"{len(unresolved)} unresolved conflicts detected — pausing for review",
+                f"{len(unresolved)} unresolved conflicts detected"
+                " — pausing for review",
                 phase=phase_id,
             )
             logger.report_conflicts([c.to_dict() for c in unresolved])
 
         logger.phase_progress(phase_id, phase_name, 95)
-        logger.phase_complete(phase_id, phase_name, score=score, atoms_count=len(all_unique_atoms))
+        logger.phase_complete(
+            phase_id, phase_name,
+            score=score, atoms_count=len(all_unique_atoms),
+        )
 
         cost = claude.get_cost_summary()
         return PhaseResult(
@@ -180,12 +226,15 @@ def run_p3(config: BuildConfig, claude: ClaudeClient,
             tokens_used=cost["input_tokens"] + cost["output_tokens"],
             output_files=output_files,
             metrics={
-                "input_atoms": len(raw_atoms),
+                "input_atoms": raw_data.get("total_atoms", len(raw_atoms)),
                 "output_atoms": len(all_unique_atoms),
                 "duplicates_merged": total_duplicates,
                 "conflicts_total": len(all_conflicts),
                 "conflicts_unresolved": len(unresolved),
                 "is_paused": len(unresolved) > 0,
+                "cross_source_duplicates": cross_stats["duplicates_merged"],
+                "cross_source_contradictions": cross_stats["contradictions_flagged"],
+                "cross_source_outdated": cross_stats["outdated_replaced"],
             },
         )
 
@@ -205,3 +254,227 @@ def _find_atom(atoms: list[dict], atom_id: str) -> dict:
         if a.get("id") == atom_id:
             return a
     return {"id": atom_id, "title": "Unknown", "content": ""}
+
+
+# ── Cross-source dedup helpers ──
+
+STOP_WORDS = frozenset({
+    "the", "a", "an", "is", "are", "was", "were", "be", "been", "and",
+    "or", "not", "in", "on", "at", "to", "for", "of", "with", "by",
+    "this", "that", "it", "as", "if", "but", "so", "than", "from",
+    "là", "và", "của", "cho", "với", "trong", "khi", "để", "từ",
+    "các", "một", "có", "được", "không", "này", "đó", "về", "theo",
+    "như", "cũng", "hoặc", "nếu", "thì", "hay", "do", "vì", "bởi",
+})
+
+NEGATION_WORDS = frozenset({
+    "not", "no", "never", "none", "without", "cannot", "can't",
+    "don't", "doesn't", "isn't", "aren't", "won't", "shouldn't",
+    "không", "chưa", "chẳng", "không có", "không nên", "không thể",
+    "đừng", "hết", "thiếu",
+})
+
+
+def _extract_keywords(text: str) -> set[str]:
+    """Extract keyword set from text (title + content)."""
+    words = re.findall(r'\b\w{3,}\b', text.lower())
+    return {w for w in words if w not in STOP_WORDS and not w.isdigit()}
+
+
+def _keyword_overlap(kw_a: set, kw_b: set) -> float:
+    """Calculate keyword overlap ratio (0.0 - 1.0)."""
+    if not kw_a or not kw_b:
+        return 0.0
+    intersection = len(kw_a & kw_b)
+    smaller = min(len(kw_a), len(kw_b))
+    return intersection / smaller if smaller > 0 else 0.0
+
+
+def _extract_numbers(text: str) -> set[str]:
+    """Extract all numbers from text."""
+    return set(re.findall(r'\b\d+(?:\.\d+)?%?\b', text))
+
+
+def _has_negation(text: str) -> bool:
+    """Check if text contains negation words."""
+    text_lower = text.lower()
+    return any(neg in text_lower for neg in NEGATION_WORDS)
+
+
+def _detect_issue_type(
+    atom_t: dict, atom_b: dict, overlap: float,
+) -> str | None:
+    """Detect issue type between a transcript and baseline atom pair.
+
+    Returns: "duplicate", "contradiction", "outdated", or None.
+    """
+    if overlap < 0.4:
+        return None
+
+    text_t = atom_t.get("content", "")
+    text_b = atom_b.get("content", "")
+
+    # DUPLICATE: >= 60% keyword overlap
+    if overlap >= 0.6:
+        return "duplicate"
+
+    # CONTRADICTION: 40-60% overlap + negation or number mismatch
+    if 0.4 <= overlap < 0.6:
+        neg_t = _has_negation(text_t)
+        neg_b = _has_negation(text_b)
+        if neg_t != neg_b:
+            return "contradiction"
+
+        nums_t = _extract_numbers(text_t)
+        nums_b = _extract_numbers(text_b)
+        if nums_t and nums_b and nums_t != nums_b:
+            # Same topic with different numbers → could be outdated or contradiction
+            if atom_b.get("gap_filled"):
+                return "outdated"
+            return "contradiction"
+
+    return None
+
+
+def _cross_source_dedup(
+    atoms: list[dict], logger,
+) -> dict:
+    """Compare transcript vs baseline atoms, detect issues.
+
+    Returns dict with:
+      - atoms: cleaned atom list (after merges/replacements)
+      - conflicts: list of conflict entries
+      - stats: summary counts
+    """
+    phase_id = "p3"
+
+    transcript_atoms = [
+        a for a in atoms if a.get("source", "transcript") == "transcript"
+    ]
+    baseline_atoms = [
+        a for a in atoms if a.get("source") == "baseline"
+    ]
+
+    # No cross-source comparison needed
+    if not transcript_atoms or not baseline_atoms:
+        return {
+            "atoms": atoms,
+            "conflicts": [],
+            "stats": _empty_stats(),
+        }
+
+    # Pre-compute keywords
+    kw_map = {}
+    for a in atoms:
+        text = f"{a.get('title', '')} {a.get('content', '')}"
+        kw_map[a.get("id", "")] = _extract_keywords(text)
+
+    conflicts = []
+    merged_ids = set()
+    replaced_ids = set()
+    stats = _empty_stats()
+
+    for at in transcript_atoms:
+        at_id = at.get("id", "")
+        if at_id in merged_ids or at_id in replaced_ids:
+            continue
+
+        for ab in baseline_atoms:
+            ab_id = ab.get("id", "")
+            if ab_id in merged_ids or ab_id in replaced_ids:
+                continue
+
+            kw_a = kw_map.get(at_id, set())
+            kw_b = kw_map.get(ab_id, set())
+            overlap = _keyword_overlap(kw_a, kw_b)
+
+            issue = _detect_issue_type(at, ab, overlap)
+            if not issue:
+                continue
+
+            if issue == "duplicate":
+                # Keep higher confidence atom, mark other for removal
+                conf_t = float(at.get("confidence", 0))
+                conf_b = float(ab.get("confidence", 0))
+                if conf_t >= conf_b:
+                    merged_ids.add(ab_id)
+                    keeper = at_id
+                else:
+                    merged_ids.add(at_id)
+                    keeper = ab_id
+
+                conflicts.append({
+                    "type": "duplicate",
+                    "atom_a": at_id,
+                    "atom_b": ab_id,
+                    "action": "merged",
+                    "kept": keeper,
+                    "overlap": round(overlap, 2),
+                })
+                stats["duplicates_merged"] += 1
+                title = at.get("title", "")[:50]
+                logger.debug(
+                    f"Merged: '{title}' (transcript + baseline)",
+                    phase=phase_id,
+                )
+                break  # transcript atom handled
+
+            elif issue == "contradiction":
+                at["conflict_type"] = "contradiction"
+                at["conflict_pair"] = [at_id, ab_id]
+                ab["conflict_type"] = "contradiction"
+                ab["conflict_pair"] = [at_id, ab_id]
+
+                conflicts.append({
+                    "type": "contradiction",
+                    "atom_a": at_id,
+                    "atom_b": ab_id,
+                    "action": "flagged",
+                })
+                stats["contradictions_flagged"] += 1
+                logger.debug(
+                    f"Conflict: '{at.get('title', '')[:40]}' "
+                    f"vs '{ab.get('title', '')[:40]}'",
+                    phase=phase_id,
+                )
+
+            elif issue == "outdated":
+                replaced_ids.add(at_id)
+                conflicts.append({
+                    "type": "outdated",
+                    "atom_a": at_id,
+                    "atom_b": ab_id,
+                    "action": "replaced_by_baseline",
+                })
+                stats["outdated_replaced"] += 1
+                logger.debug(
+                    f"Outdated: '{at.get('title', '')[:50]}'"
+                    " -> using baseline version",
+                    phase=phase_id,
+                )
+                break  # transcript atom replaced
+
+    stats["total_actions"] = (
+        stats["duplicates_merged"]
+        + stats["contradictions_flagged"]
+        + stats["outdated_replaced"]
+    )
+
+    # Build cleaned atom list
+    remove_ids = merged_ids | replaced_ids
+    cleaned = [a for a in atoms if a.get("id", "") not in remove_ids]
+
+    return {
+        "atoms": cleaned,
+        "conflicts": conflicts,
+        "stats": stats,
+    }
+
+
+def _empty_stats() -> dict:
+    return {
+        "duplicates_merged": 0,
+        "contradictions_flagged": 0,
+        "outdated_replaced": 0,
+        "total_actions": 0,
+    }
