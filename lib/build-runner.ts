@@ -219,6 +219,11 @@ function handleParsedLog(buildId: string, parsed: Record<string, unknown>): void
       score,
       pass,
       atoms_count: parsed.atoms_count,
+      // Include aggregate fields so frontend gets real-time updates
+      quality_score: parsed.quality_score,
+      atoms_extracted: parsed.atoms_extracted,
+      atoms_deduplicated: parsed.atoms_deduplicated,
+      atoms_verified: parsed.atoms_verified,
       timestamp,
     });
 
@@ -234,9 +239,14 @@ function handleParsedLog(buildId: string, parsed: Record<string, unknown>): void
       api_cost_usd: parsed.api_cost_usd as number,
       tokens_used: (parsed.tokens_used as number) || 0,
     });
+    sseManager.broadcast(buildId, "cost", {
+      api_cost_usd: parsed.api_cost_usd,
+      tokens_used: parsed.tokens_used,
+      timestamp,
+    });
   }
 
-  if (event === "conflict") {
+  if (event === "conflict" && ((parsed.count as number) || 0) > 0) {
     updateBuild(buildId, {
       status: "paused",
       review_status: "pending",
