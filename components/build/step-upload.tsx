@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
-import { FileText, Link2, FileDown, Trash2, Upload, AlertCircle } from "lucide-react";
+import { FileText, Link2, FileDown, Trash2, Upload, AlertCircle, Github } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -15,11 +15,15 @@ const MAX_PDF_FILES = 5;
 interface StepUploadProps {
   files: File[];
   urls: string[];
+  githubRepo: string;
+  githubAnalyzeCode: boolean;
   onFilesChange: (files: File[]) => void;
   onUrlsChange: (urls: string[]) => void;
+  onGithubRepoChange: (url: string) => void;
+  onGithubAnalyzeCodeChange: (val: boolean) => void;
 }
 
-export function StepUpload({ files, urls, onFilesChange, onUrlsChange }: StepUploadProps) {
+export function StepUpload({ files, urls, githubRepo, githubAnalyzeCode, onFilesChange, onUrlsChange, onGithubRepoChange, onGithubAnalyzeCodeChange }: StepUploadProps) {
   const [dragOverTranscript, setDragOverTranscript] = useState(false);
   const [dragOverPdf, setDragOverPdf] = useState(false);
   const transcriptRef = useRef<HTMLInputElement>(null);
@@ -68,7 +72,8 @@ export function StepUpload({ files, urls, onFilesChange, onUrlsChange }: StepUpl
 
   const validUrls = urls.filter((u) => u.trim().match(/^https?:\/\/.+/));
   const totalSize = files.reduce((sum, f) => sum + f.size, 0);
-  const sourceCount = transcripts.length + validUrls.length + pdfs.length;
+  const hasGithub = githubRepo.trim().includes("github.com");
+  const sourceCount = transcripts.length + validUrls.length + pdfs.length + (hasGithub ? 1 : 0);
 
   return (
     <div className="space-y-6">
@@ -179,15 +184,51 @@ export function StepUpload({ files, urls, onFilesChange, onUrlsChange }: StepUpl
         </div>
       </div>
 
+      {/* GitHub Repository section */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <Github className="w-4 h-4 text-purple-400" />
+          <span className="text-sm font-medium text-foreground">GitHub Repository</span>
+        </div>
+        <input
+          type="text"
+          value={githubRepo}
+          onChange={(e) => onGithubRepoChange(e.target.value)}
+          placeholder="https://github.com/user/my-project"
+          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+        />
+        {githubRepo.trim() && (
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={githubAnalyzeCode}
+              onChange={(e) => onGithubAnalyzeCodeChange(e.target.checked)}
+              className="rounded border-border"
+            />
+            <span className="text-xs text-muted-foreground">
+              Analyze source code (extract code patterns)
+            </span>
+          </label>
+        )}
+        <div className="flex items-start gap-1.5">
+          <AlertCircle className="w-3.5 h-3.5 text-muted-foreground mt-0.5 shrink-0" />
+          <p className="text-xs text-muted-foreground">
+            Public repos only. Code will be analyzed by AI to extract patterns. Large repos (&gt;1000 files) may take longer.
+          </p>
+        </div>
+      </div>
+
       {/* Summary */}
       {sourceCount > 0 && (
         <div className="rounded-lg bg-muted/50 p-3 border border-border">
           <p className="text-xs text-muted-foreground">
             {transcripts.length > 0 && `${transcripts.length} transcript(s)`}
-            {transcripts.length > 0 && (validUrls.length > 0 || pdfs.length > 0) && " + "}
+            {transcripts.length > 0 && (validUrls.length > 0 || pdfs.length > 0 || hasGithub) && " + "}
             {validUrls.length > 0 && `${validUrls.length} URL(s)`}
-            {validUrls.length > 0 && pdfs.length > 0 && " + "}
+            {validUrls.length > 0 && (pdfs.length > 0 || hasGithub) && " + "}
             {pdfs.length > 0 && `${pdfs.length} PDF(s)`}
+            {pdfs.length > 0 && hasGithub && " + "}
+            {hasGithub && "1 repo"}
             {" = "}
             <span className="text-foreground font-medium">{sourceCount} source(s)</span>
             {totalSize > 0 && ` (${(totalSize / 1024 / 1024).toFixed(1)} MB)`}

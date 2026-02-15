@@ -39,6 +39,8 @@ export function BuildWizard() {
   // Step 4 state (Upload)
   const [files, setFiles] = useState<File[]>([]);
   const [urls, setUrls] = useState<string[]>([""]);
+  const [githubRepo, setGithubRepo] = useState("");
+  const [githubAnalyzeCode, setGithubAnalyzeCode] = useState(true);
 
   // Step 5 state
   const [confirmed, setConfirmed] = useState(false);
@@ -60,7 +62,7 @@ export function BuildWizard() {
       case 0: return selectedTemplate !== null;
       case 1: return config.name.trim().length >= 3;
       case 2: return true; // Data Sources is always optional
-      case 3: return files.length > 0 || urls.some((u) => u.trim().match(/^https?:\/\/.+/));
+      case 3: return files.length > 0 || urls.some((u) => u.trim().match(/^https?:\/\/.+/)) || githubRepo.trim().includes("github.com");
       case 4: return confirmed;
       default: return false;
     }
@@ -91,6 +93,8 @@ export function BuildWizard() {
       const inputUrls = urls.filter((u) => u.trim().match(/^https?:\/\/.+/));
 
       // Create build
+      const githubUrl = githubRepo.trim().includes("github.com") ? githubRepo.trim() : "";
+
       const body = {
         name: config.name,
         domain: selectedTemplate.domain,
@@ -103,6 +107,8 @@ export function BuildWizard() {
         seekers_output_dir: dataSources.seekersOutputDir || undefined,
         auto_scrape: dataSources.autoScrape,
         files: uploadedPaths,
+        github_repo: githubUrl || undefined,
+        github_analyze_code: githubAnalyzeCode,
       };
 
       const res = await fetch("/api/builds", {
@@ -185,8 +191,12 @@ export function BuildWizard() {
           <StepUpload
             files={files}
             urls={urls}
+            githubRepo={githubRepo}
+            githubAnalyzeCode={githubAnalyzeCode}
             onFilesChange={setFiles}
             onUrlsChange={setUrls}
+            onGithubRepoChange={setGithubRepo}
+            onGithubAnalyzeCodeChange={setGithubAnalyzeCode}
           />
         )}
         {step === 4 && (
@@ -203,6 +213,7 @@ export function BuildWizard() {
               urlCount: urls.filter((u) => u.trim()).length,
               autoScrape: dataSources.autoScrape,
               baselineUrlCount: dataSources.baselineUrls.filter((u) => u.trim()).length,
+              githubRepo: githubRepo.trim().includes("github.com") ? githubRepo.trim() : undefined,
             }}
             confirmed={confirmed}
             onConfirmChange={setConfirmed}
