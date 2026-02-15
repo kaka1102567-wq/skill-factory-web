@@ -13,9 +13,21 @@ import {
   DollarSign,
   Wifi,
   WifiOff,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import {
   cn,
   formatCost,
@@ -108,6 +120,15 @@ export default function BuildDetailPage() {
       if (!res.ok) return;
       const result = await res.json();
       router.push(`/build/${result.id}`);
+    } catch {
+      // Network error
+    }
+  };
+
+  const handleDelete = async () => {
+    try {
+      const res = await fetch(`/api/builds/${buildId}`, { method: "DELETE" });
+      if (res.ok) router.push("/");
     } catch {
       // Network error
     }
@@ -208,6 +229,33 @@ export default function BuildDetailPage() {
                 <Download className="w-3.5 h-3.5" /> Download .zip
               </Button>
             </a>
+          )}
+          {!isActive && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="ghost" size="sm" className="gap-1.5 text-zinc-500 hover:text-red-400">
+                  <Trash2 className="w-3.5 h-3.5" /> Delete
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete build?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Build &ldquo;{build.name}&rdquo; will be permanently deleted,
+                    including all output files and logs. This cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={handleDelete}
+                    className="bg-red-600 hover:bg-red-700"
+                  >
+                    Delete
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           )}
         </div>
       </div>

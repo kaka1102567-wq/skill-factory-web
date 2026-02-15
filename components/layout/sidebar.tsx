@@ -1,12 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard, PlusCircle, FolderOpen,
-  Package, Database, Settings, Factory, ChevronLeft, ChevronRight
+  Package, Database, Settings, Factory, ChevronLeft, ChevronRight, X
 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { cn, getStatusColor } from "@/lib/utils";
 import type { Build } from "@/types/build";
 
@@ -21,15 +21,39 @@ const NAV_ITEMS = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
   const [recentBuilds, setRecentBuilds] = useState<Build[]>([]);
 
-  useEffect(() => {
+  const fetchRecentBuilds = useCallback(() => {
     fetch("/api/builds?limit=5")
       .then((res) => res.json())
       .then((data) => setRecentBuilds(Array.isArray(data) ? data.slice(0, 5) : []))
       .catch(() => {});
-  }, [pathname]);
+  }, []);
+
+  useEffect(() => {
+    fetchRecentBuilds();
+  }, [pathname, fetchRecentBuilds]);
+
+  const handleDelete = async (e: React.MouseEvent, build: Build) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (["running", "queued"].includes(build.status)) return;
+    if (!confirm(`Delete build "${build.name}"?`)) return;
+
+    try {
+      const res = await fetch(`/api/builds/${build.id}`, { method: "DELETE" });
+      if (res.ok) {
+        setRecentBuilds((prev) => prev.filter((b) => b.id !== build.id));
+        if (pathname === `/build/${build.id}`) {
+          router.push("/");
+        }
+      }
+    } catch {
+      // Network error
+    }
+  };
 
   return (
     <aside
@@ -86,24 +110,37 @@ export function Sidebar() {
             <p className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
               Recent Builds
             </p>
-            {recentBuilds.map((build) => (
-              <Link
-                key={build.id}
-                href={`/build/${build.id}`}
-                className="flex items-center justify-between px-3 py-2 rounded-lg text-xs hover:bg-accent transition-colors group"
-              >
-                <span className="text-muted-foreground group-hover:text-foreground truncate">
-                  {build.name}
-                </span>
-                <span className={cn("font-mono text-xs", getStatusColor(build.status))}>
-                  {build.status === "completed" && build.quality_score
-                    ? `${Math.round(build.quality_score)}%`
-                    : build.status === "running"
-                    ? `${build.phase_progress}%`
-                    : build.status.charAt(0).toUpperCase()}
-                </span>
-              </Link>
-            ))}
+            {recentBuilds.map((build) => {
+              const canDelete = !["running", "queued"].includes(build.status);
+              return (
+                <div key={build.id} className="group relative">
+                  <Link
+                    href={`/build/${build.id}`}
+                    className="flex items-center justify-between px-3 py-2 rounded-lg text-xs hover:bg-accent transition-colors"
+                  >
+                    <span className="text-muted-foreground group-hover:text-foreground truncate pr-6">
+                      {build.name}
+                    </span>
+                    <span className={cn("font-mono text-xs shrink-0", getStatusColor(build.status))}>
+                      {build.status === "completed" && build.quality_score
+                        ? `${Math.round(build.quality_score)}%`
+                        : build.status === "running"
+                        ? `${build.phase_progress}%`
+                        : build.status.charAt(0).toUpperCase()}
+                    </span>
+                  </Link>
+                  {canDelete && (
+                    <button
+                      onClick={(e) => handleDelete(e, build)}
+                      className="absolute right-8 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-zinc-700 text-zinc-500 hover:text-red-400 transition-all"
+                      title="Delete build"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </nav>
