@@ -1,8 +1,10 @@
 import { spawn, ChildProcess } from "child_process";
 import path from "path";
+import fs from "fs";
 import { updateBuild, insertBuildLog, getBuild, getSetting } from "./db";
 import { sseManager } from "./sse-manager";
 import { notifyBuildComplete } from "./notifications";
+import { parseYamlValue, baselineExists, findSeekersConfig, spawnScrape } from "./baseline-scraper";
 import type { PhaseId } from "@/types/build";
 
 // Track running processes globally (survives hot reload)
@@ -44,14 +46,67 @@ export function startBuild(config: BuildConfig): ChildProcess {
   insertBuildLog(config.id, startLog);
   sseManager.broadcast(config.id, "log", { ...startLog, timestamp: new Date().toISOString() });
 
-  // Read API keys and pipeline settings from Settings DB
+  // ─── Pre-scrape baseline if needed ──────────────────
+  try {
+    const configContent = fs.readFileSync(config.configPath, "utf-8");
+    const seekersDir = parseYamlValue(configContent, "seekers_output_dir");
+    const domain = parseYamlValue(configContent, "domain");
+    const seekersConfig = seekersDir && !baselineExists(seekersDir) ? findSeekersConfig(domain) : null;
+
+    if (seekersConfig) {
+      const scrapeMsg = `Pre-scraping baseline for domain "${domain}"...`;
+      insertBuildLog(config.id, { level: "info", message: scrapeMsg });
+      sseManager.broadcast(config.id, "log", { level: "info", message: scrapeMsg, timestamp: new Date().toISOString() });
+
+      const scrapeProc = spawnScrape(seekersDir, seekersConfig);
+      runningProcesses.set(config.id, scrapeProc);
+
+      scrapeProc.stdout?.on("data", (chunk: Buffer) => {
+        const msg = chunk.toString().trim();
+        if (msg) handlePlainLog(config.id, msg, "debug");
+      });
+      scrapeProc.stderr?.on("data", (chunk: Buffer) => {
+        const msg = chunk.toString().trim();
+        if (msg) handlePlainLog(config.id, msg, "debug");
+      });
+
+      scrapeProc.on("exit", (code) => {
+        const ok = code === 0 && baselineExists(seekersDir);
+        const msg = ok
+          ? "Baseline scraped successfully"
+          : `Baseline scrape ${code === 0 ? "produced no output" : `failed (code ${code})`}, continuing without pre-scraped baseline...`;
+        insertBuildLog(config.id, { level: ok ? "info" : "warn", message: msg });
+        sseManager.broadcast(config.id, "log", { level: ok ? "info" : "warn", message: msg, timestamp: new Date().toISOString() });
+        _spawnPipeline(config, pythonPath, cliPath);
+      });
+
+      scrapeProc.on("error", (err) => {
+        const msg = `Baseline scrape error: ${err.message}, continuing...`;
+        insertBuildLog(config.id, { level: "warn", message: msg });
+        sseManager.broadcast(config.id, "log", { level: "warn", message: msg, timestamp: new Date().toISOString() });
+        _spawnPipeline(config, pythonPath, cliPath);
+      });
+
+      return scrapeProc;
+    }
+  } catch (err) {
+    const msg = `Pre-scrape check failed: ${err instanceof Error ? err.message : err}, continuing...`;
+    console.warn(`[BUILD] ${msg}`);
+    insertBuildLog(config.id, { level: "warn", message: msg });
+  }
+
+  return _spawnPipeline(config, pythonPath, cliPath);
+}
+
+// ─── Pipeline Spawn (extracted for pre-scrape chaining) ─
+
+function _spawnPipeline(config: BuildConfig, pythonPath: string, cliPath: string): ChildProcess {
   const claudeApiKey = getSetting("claude_api_key") || process.env.CLAUDE_API_KEY || "";
   const claudeModel = getSetting("claude_model") || process.env.CLAUDE_MODEL || "claude-sonnet-4-20250514";
   const seekersCacheDir = getSetting("seekers_cache_dir") || process.env.SEEKERS_CACHE_DIR || "./data/cache";
 
   const proc = spawn(pythonPath, [
-    cliPath,
-    "build",
+    cliPath, "build",
     "--config", config.configPath,
     "--output", config.outputDir,
     "--json-logs",
@@ -69,39 +124,30 @@ export function startBuild(config: BuildConfig): ChildProcess {
 
   runningProcesses.set(config.id, proc);
 
-  // ─── STDOUT: Parse JSON log lines ─────────────────
   let stdoutBuffer = "";
-
   proc.stdout.on("data", (chunk: Buffer) => {
     stdoutBuffer += chunk.toString();
     const lines = stdoutBuffer.split("\n");
     stdoutBuffer = lines.pop() || "";
-
     for (const line of lines) {
       const trimmed = line.trim();
       if (!trimmed) continue;
-
       try {
-        const parsed = JSON.parse(trimmed);
-        handleParsedLog(config.id, parsed);
+        handleParsedLog(config.id, JSON.parse(trimmed));
       } catch {
         handlePlainLog(config.id, trimmed);
       }
     }
   });
 
-  // ─── STDERR: Capture errors ───────────────────────
   let stderrBuffer = "";
-
   proc.stderr.on("data", (chunk: Buffer) => {
     stderrBuffer += chunk.toString();
     const lines = stderrBuffer.split("\n");
     stderrBuffer = lines.pop() || "";
-
     for (const line of lines) {
       const trimmed = line.trim();
       if (!trimmed) continue;
-
       if (trimmed.includes("DeprecationWarning") || trimmed.includes("FutureWarning")) {
         handlePlainLog(config.id, trimmed, "debug");
       } else {
@@ -110,16 +156,13 @@ export function startBuild(config: BuildConfig): ChildProcess {
     }
   });
 
-  // ─── EXIT: Process completed ──────────────────────
   proc.on("exit", (code, signal) => {
     runningProcesses.delete(config.id);
-
     if (stdoutBuffer.trim()) handlePlainLog(config.id, stdoutBuffer.trim());
     if (stderrBuffer.trim()) handlePlainLog(config.id, stderrBuffer.trim(), "error");
 
     const status = code === 0 ? "completed" : "failed";
     const now = new Date().toISOString();
-
     console.log(`[BUILD] Build ${config.id} exited: code=${code}, signal=${signal}`);
 
     updateBuild(config.id, {
@@ -142,38 +185,22 @@ export function startBuild(config: BuildConfig): ChildProcess {
       completed_at: now,
     });
 
-    // Send Telegram notification
-    if (build) {
-      notifyBuildComplete(build).catch(() => {});
-    }
+    if (build) notifyBuildComplete(build).catch(() => {});
 
-    // Process queue: start next pending build
     const processQueue = (globalThis as Record<string, unknown>).__processQueue as (() => void) | undefined;
-    if (processQueue) {
-      processQueue();
-    }
+    if (processQueue) processQueue();
   });
 
-  // ─── ERROR: Spawn failure ────────────────────────
   proc.on("error", (err) => {
     runningProcesses.delete(config.id);
     console.error(`[BUILD] Spawn error for ${config.id}:`, err.message);
-
     updateBuild(config.id, {
       status: "failed",
       completed_at: new Date().toISOString(),
       error_message: `Spawn error: ${err.message}`,
     });
-
-    insertBuildLog(config.id, {
-      level: "error",
-      message: `Failed to start build: ${err.message}`,
-    });
-
-    sseManager.broadcast(config.id, "error", {
-      message: err.message,
-      retryable: true,
-    });
+    insertBuildLog(config.id, { level: "error", message: `Failed to start build: ${err.message}` });
+    sseManager.broadcast(config.id, "error", { message: err.message, retryable: true });
   });
 
   return proc;
