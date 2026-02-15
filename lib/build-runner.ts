@@ -116,6 +116,12 @@ function _preProcessInputs(config: BuildConfig, pythonPath: string, cliPath: str
     }
   }
 
+  // Parse github_repo from config.yaml
+  const githubRepoMatch = configContent.match(/^github_repo:\s*["']?(.+?)["']?\s*$/m);
+  const githubRepo = githubRepoMatch?.[1]?.trim() || "";
+  const noCodeMatch = configContent.match(/^github_analyze_code:\s*(false|no)/mi);
+  const analyzeCode = !noCodeMatch;
+
   // Check for PDFs in input dir
   const pdfFiles: string[] = [];
   if (fs.existsSync(inputDir)) {
@@ -126,8 +132,9 @@ function _preProcessInputs(config: BuildConfig, pythonPath: string, cliPath: str
 
   const hasUrls = urls.length > 0;
   const hasPdfs = pdfFiles.length > 0;
+  const hasGithub = githubRepo.length > 0;
 
-  if (!hasUrls && !hasPdfs) {
+  if (!hasUrls && !hasPdfs && !hasGithub) {
     return _spawnPipeline(config, pythonPath, cliPath);
   }
 
@@ -176,6 +183,18 @@ function _preProcessInputs(config: BuildConfig, pythonPath: string, cliPath: str
       const code = await runStep(`extracting ${pdfFiles.length} PDFs`, ["extract-pdf", "--input-dir", inputDir, "--output-dir", inputDir], 120_000);
       const lvl = code === 0 ? "info" : "warn";
       const msg = code === 0 ? `Extracted ${pdfFiles.length} PDFs` : `PDF extraction exited with code ${code}, continuing...`;
+      insertBuildLog(config.id, { level: lvl, message: msg });
+      sseManager.broadcast(config.id, "log", { level: lvl, phase: "pre", message: msg, timestamp: new Date().toISOString() });
+    }
+
+    if (hasGithub) {
+      const repoArgs = ["analyze-repo", "--repo", githubRepo, "--output-dir", inputDir];
+      if (!analyzeCode) repoArgs.push("--no-code");
+      const code = await runStep(`analyzing GitHub repo`, repoArgs, 180_000);
+      const lvl = code === 0 ? "info" : "warn";
+      const msg = code === 0
+        ? "GitHub repo analysis complete"
+        : `Repo analysis exited with code ${code}, continuing without code analysis...`;
       insertBuildLog(config.id, { level: lvl, message: msg });
       sseManager.broadcast(config.id, "log", { level: lvl, phase: "pre", message: msg, timestamp: new Date().toISOString() });
     }
