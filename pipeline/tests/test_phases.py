@@ -137,6 +137,65 @@ class TestP4Verify:
         result = run_p4(build_config, mock_claude, seekers_cache, seekers_lookup, logger)
         assert result.status == "failed"
 
+    def _setup_with_baseline(self, output_dir):
+        """Create P3 atoms + baseline_summary with matching references."""
+        atoms = [
+            {"id": "atom_0001", "title": "Facebook Pixel Setup",
+             "content": "Setup Facebook Pixel with base code, standard events, and conversions API",
+             "category": "tools", "tags": ["pixel", "setup"], "confidence": 0.9, "status": "deduplicated"},
+            {"id": "atom_0002", "title": "Quantum Computing Tips",
+             "content": "Quantum entanglement enables faster computation across qubits",
+             "category": "advanced", "tags": ["quantum"], "confidence": 0.85, "status": "deduplicated"},
+        ]
+        write_json({"atoms": atoms, "total_atoms": 2, "score": 85.0},
+                    os.path.join(output_dir, "atoms_deduplicated.json"))
+        write_json({
+            "source": "skill_seekers",
+            "references": [
+                {"path": "references/pixel-setup.md",
+                 "content": "Facebook Pixel is a piece of code. Setup involves base code installation, adding standard events like Purchase and AddToCart, and connecting the Conversions API for server-side tracking."},
+            ],
+        }, os.path.join(output_dir, "baseline_summary.json"))
+
+    def test_verify_evidence_found_has_details(self, build_config, mock_claude, logger, seekers_cache, seekers_lookup):
+        """Atoms matching baseline get detailed evidence with match_score."""
+        self._setup_with_baseline(build_config.output_dir)
+        build_config.quality_tier = "premium"  # 100% sample to test both atoms
+        result = run_p4(build_config, mock_claude, seekers_cache, seekers_lookup, logger)
+        assert result.status == "done"
+
+        verified_path = os.path.join(build_config.output_dir, "atoms_verified.json")
+        with open(verified_path) as f:
+            data = json.load(f)
+
+        # atom_0001 should have evidence (pixel/setup keywords match)
+        atom1 = next(a for a in data["atoms"] if a["id"] == "atom_0001")
+        assert "evidence" in atom1
+        ev = atom1["evidence"]
+        assert ev["found"] is True
+        assert "snippet" in ev
+        assert ev["match_score"] >= 40.0
+        assert isinstance(ev["keywords_matched"], list)
+        assert ev["keywords_total"] > 0
+
+    def test_verify_evidence_not_found_has_closest(self, build_config, mock_claude, logger, seekers_cache, seekers_lookup):
+        """Atoms not matching baseline get evidence with found=False."""
+        self._setup_with_baseline(build_config.output_dir)
+        build_config.quality_tier = "premium"  # 100% sample to test both atoms
+        result = run_p4(build_config, mock_claude, seekers_cache, seekers_lookup, logger)
+        assert result.status == "done"
+
+        verified_path = os.path.join(build_config.output_dir, "atoms_verified.json")
+        with open(verified_path) as f:
+            data = json.load(f)
+
+        # atom_0002 (quantum) should NOT match pixel docs
+        atom2 = next(a for a in data["atoms"] if a["id"] == "atom_0002")
+        assert "evidence" in atom2
+        ev = atom2["evidence"]
+        assert ev["found"] is False
+        assert "note" in ev
+
 
 class TestP5Build:
 

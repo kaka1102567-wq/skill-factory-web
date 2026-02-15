@@ -34,43 +34,81 @@ def _extract_keywords(text: str, max_kw: int = 10) -> list[str]:
     return sorted(freq, key=freq.get, reverse=True)[:max_kw]
 
 
-def _extract_snippet(content: str, keywords: list[str],
-                     context_chars: int = 200) -> str:
-    """Extract a relevant snippet around the first keyword match."""
+STRONG_THRESHOLD = 70.0
+WEAK_THRESHOLD = 40.0
+SNIPPET_CONTEXT = 200  # chars before + after match point
+
+
+def _extract_snippet_deep(content: str, keywords: list[str]) -> dict:
+    """Extract a snippet around the best keyword cluster with position info."""
     content_lower = content.lower()
+    # Find position of first matching keyword for snippet anchor
+    best_pos = -1
     for kw in keywords:
         pos = content_lower.find(kw)
         if pos >= 0:
-            start = max(0, pos - context_chars // 2)
-            end = min(len(content), pos + len(kw) + context_chars // 2)
-            snippet = content[start:end].strip()
-            if start > 0:
-                snippet = "..." + snippet
-            if end < len(content):
-                snippet = snippet + "..."
-            return snippet
-    return content[:context_chars] + "..."
+            best_pos = pos
+            break
+
+    if best_pos < 0:
+        return {"snippet": content[:SNIPPET_CONTEXT], "start": 0,
+                "end": min(len(content), SNIPPET_CONTEXT)}
+
+    start = max(0, best_pos - SNIPPET_CONTEXT)
+    end = min(len(content), best_pos + SNIPPET_CONTEXT)
+    snippet = content[start:end].strip()
+    if start > 0:
+        snippet = "..." + snippet
+    if end < len(content):
+        snippet = snippet + "..."
+    return {"snippet": snippet, "start": start, "end": end}
 
 
 def _search_baseline(atom_title: str, atom_content: str,
                      references: list[dict]) -> dict:
-    """Search baseline references for evidence matching atom content."""
+    """Deep evidence search with match scores and snippet extraction."""
     keywords = _extract_keywords(atom_title + " " + atom_content)
     if not keywords:
-        return {"found": False}
+        return {"found": False, "match_score": 0.0, "keywords_matched": [],
+                "keywords_total": 0}
+
+    total_kw = len(keywords)
+    best_ref = None
+    best_matched = []
+    best_score = 0.0
 
     for ref in references:
         ref_lower = ref["content"].lower()
-        matches = sum(1 for kw in keywords if kw in ref_lower)
-        if matches >= 3:
-            snippet = _extract_snippet(ref["content"], keywords)
-            return {
-                "found": True,
-                "file": ref["path"],
-                "snippet": snippet,
-                "match_count": matches,
-            }
-    return {"found": False}
+        matched = [kw for kw in keywords if kw in ref_lower]
+        score = (len(matched) / total_kw) * 100 if total_kw > 0 else 0.0
+        if score > best_score:
+            best_score = score
+            best_matched = matched
+            best_ref = ref
+
+    if best_score >= WEAK_THRESHOLD and best_ref:
+        snippet_info = _extract_snippet_deep(best_ref["content"], best_matched)
+        return {
+            "found": True,
+            "file": best_ref["path"],
+            "snippet": snippet_info["snippet"],
+            "snippet_start": snippet_info["start"],
+            "snippet_end": snippet_info["end"],
+            "match_score": round(best_score, 1),
+            "keywords_matched": best_matched,
+            "keywords_total": total_kw,
+        }
+
+    return {
+        "found": False,
+        "closest_file": best_ref["path"] if best_ref else None,
+        "closest_score": round(best_score, 1),
+        "keywords_matched": best_matched,
+        "keywords_total": total_kw,
+        "note": (f"Expert insight — closest match in "
+                 f"{best_ref['path'] if best_ref else 'none'} "
+                 f"but below threshold")
+    }
 
 
 def _load_skill_seekers_baseline(output_dir: str) -> list[dict] | None:
@@ -88,8 +126,9 @@ def _load_skill_seekers_baseline(output_dir: str) -> list[dict] | None:
 def _verify_with_skill_seekers(atoms_to_verify, ss_references, logger):
     """Verify atoms against skill-seekers baseline references."""
     phase_id = "p4"
-    verified_count = 0
-    unverified_count = 0
+    strong_count = 0
+    weak_count = 0
+    none_count = 0
     verified_ids = set()
 
     for i, atom in enumerate(atoms_to_verify):
@@ -100,39 +139,71 @@ def _verify_with_skill_seekers(atoms_to_verify, ss_references, logger):
         result = _search_baseline(atom_title, atom_content, ss_references)
 
         if result["found"]:
+            score = result["match_score"]
             atom["status"] = "verified"
             atom["confidence"] = min(
                 1.0, float(atom.get("confidence", 0.5)) + 0.05,
             )
             atom["verification_note"] = (
                 f"Verified against {result['file']} "
-                f"({result['match_count']} keyword matches)"
+                f"({len(result['keywords_matched'])}/{result['keywords_total']} "
+                f"keywords, {score}% match)"
             )
             atom["baseline_reference"] = result["file"]
             atom["evidence"] = {
+                "found": True,
                 "file": result["file"],
                 "snippet": result["snippet"],
+                "snippet_start": result["snippet_start"],
+                "snippet_end": result["snippet_end"],
+                "match_score": score,
+                "keywords_matched": result["keywords_matched"],
+                "keywords_total": result["keywords_total"],
             }
-            verified_count += 1
+            if score >= STRONG_THRESHOLD:
+                strong_count += 1
+            else:
+                weak_count += 1
         else:
             atom["status"] = "verified"
             atom["confidence"] = float(atom.get("confidence", 0.5))
             atom["verification_note"] = (
                 "Expert insight — not found in official docs"
             )
-            unverified_count += 1
+            atom["evidence"] = {
+                "found": False,
+                "closest_file": result.get("closest_file"),
+                "closest_score": result.get("closest_score", 0.0),
+                "note": result.get("note",
+                    "Expert insight — not found in official docs"),
+            }
+            none_count += 1
 
         verified_ids.add(atom_id)
 
-    total = verified_count + unverified_count
+    total = strong_count + weak_count + none_count
     if total > 0:
-        pct = int(verified_count / total * 100)
+        verified = strong_count + weak_count
+        pct = round(verified / total * 100, 1)
         logger.info(
-            f"Verified: {verified_count}/{total} atoms ({pct}%)",
+            f"Verified {verified}/{total} atoms ({pct}%)",
+            phase=phase_id,
+        )
+        logger.info(
+            f"  {strong_count} strong evidence (>={int(STRONG_THRESHOLD)}% match)",
+            phase=phase_id,
+        )
+        logger.info(
+            f"  {weak_count} weak evidence "
+            f"({int(WEAK_THRESHOLD)}-{int(STRONG_THRESHOLD)}% match)",
+            phase=phase_id,
+        )
+        logger.info(
+            f"  {none_count} no evidence (expert insights)",
             phase=phase_id,
         )
 
-    return verified_count, unverified_count, verified_ids
+    return strong_count + weak_count, none_count, verified_ids
 
 
 def _verify_with_claude(atoms_to_verify, config, claude, lookup, logger):
