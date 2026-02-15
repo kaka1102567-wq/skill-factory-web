@@ -52,7 +52,7 @@ def _classify_atoms(atoms: list) -> dict:
     verified_knowledge = []
 
     for atom in atoms:
-        note = atom.get("verification_note", "")
+        note = atom.get("verification_note") or ""
         if "Expert insight" in note or "not found in official" in note:
             expert_tips.append(atom)
         else:

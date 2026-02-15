@@ -49,6 +49,7 @@ def load_config(config_path: str, output_dir: str) -> BuildConfig:
         claude_model=os.environ.get("CLAUDE_MODEL", "claude-sonnet-4-20250514"),
         seekers_cache_dir=os.environ.get("SEEKERS_CACHE_DIR", "./data/cache"),
         seekers_cache_ttl_hours=int(os.environ.get("SEEKERS_CACHE_TTL_HOURS", "168")),
+        seekers_output_dir=raw.get("seekers_output_dir", ""),
     )
 
 
