@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard, PlusCircle, FolderOpen,
-  Package, Settings, Factory, ChevronLeft, ChevronRight
+  Package, Database, Settings, Factory, ChevronLeft, ChevronRight
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { cn, getStatusColor } from "@/lib/utils";
@@ -15,6 +15,7 @@ const NAV_ITEMS = [
   { href: "/build/new", label: "New Build", icon: PlusCircle },
   { href: "/templates", label: "Templates", icon: FolderOpen },
   { href: "/library", label: "Skills Library", icon: Package },
+  { href: "/baselines", label: "Baselines", icon: Database },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
