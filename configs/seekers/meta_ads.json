@@ -1,0 +1,14 @@
+{
+    "name": "meta-ads",
+    "base_url": "https://www.facebook.com/business/help",
+    "max_pages": 100,
+    "max_depth": 2,
+    "include_patterns": [
+        "/business/help/*"
+    ],
+    "exclude_patterns": [
+        "/login",
+        "/signup"
+    ],
+    "output_dir": "data/cache/seekers/meta-ads"
+}

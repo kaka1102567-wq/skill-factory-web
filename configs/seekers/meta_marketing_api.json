@@ -1,0 +1,7 @@
+{
+    "name": "meta-marketing-api",
+    "base_url": "https://developers.facebook.com/docs/marketing-api",
+    "max_pages": 80,
+    "max_depth": 2,
+    "output_dir": "data/cache/seekers/meta-marketing-api"
+}
