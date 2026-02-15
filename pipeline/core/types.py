@@ -157,6 +157,7 @@ class BuildConfig:
     # Seekers
     seekers_cache_dir: str = "./data/cache"
     seekers_cache_ttl_hours: int = 168
+    seekers_output_dir: str = ""
     # Quality
     min_phase_score: float = 70.0
     auto_resolve_threshold: float = 0.8
