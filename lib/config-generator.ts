@@ -12,6 +12,8 @@ export interface WizardConfig {
   baseline_urls: string[];
   seekers_output_dir?: string;
   description?: string;
+  github_repo?: string;
+  github_analyze_code?: boolean;
 }
 
 /** Escape YAML string value — quote if it contains special chars */
@@ -49,6 +51,10 @@ export function generateConfigYaml(config: WizardConfig): string {
   lines.push(`output_dir: "./output"`);
   lines.push(`seekers_output_dir: ${yamlStr(config.seekers_output_dir || "")}`);
   lines.push(`claude_model: "claude-sonnet-4-20250514"`);
+
+  // GitHub repo analysis
+  lines.push(`github_repo: ${yamlStr(config.github_repo || "")}`);
+  lines.push(`github_analyze_code: ${config.github_analyze_code !== false}`);
 
   // Baseline sources (URLs for web scraping)
   if (config.baseline_urls && config.baseline_urls.length > 0) {
