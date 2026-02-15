@@ -1,4 +1,7 @@
-"""Phase 5 — Build: Generate SKILL.md, knowledge files, and package zip."""
+"""Phase 5 — Build: Generate SKILL.md, knowledge files, and package zip.
+
+Supports multi-platform packaging: claude, openclaw, antigravity.
+"""
 
 import json
 import os
@@ -17,6 +20,8 @@ from ..prompts.p5_build_prompts import (
     P5_SKILL_SYSTEM, P5_SKILL_USER,
     P5_KNOWLEDGE_SYSTEM, P5_KNOWLEDGE_USER,
 )
+
+MAX_ANTIGRAVITY_CHARS = 50000
 
 
 def _load_skill_seekers_baseline(output_dir: str) -> dict | None:
@@ -196,6 +201,169 @@ def _build_skill_seekers_skill_md(config, baseline, pillars,
     return "\n".join(lines)
 
 
+# ── Multi-platform Packagers ─────────────────────────────
+
+
+def _copy_dir_tree(src: str, dst: str) -> None:
+    """Copy directory tree if source exists."""
+    if os.path.isdir(src):
+        shutil.copytree(src, dst, dirs_exist_ok=True)
+
+
+def _package_claude(platform_dir, skill_path, knowledge_dir, refs_dir):
+    """Claude: SKILL.md (full frontmatter + routing) + knowledge/ + references/."""
+    if os.path.exists(skill_path):
+        shutil.copy2(skill_path, os.path.join(platform_dir, "SKILL.md"))
+    _copy_dir_tree(knowledge_dir, os.path.join(platform_dir, "knowledge"))
+    _copy_dir_tree(refs_dir, os.path.join(platform_dir, "references"))
+
+
+def _package_openclaw(platform_dir, config, build_atoms, avg_confidence,
+                      knowledge_dir, refs_dir):
+    """OpenClaw: simplified SKILL.md (name, description, version) + knowledge/ + references/."""
+    lines = [
+        "---",
+        f"name: {config.name}",
+        f"description: Use this skill for {config.domain} knowledge.",
+        'version: "1.0"',
+        "---",
+        "",
+        f"# {config.name}",
+        "",
+        f"Knowledge skill for **{config.domain}** with "
+        f"{len(build_atoms)} atoms, confidence {avg_confidence:.2f}.",
+        "",
+    ]
+    write_file(os.path.join(platform_dir, "SKILL.md"), "\n".join(lines))
+    _copy_dir_tree(knowledge_dir, os.path.join(platform_dir, "knowledge"))
+    _copy_dir_tree(refs_dir, os.path.join(platform_dir, "references"))
+
+
+def _package_antigravity(platform_dir, config, knowledge_dir, refs_dir):
+    """Antigravity: single system_instructions.md with all content inlined."""
+    lines = [
+        f"# {config.name} — System Instructions",
+        "",
+        f"You are an expert in **{config.domain}**. "
+        f"Use the knowledge below to answer questions accurately "
+        f"in {config.language}.",
+        "",
+        "---",
+        "",
+        "## Core Knowledge",
+        "",
+    ]
+
+    # Inline all knowledge files
+    if os.path.isdir(knowledge_dir):
+        for fname in sorted(os.listdir(knowledge_dir)):
+            if fname.endswith(".md"):
+                fpath = os.path.join(knowledge_dir, fname)
+                with open(fpath, "r", encoding="utf-8") as f:
+                    content = f.read().strip()
+                if content:
+                    lines.append(content)
+                    lines.append("")
+
+    lines.extend(["---", "", "## Reference Material", ""])
+
+    # Inline references, truncate if over limit
+    ref_parts = []
+    if os.path.isdir(refs_dir):
+        for fname in sorted(os.listdir(refs_dir)):
+            if fname.endswith(".md"):
+                fpath = os.path.join(refs_dir, fname)
+                with open(fpath, "r", encoding="utf-8") as f:
+                    content = f.read().strip()
+                if content:
+                    ref_parts.append(content)
+
+    ref_text = "\n\n".join(ref_parts)
+    current_text = "\n".join(lines)
+
+    if len(current_text) + len(ref_text) > MAX_ANTIGRAVITY_CHARS:
+        budget = MAX_ANTIGRAVITY_CHARS - len(current_text) - 200
+        ref_text = ref_text[: max(budget, 0)]
+        ref_text += "\n\n*[References truncated to fit size limit]*"
+
+    lines.append(ref_text)
+    lines.extend([
+        "",
+        "---",
+        "",
+        "## Response Guidelines",
+        "",
+        f"- Answer in **{config.language}**",
+        "- Cite specific knowledge when answering",
+        "- If unsure, acknowledge limitations",
+        f"- Stay within the domain of **{config.domain}**",
+        "",
+    ])
+
+    write_file(
+        os.path.join(platform_dir, "system_instructions.md"),
+        "\n".join(lines),
+    )
+
+
+def _package_for_platforms(config, output_dir, build_atoms,
+                           avg_confidence, logger):
+    """Distribute build output to platform-specific directories.
+
+    Single platform → keeps flat structure (backward compatible).
+    Multiple platforms → creates subdirectories per platform.
+    """
+    platforms = [p.lower() for p in (config.platforms or ["claude"])]
+
+    if len(platforms) <= 1:
+        return platforms  # flat structure, nothing to do
+
+    skill_path = os.path.join(output_dir, "SKILL.md")
+    knowledge_dir = os.path.join(output_dir, "knowledge")
+    refs_dir = os.path.join(output_dir, "references")
+
+    packagers = {
+        "claude": lambda d: _package_claude(
+            d, skill_path, knowledge_dir, refs_dir,
+        ),
+        "openclaw": lambda d: _package_openclaw(
+            d, config, build_atoms, avg_confidence,
+            knowledge_dir, refs_dir,
+        ),
+        "antigravity": lambda d: _package_antigravity(
+            d, config, knowledge_dir, refs_dir,
+        ),
+    }
+
+    for platform in platforms:
+        platform_dir = os.path.join(output_dir, platform)
+        os.makedirs(platform_dir, exist_ok=True)
+
+        packager = packagers.get(platform)
+        if packager:
+            packager(platform_dir)
+        else:
+            logger.warn(
+                f"Unknown platform '{platform}', skipping",
+                phase="p5",
+            )
+
+    # Clean up staging files (now in platform subdirs)
+    if os.path.exists(skill_path):
+        os.remove(skill_path)
+    if os.path.isdir(knowledge_dir):
+        shutil.rmtree(knowledge_dir)
+    if os.path.isdir(refs_dir):
+        shutil.rmtree(refs_dir)
+
+    platform_names = ", ".join(platforms)
+    logger.info(
+        f"Packaged for {len(platforms)} platforms: {platform_names}",
+        phase="p5",
+    )
+    return platforms
+
+
 def run_p5(config: BuildConfig, claude: ClaudeClient,
            cache: SeekersCache = None, lookup: SeekersLookup = None,
            logger: PipelineLogger = None) -> PhaseResult:
@@ -333,6 +501,12 @@ def run_p5(config: BuildConfig, claude: ClaudeClient,
         write_file(skill_path, skill_content)
         output_files.append(skill_path)
 
+        # ── Step 2.5: Multi-platform packaging ──
+        platforms_built = _package_for_platforms(
+            config, config.output_dir, build_atoms,
+            avg_confidence, logger,
+        )
+
         # ── Step 3: Write metadata.json ──
         metadata = {
             "name": config.name,
@@ -349,6 +523,7 @@ def run_p5(config: BuildConfig, claude: ClaudeClient,
             },
             "avg_confidence": round(avg_confidence, 3),
             "platforms": config.platforms,
+            "platforms_built": platforms_built,
             "baseline_source": "skill_seekers" if use_seekers else "legacy",
         }
         metadata_path = os.path.join(config.output_dir, "metadata.json")
@@ -405,6 +580,7 @@ def run_p5(config: BuildConfig, claude: ClaudeClient,
                 "knowledge_files": len(pillar_names),
                 "atoms_included": len(build_atoms),
                 "atoms_flagged": len(all_atoms) - len(build_atoms),
+                "platforms_built": platforms_built,
                 "zip_path": zip_path,
             },
         )

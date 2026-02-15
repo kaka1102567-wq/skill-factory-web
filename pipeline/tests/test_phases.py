@@ -180,3 +180,92 @@ class TestP5Build:
     def test_build_no_input_fails(self, build_config, mock_claude, logger, seekers_cache, seekers_lookup):
         result = run_p5(build_config, mock_claude, seekers_cache, seekers_lookup, logger)
         assert result.status == "failed"
+
+    def test_multi_platform_creates_subdirs(self, build_config, mock_claude, logger, seekers_cache, seekers_lookup):
+        """Multi-platform build creates claude/, openclaw/, antigravity/ dirs."""
+        self._setup_p4_output(build_config.output_dir)
+        build_config.platforms = ["claude", "openclaw", "antigravity"]
+        result = run_p5(build_config, mock_claude, seekers_cache, seekers_lookup, logger)
+        assert result.status == "done"
+
+        out = build_config.output_dir
+        # Platform subdirectories exist
+        assert os.path.isdir(os.path.join(out, "claude"))
+        assert os.path.isdir(os.path.join(out, "openclaw"))
+        assert os.path.isdir(os.path.join(out, "antigravity"))
+
+        # Root-level SKILL.md moved into subdirs
+        assert not os.path.exists(os.path.join(out, "SKILL.md"))
+        assert not os.path.isdir(os.path.join(out, "knowledge"))
+
+    def test_multi_platform_claude_dir_structure(self, build_config, mock_claude, logger, seekers_cache, seekers_lookup):
+        """Claude platform dir has SKILL.md + knowledge/."""
+        self._setup_p4_output(build_config.output_dir)
+        build_config.platforms = ["claude", "openclaw"]
+        result = run_p5(build_config, mock_claude, seekers_cache, seekers_lookup, logger)
+        assert result.status == "done"
+
+        claude_dir = os.path.join(build_config.output_dir, "claude")
+        assert os.path.exists(os.path.join(claude_dir, "SKILL.md"))
+        assert os.path.isdir(os.path.join(claude_dir, "knowledge"))
+
+    def test_multi_platform_openclaw_simplified_frontmatter(self, build_config, mock_claude, logger, seekers_cache, seekers_lookup):
+        """OpenClaw SKILL.md has only name, description, version in frontmatter."""
+        self._setup_p4_output(build_config.output_dir)
+        build_config.platforms = ["claude", "openclaw"]
+        result = run_p5(build_config, mock_claude, seekers_cache, seekers_lookup, logger)
+        assert result.status == "done"
+
+        oc_skill = os.path.join(build_config.output_dir, "openclaw", "SKILL.md")
+        assert os.path.exists(oc_skill)
+        with open(oc_skill) as f:
+            content = f.read()
+        # Simplified frontmatter — no metadata block, no routing
+        assert "name:" in content
+        assert "description:" in content
+        assert 'version: "1.0"' in content
+        assert "## Routing Logic" not in content
+
+    def test_multi_platform_antigravity_single_file(self, build_config, mock_claude, logger, seekers_cache, seekers_lookup):
+        """Antigravity produces a single system_instructions.md."""
+        self._setup_p4_output(build_config.output_dir)
+        build_config.platforms = ["claude", "antigravity"]
+        result = run_p5(build_config, mock_claude, seekers_cache, seekers_lookup, logger)
+        assert result.status == "done"
+
+        ag_dir = os.path.join(build_config.output_dir, "antigravity")
+        si_path = os.path.join(ag_dir, "system_instructions.md")
+        assert os.path.exists(si_path)
+        with open(si_path) as f:
+            content = f.read()
+        assert "System Instructions" in content
+        assert "Core Knowledge" in content
+        assert "Response Guidelines" in content
+        # No subdirectories in antigravity
+        assert not os.path.isdir(os.path.join(ag_dir, "knowledge"))
+        assert not os.path.isdir(os.path.join(ag_dir, "references"))
+
+    def test_multi_platform_metadata_lists_platforms(self, build_config, mock_claude, logger, seekers_cache, seekers_lookup):
+        """metadata.json includes platforms_built field."""
+        self._setup_p4_output(build_config.output_dir)
+        build_config.platforms = ["claude", "openclaw", "antigravity"]
+        result = run_p5(build_config, mock_claude, seekers_cache, seekers_lookup, logger)
+        assert result.status == "done"
+
+        meta_path = os.path.join(build_config.output_dir, "metadata.json")
+        with open(meta_path) as f:
+            meta = json.load(f)
+        assert set(meta["platforms_built"]) == {"claude", "openclaw", "antigravity"}
+
+    def test_single_platform_stays_flat(self, build_config, mock_claude, logger, seekers_cache, seekers_lookup):
+        """Single platform keeps flat output structure (backward compatible)."""
+        self._setup_p4_output(build_config.output_dir)
+        build_config.platforms = ["claude"]
+        result = run_p5(build_config, mock_claude, seekers_cache, seekers_lookup, logger)
+        assert result.status == "done"
+
+        out = build_config.output_dir
+        # Flat structure — SKILL.md at root, no platform subdirs
+        assert os.path.exists(os.path.join(out, "SKILL.md"))
+        assert os.path.isdir(os.path.join(out, "knowledge"))
+        assert not os.path.isdir(os.path.join(out, "claude"))
