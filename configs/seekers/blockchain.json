@@ -1,0 +1,14 @@
+{
+    "name": "blockchain-solidity",
+    "base_url": "https://docs.soliditylang.org/en/latest",
+    "max_pages": 80,
+    "max_depth": 2,
+    "include_patterns": [
+        "/en/latest/*"
+    ],
+    "exclude_patterns": [
+        "/genindex",
+        "/search"
+    ],
+    "output_dir": "data/cache/seekers/blockchain"
+}

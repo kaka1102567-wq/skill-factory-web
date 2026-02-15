@@ -1,0 +1,14 @@
+{
+    "name": "seo-fundamentals",
+    "base_url": "https://developers.google.com/search/docs",
+    "max_pages": 100,
+    "max_depth": 2,
+    "include_patterns": [
+        "/search/docs/*"
+    ],
+    "exclude_patterns": [
+        "/signin",
+        "/identity"
+    ],
+    "output_dir": "data/cache/seekers/seo"
+}

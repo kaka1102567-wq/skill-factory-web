@@ -167,6 +167,27 @@ export function initializeSchema(db: Database.Database) {
         JSON.stringify(["https://www.facebook.com/business/help", "https://developers.facebook.com/docs/marketing-api"]),
         12, 11, new Date().toISOString()
       );
+      insertBaseline.run(
+        "bl-google-ads", "google-ads", "Google Ads Help Center",
+        "configs/seekers/google_ads.json", null,
+        "pending",
+        JSON.stringify(["https://support.google.com/google-ads"]),
+        0, 0, null
+      );
+      insertBaseline.run(
+        "bl-seo", "seo", "Google Search / SEO Documentation",
+        "configs/seekers/seo.json", null,
+        "pending",
+        JSON.stringify(["https://developers.google.com/search/docs"]),
+        0, 0, null
+      );
+      insertBaseline.run(
+        "bl-blockchain", "blockchain", "Solidity & Blockchain Dev",
+        "configs/seekers/blockchain.json", null,
+        "pending",
+        JSON.stringify(["https://docs.soliditylang.org"]),
+        0, 0, null
+      );
     });
     seedBaselines();
   }

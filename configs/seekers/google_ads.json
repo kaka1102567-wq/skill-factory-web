@@ -1,0 +1,15 @@
+{
+    "name": "google-ads",
+    "base_url": "https://support.google.com/google-ads",
+    "max_pages": 80,
+    "max_depth": 2,
+    "include_patterns": [
+        "/google-ads/answer/*",
+        "/google-ads/topic/*"
+    ],
+    "exclude_patterns": [
+        "/signin",
+        "/accounts"
+    ],
+    "output_dir": "data/cache/seekers/google-ads"
+}
