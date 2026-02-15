@@ -52,6 +52,12 @@ def main():
     pdf_parser.add_argument("--input-dir", default=None, help="Directory containing PDF files")
     pdf_parser.add_argument("--output-dir", required=True, help="Output directory for .md files")
 
+    # ── analyze-repo ──
+    repo_parser = subparsers.add_parser("analyze-repo", help="Analyze GitHub repo for code patterns")
+    repo_parser.add_argument("--repo", required=True, help="GitHub URL or local path")
+    repo_parser.add_argument("--output-dir", required=True, help="Output directory for analysis files")
+    repo_parser.add_argument("--no-code", action="store_true", help="Skip code analysis, docs only")
+
     args = parser.parse_args()
 
     if not args.command:
@@ -68,6 +74,8 @@ def main():
         sys.exit(cmd_fetch_urls(args))
     elif args.command == "extract-pdf":
         sys.exit(cmd_extract_pdf(args))
+    elif args.command == "analyze-repo":
+        sys.exit(cmd_analyze_repo(args))
 
 
 def cmd_build(args) -> int:
@@ -162,6 +170,16 @@ def cmd_extract_pdf(args) -> int:
         input_path=args.input,
         input_dir=args.input_dir,
         output_dir=args.output_dir,
+    )
+
+
+def cmd_analyze_repo(args) -> int:
+    """Analyze a GitHub repository for code patterns and docs."""
+    from pipeline.commands.analyze_repo import run_analyze_repo
+    return run_analyze_repo(
+        repo_url=args.repo,
+        output_dir=args.output_dir,
+        analyze_code_flag=not args.no_code,
     )
 
 
