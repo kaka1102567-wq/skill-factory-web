@@ -61,6 +61,8 @@ class KnowledgeAtom:
     verification_note: Optional[str] = None
     baseline_reference: Optional[str] = None
     created_at: Optional[str] = None
+    source: str = "transcript"  # "transcript" | "baseline"
+    gap_filled: bool = False
 
     def to_dict(self) -> dict:
         return asdict(self)

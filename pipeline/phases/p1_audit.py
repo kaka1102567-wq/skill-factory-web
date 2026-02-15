@@ -1,11 +1,14 @@
 """Phase 1 — Audit: Build topic inventory from transcripts via Claude."""
 
+import json
+import re
 import time
+from collections import Counter
 from datetime import datetime, timezone
 
 from ..core.types import BuildConfig, PhaseResult, InventoryItem
 from ..core.logger import PipelineLogger
-from ..core.utils import read_all_transcripts, chunk_text, write_json
+from ..core.utils import read_all_transcripts, chunk_text, write_json, read_json
 from ..core.errors import PhaseError
 from ..clients.claude_client import ClaudeClient
 from ..seekers.cache import SeekersCache
@@ -89,7 +92,34 @@ def run_p1(config: BuildConfig, claude: ClaudeClient,
         merged = _merge_topics(all_topics)
 
         # Cross-reference with baseline
-        if lookup:
+        baseline = _load_skill_seekers_baseline(config.output_dir)
+        coverage_matrix = None
+
+        if baseline:
+            # Skill-seekers path: build coverage matrix
+            logger.info(
+                "Comparing topics against skill-seekers baseline",
+                phase=phase_id,
+            )
+            coverage_matrix = _build_coverage_matrix(merged, baseline)
+            s = coverage_matrix["summary"]
+            logger.info(
+                f"Coverage: {s['overlap_count']} overlap, "
+                f"{s['unique_expert_count']} unique expert, "
+                f"{s['gap_count']} gaps to fill",
+                phase=phase_id,
+            )
+
+            # Mark baseline_coverage on merged topics
+            overlap_names = {
+                e["topic"].lower() for e in coverage_matrix["overlap"]
+            }
+            for item in merged:
+                item["baseline_coverage"] = (
+                    item.get("topic", "").lower() in overlap_names
+                )
+        elif lookup:
+            # Legacy fallback: cross-reference with SeekersLookup
             for item in merged:
                 hits = lookup.lookup_by_topic(item["topic"], max_results=1)
                 item["baseline_coverage"] = len(hits) > 0
@@ -115,10 +145,21 @@ def run_p1(config: BuildConfig, claude: ClaudeClient,
         else:
             score = 0.0
 
+        # Boost score with coverage if available
+        if coverage_matrix:
+            cs = coverage_matrix["summary"]["coverage_score"]
+            score = min(100.0, score * 0.7 + cs * 0.3)
+
         # Save output
         output_path = f"{config.output_dir}/inventory.json"
-        write_json({"topics": inventory, "total_topics": len(inventory),
-                     "score": round(score, 1)}, output_path)
+        output_data = {
+            "topics": inventory,
+            "total_topics": len(inventory),
+            "score": round(score, 1),
+        }
+        if coverage_matrix:
+            output_data["coverage_matrix"] = coverage_matrix
+        write_json(output_data, output_path)
 
         logger.phase_progress(phase_id, phase_name, 95)
         logger.phase_complete(phase_id, phase_name, score=score, atoms_count=len(inventory))
@@ -132,7 +173,12 @@ def run_p1(config: BuildConfig, claude: ClaudeClient,
             api_cost_usd=cost["cost_usd"],
             tokens_used=cost["input_tokens"] + cost["output_tokens"],
             output_files=[output_path],
-            metrics={"topics_found": len(inventory), "transcripts_audited": len(valid_transcripts)},
+            metrics={
+                "topics_found": len(inventory),
+                "transcripts_audited": len(valid_transcripts),
+                "baseline_source": "skill_seekers" if baseline else "legacy",
+                **(coverage_matrix["summary"] if coverage_matrix else {}),
+            },
         )
 
     except Exception as e:
@@ -167,3 +213,140 @@ def _merge_topics(topics: list[dict]) -> list[dict]:
                 t["source_files"].append(src)
             merged[key] = t
     return list(merged.values())
+
+
+# ── Skill-Seekers coverage matrix helpers ──
+
+STOP_WORDS = frozenset({
+    "the", "a", "an", "is", "are", "was", "were", "be", "been", "and",
+    "or", "not", "in", "on", "at", "to", "for", "of", "with", "by",
+    "from", "this", "that", "it", "as", "if", "but", "so", "than",
+    "là", "và", "của", "cho", "với", "trong", "khi", "để", "từ",
+    "các", "một", "có", "được", "không", "này", "đó", "về", "theo",
+    "như", "cũng", "hoặc", "nếu", "thì", "hay", "do", "vì", "bởi",
+})
+
+
+def _load_skill_seekers_baseline(output_dir: str) -> dict | None:
+    """Load skill_seekers baseline from P0 output if available."""
+    try:
+        summary = read_json(f"{output_dir}/baseline_summary.json")
+        if summary.get("source") == "skill_seekers":
+            return summary
+    except (FileNotFoundError, KeyError, json.JSONDecodeError):
+        pass
+    return None
+
+
+def _extract_keywords(text: str, max_kw: int = 15) -> list[str]:
+    """Extract top keywords from text using frequency."""
+    words = re.findall(r'\b\w{3,}\b', text.lower())
+    filtered = [w for w in words if w not in STOP_WORDS and not w.isdigit()]
+    counts = Counter(filtered)
+    return [w for w, _ in counts.most_common(max_kw)]
+
+
+def _extract_baseline_topics(baseline: dict) -> list[str]:
+    """Extract topic list from baseline SKILL.md headings + topics field."""
+    topics = list(baseline.get("topics", []))
+    # Also extract ## and ### headings from skill_md
+    skill_md = baseline.get("skill_md", "")
+    for line in skill_md.split("\n"):
+        line = line.strip()
+        if line.startswith("## ") or line.startswith("### "):
+            heading = re.sub(r'^#+\s*', '', line).strip()
+            if heading and heading not in topics:
+                topics.append(heading)
+    return topics
+
+
+def _topic_matches_references(topic_name: str, references: list) -> dict:
+    """Check if a transcript topic appears in baseline references."""
+    keywords = _extract_keywords(topic_name, max_kw=8)
+    if not keywords:
+        return {"found": False, "file": "", "match_count": 0}
+
+    best_match = {"found": False, "file": "", "match_count": 0}
+
+    for ref in references:
+        content_lower = ref.get("content", "").lower()
+        matches = sum(1 for kw in keywords if kw in content_lower)
+        if matches > best_match["match_count"]:
+            best_match = {
+                "found": matches >= 2,
+                "file": ref.get("path", ""),
+                "match_count": matches,
+            }
+
+    return best_match
+
+
+def _build_coverage_matrix(
+    transcript_topics: list[dict],
+    baseline: dict,
+) -> dict:
+    """Build coverage matrix: OVERLAP / UNIQUE_EXPERT / GAP_TO_FILL."""
+    references = baseline.get("references", [])
+    baseline_topics = _extract_baseline_topics(baseline)
+
+    overlap = []
+    unique_expert = []
+
+    # Check each transcript topic against baseline
+    for item in transcript_topics:
+        topic_name = item.get("topic", "")
+        match = _topic_matches_references(topic_name, references)
+
+        entry = {
+            "topic": topic_name,
+            "category": item.get("category", ""),
+            "source": "transcript",
+        }
+
+        if match["found"]:
+            entry["status"] = "OVERLAP"
+            entry["matched_ref"] = match["file"]
+            entry["match_count"] = match["match_count"]
+            overlap.append(entry)
+        else:
+            entry["status"] = "UNIQUE_EXPERT"
+            unique_expert.append(entry)
+
+    # Check baseline topics not covered by transcript
+    transcript_kw_sets = []
+    for item in transcript_topics:
+        kws = set(_extract_keywords(item.get("topic", ""), max_kw=5))
+        transcript_kw_sets.append(kws)
+
+    gap_to_fill = []
+    for bt in baseline_topics:
+        bt_kws = set(_extract_keywords(bt, max_kw=5))
+        if not bt_kws:
+            continue
+        covered = any(
+            len(bt_kws & tkws) >= 2 for tkws in transcript_kw_sets
+        )
+        if not covered:
+            gap_to_fill.append({
+                "topic": bt,
+                "source": "baseline",
+                "status": "GAP_TO_FILL",
+            })
+
+    total = len(overlap) + len(unique_expert) + len(gap_to_fill)
+    coverage_score = (
+        (len(overlap) + len(unique_expert)) / max(total, 1) * 100
+    )
+
+    return {
+        "overlap": overlap,
+        "unique_expert": unique_expert,
+        "gap_to_fill": gap_to_fill,
+        "summary": {
+            "overlap_count": len(overlap),
+            "unique_expert_count": len(unique_expert),
+            "gap_count": len(gap_to_fill),
+            "total": total,
+            "coverage_score": round(coverage_score, 1),
+        },
+    }
