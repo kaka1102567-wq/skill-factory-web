@@ -74,6 +74,67 @@ class TestP2Extract:
         result = run_p2(build_config, mock_claude, seekers_cache, seekers_lookup, logger)
         assert result.status == "failed"
 
+    def test_extract_with_code_analysis(self, build_config, mock_claude, logger, seekers_cache, seekers_lookup):
+        """P2 extracts code atoms when code_analysis.json exists in input/."""
+        # Use realistic build layout: build_dir/output/ + build_dir/input/
+        import tempfile, shutil
+        build_dir = tempfile.mkdtemp(prefix="sf_build_")
+        output_dir = os.path.join(build_dir, "output")
+        input_dir = os.path.join(build_dir, "input")
+        os.makedirs(output_dir, exist_ok=True)
+        os.makedirs(input_dir, exist_ok=True)
+        build_config.output_dir = output_dir
+        write_json({
+            "repo_url": "https://github.com/test/repo",
+            "repo_structure": {
+                "total_files": 10,
+                "languages": {"python": 5},
+                "primary_language": "python",
+                "has_tests": True,
+                "has_docs": True,
+                "config_files": [],
+            },
+            "analyzed_files": [
+                {
+                    "path": "src/main.py",
+                    "language": "python",
+                    "size": 500,
+                    "content": "def main():\n    print('hello')\n",
+                    "lines": 2,
+                },
+            ],
+        }, os.path.join(input_dir, "code_analysis.json"))
+
+        try:
+            result = run_p2(build_config, mock_claude, seekers_cache, seekers_lookup, logger)
+            assert result.status == "done"
+            assert result.metrics.get("code_atoms", 0) > 0
+
+            # Verify atoms include code atoms
+            atoms_path = os.path.join(output_dir, "atoms_raw.json")
+            with open(atoms_path) as f:
+                data = json.load(f)
+            code_atoms = [a for a in data["atoms"] if a.get("source") == "codebase"]
+            assert len(code_atoms) > 0
+            assert code_atoms[0]["category"] == "code_pattern"
+        finally:
+            shutil.rmtree(build_dir, ignore_errors=True)
+
+    def test_extract_without_code_analysis(self, build_config, mock_claude, logger, seekers_cache, seekers_lookup):
+        """P2 works normally when no code_analysis.json exists."""
+        # Use realistic build layout without code_analysis.json
+        import tempfile, shutil
+        build_dir = tempfile.mkdtemp(prefix="sf_build_")
+        output_dir = os.path.join(build_dir, "output")
+        os.makedirs(output_dir, exist_ok=True)
+        build_config.output_dir = output_dir
+        try:
+            result = run_p2(build_config, mock_claude, seekers_cache, seekers_lookup, logger)
+            assert result.status == "done"
+            assert result.metrics.get("code_atoms", 0) == 0
+        finally:
+            shutil.rmtree(build_dir, ignore_errors=True)
+
 
 class TestP3Dedup:
 
@@ -354,3 +415,57 @@ class TestP5Build:
         with zipfile.ZipFile(zip_path, "r") as zf:
             names = zf.namelist()
         assert "README.md" in names
+
+    def _setup_p4_with_code_atoms(self, output_dir):
+        """Create atoms_verified.json with code_pattern atoms."""
+        atoms = [
+            {"id": "atom_0001", "title": "Atom A", "content": "Content about campaigns.",
+             "category": "campaign_management", "tags": ["campaign"], "confidence": 0.9,
+             "status": "verified", "verification_note": "OK", "source": "transcript"},
+            {"id": "atom_0002", "title": "Factory Pattern", "content": "Uses factory pattern.",
+             "category": "code_pattern", "tags": ["code", "architecture", "factory"],
+             "confidence": 0.85, "status": "verified",
+             "verification_note": "From: src/factory.py",
+             "baseline_reference": "src/factory.py", "source": "codebase"},
+            {"id": "atom_0003", "title": "Error Handling Pattern", "content": "Try-catch with retry.",
+             "category": "code_pattern", "tags": ["code", "error_handling"],
+             "confidence": 0.87, "status": "verified",
+             "verification_note": "From: src/utils.py",
+             "baseline_reference": "src/utils.py", "source": "codebase"},
+        ]
+        write_json({"atoms": atoms, "total_atoms": 3, "score": 87.0},
+                    os.path.join(output_dir, "atoms_verified.json"))
+
+    def test_examples_generated_with_code_atoms(self, build_config, mock_claude, logger, seekers_cache, seekers_lookup):
+        """P5 generates examples/code_patterns.md when code atoms exist."""
+        self._setup_p4_with_code_atoms(build_config.output_dir)
+        result = run_p5(build_config, mock_claude, seekers_cache, seekers_lookup, logger)
+        assert result.status == "done"
+
+        examples_path = os.path.join(build_config.output_dir, "examples", "code_patterns.md")
+        assert os.path.exists(examples_path)
+        with open(examples_path) as f:
+            content = f.read()
+        assert "Factory Pattern" in content
+        assert "Error Handling" in content
+
+    def test_no_examples_without_code_atoms(self, build_config, mock_claude, logger, seekers_cache, seekers_lookup):
+        """P5 does not create examples/ when no code atoms exist."""
+        self._setup_p4_output(build_config.output_dir)
+        result = run_p5(build_config, mock_claude, seekers_cache, seekers_lookup, logger)
+        assert result.status == "done"
+
+        examples_dir = os.path.join(build_config.output_dir, "examples")
+        assert not os.path.isdir(examples_dir)
+
+    def test_skill_md_has_examples_routing(self, build_config, mock_claude, logger, seekers_cache, seekers_lookup):
+        """SKILL.md includes Code Examples section when code atoms exist."""
+        self._setup_p4_with_code_atoms(build_config.output_dir)
+        result = run_p5(build_config, mock_claude, seekers_cache, seekers_lookup, logger)
+        assert result.status == "done"
+
+        skill_path = os.path.join(build_config.output_dir, "SKILL.md")
+        with open(skill_path) as f:
+            content = f.read()
+        assert "Code Examples" in content
+        assert "code_patterns.md" in content
