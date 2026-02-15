@@ -17,10 +17,20 @@ export async function GET(
     return NextResponse.json({ error: "Build not completed yet" }, { status: 400 });
   }
 
-  // Try package_path first, then look for any .zip in output dir
-  let zipPath = build.package_path;
+  // Try package_path first (resolve relative paths), then scan output dir
+  const dataDir = process.env.DATA_DIR || "./data";
+  let zipPath = build.package_path
+    ? path.resolve(process.cwd(), build.package_path)
+    : null;
   if (!zipPath || !fs.existsSync(zipPath)) {
-    const outputDir = path.join(process.cwd(), "data", "builds", id, "output");
+    // Direct path: data/builds/<id>/output/package.zip
+    const directPath = path.join(process.cwd(), dataDir, "builds", id, "output", "package.zip");
+    if (fs.existsSync(directPath)) {
+      zipPath = directPath;
+    }
+  }
+  if (!zipPath || !fs.existsSync(zipPath)) {
+    const outputDir = path.join(process.cwd(), dataDir, "builds", id, "output");
     if (fs.existsSync(outputDir)) {
       const files = fs.readdirSync(outputDir);
       const zipFile = files.find(f => f.endsWith(".zip"));
