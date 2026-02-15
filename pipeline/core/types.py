@@ -163,6 +163,9 @@ class BuildConfig:
     # Multi-input sources
     input_urls: list[str] = field(default_factory=list)
     input_pdfs: list[str] = field(default_factory=list)
+    # GitHub repo analysis
+    github_repo: str = ""
+    github_analyze_code: bool = True
     # Quality
     min_phase_score: float = 70.0
     auto_resolve_threshold: float = 0.8

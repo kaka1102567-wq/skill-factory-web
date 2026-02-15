@@ -61,6 +61,8 @@ def load_config(config_path: str, output_dir: str) -> BuildConfig:
         seekers_output_dir=raw.get("seekers_output_dir", ""),
         input_urls=raw.get("input_urls", []),
         input_pdfs=pdf_paths,
+        github_repo=raw.get("github_repo", ""),
+        github_analyze_code=raw.get("github_analyze_code", True),
     )
 
 
