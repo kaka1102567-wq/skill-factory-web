@@ -271,6 +271,128 @@ function handlePlainLog(buildId: string, message: string, level: string = "info"
   });
 }
 
+// ─── Resume After Conflict Resolution ─────────────────
+
+export interface ResolveConfig {
+  id: string;
+  name: string;
+  outputDir: string;
+  resolutionsPath: string;
+}
+
+export function resumeAfterResolve(config: ResolveConfig): ChildProcess {
+  const pythonPath = getSetting("python_path") || process.env.PYTHON_PATH || "py";
+  const pipelinePath = getSetting("pipeline_path") || process.env.PIPELINE_PATH || "./pipeline";
+  const useReal = (process.env.USE_REAL_PIPELINE ?? "true").toLowerCase() !== "false";
+  const cliPath = path.join(pipelinePath, useReal ? "cli.py" : "mock_cli.py");
+
+  const claudeApiKey = getSetting("claude_api_key") || process.env.CLAUDE_API_KEY || "";
+  const claudeModel = getSetting("claude_model") || process.env.CLAUDE_MODEL || "claude-sonnet-4-20250514";
+  const seekersCacheDir = getSetting("seekers_cache_dir") || process.env.SEEKERS_CACHE_DIR || "./data/cache";
+
+  console.log(`[BUILD] Resuming build ${config.id} after conflict resolution`);
+
+  const proc = spawn(pythonPath, [
+    cliPath,
+    "resolve",
+    "--output", config.outputDir,
+    "--resolutions", config.resolutionsPath,
+    "--json-logs",
+  ], {
+    cwd: process.cwd(),
+    env: {
+      ...process.env,
+      PYTHONUNBUFFERED: "1",
+      PYTHONIOENCODING: "utf-8",
+      CLAUDE_API_KEY: claudeApiKey,
+      CLAUDE_MODEL: claudeModel,
+      SEEKERS_CACHE_DIR: seekersCacheDir,
+    },
+  });
+
+  runningProcesses.set(config.id, proc);
+
+  let stdoutBuffer = "";
+  proc.stdout.on("data", (chunk: Buffer) => {
+    stdoutBuffer += chunk.toString();
+    const lines = stdoutBuffer.split("\n");
+    stdoutBuffer = lines.pop() || "";
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      try {
+        handleParsedLog(config.id, JSON.parse(trimmed));
+      } catch {
+        handlePlainLog(config.id, trimmed);
+      }
+    }
+  });
+
+  let stderrBuffer = "";
+  proc.stderr.on("data", (chunk: Buffer) => {
+    stderrBuffer += chunk.toString();
+    const lines = stderrBuffer.split("\n");
+    stderrBuffer = lines.pop() || "";
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      if (trimmed.includes("DeprecationWarning") || trimmed.includes("FutureWarning")) {
+        handlePlainLog(config.id, trimmed, "debug");
+      } else {
+        handlePlainLog(config.id, trimmed, "error");
+      }
+    }
+  });
+
+  proc.on("exit", (code, signal) => {
+    runningProcesses.delete(config.id);
+    if (stdoutBuffer.trim()) handlePlainLog(config.id, stdoutBuffer.trim());
+    if (stderrBuffer.trim()) handlePlainLog(config.id, stderrBuffer.trim(), "error");
+
+    const status = code === 0 ? "completed" : "failed";
+    const now = new Date().toISOString();
+    console.log(`[BUILD] Resolve ${config.id} exited: code=${code}, signal=${signal}`);
+
+    updateBuild(config.id, {
+      status,
+      completed_at: now,
+      error_message: code !== 0 ? `Resolve exited with code ${code}` : null,
+    });
+
+    insertBuildLog(config.id, {
+      level: status === "completed" ? "info" : "error",
+      message: `Build ${status} after conflict resolution`,
+    });
+
+    const build = getBuild(config.id);
+    sseManager.broadcast(config.id, "complete", {
+      status,
+      quality_score: build?.quality_score,
+      package_path: build?.package_path,
+      completed_at: now,
+    });
+
+    if (build) notifyBuildComplete(build).catch(() => {});
+
+    const processQueue = (globalThis as Record<string, unknown>).__processQueue as (() => void) | undefined;
+    if (processQueue) processQueue();
+  });
+
+  proc.on("error", (err) => {
+    runningProcesses.delete(config.id);
+    console.error(`[BUILD] Resolve spawn error for ${config.id}:`, err.message);
+    updateBuild(config.id, {
+      status: "failed",
+      completed_at: new Date().toISOString(),
+      error_message: `Resolve spawn error: ${err.message}`,
+    });
+    insertBuildLog(config.id, { level: "error", message: `Failed to resume: ${err.message}` });
+    sseManager.broadcast(config.id, "error", { message: err.message, retryable: true });
+  });
+
+  return proc;
+}
+
 // ─── Process Management ────────────────────────────────
 
 export function stopBuild(buildId: string): boolean {
