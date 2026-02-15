@@ -21,6 +21,8 @@ interface ReviewData {
   fileCount: number;
   totalFileSize: number;
   urlCount: number;
+  autoScrape?: boolean;
+  baselineUrlCount?: number;
 }
 
 interface StepReviewProps {
@@ -41,6 +43,7 @@ export function StepReview({ data, confirmed, onConfirmChange, submitting, error
     ["Language", data.language === "vi" ? "Tieng Viet" : "English"],
     ["Quality", `${data.qualityTier} (${tier.time}, ${tier.cost})`],
     ["Platforms", data.platforms.join(", ")],
+    ["Auto-scrape", data.autoScrape ? `Yes (${data.baselineUrlCount || 0} URL(s))` : "No"],
     ["Files", data.fileCount > 0 ? `${data.fileCount} file(s) (${(data.totalFileSize / 1024 / 1024).toFixed(1)} MB)` : "—"],
     ["URLs", data.urlCount > 0 ? `${data.urlCount} URL(s)` : "—"],
   ];

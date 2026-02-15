@@ -8,10 +8,11 @@ import { cn } from "@/lib/utils";
 import type { Template, QualityTier } from "@/types/build";
 import { StepTemplate } from "./step-template";
 import { StepConfig } from "./step-config";
+import { StepDataSources, type DataSourcesData } from "./step-data-sources";
 import { StepUpload } from "./step-upload";
 import { StepReview } from "./step-review";
 
-const STEPS = ["Template", "Config", "Upload", "Review"];
+const STEPS = ["Template", "Config", "Data Sources", "Upload", "Review"];
 
 export function BuildWizard() {
   const router = useRouter();
@@ -28,11 +29,18 @@ export function BuildWizard() {
     platforms: ["claude"] as string[],
   });
 
-  // Step 3 state
+  // Step 3 state (Data Sources)
+  const [dataSources, setDataSources] = useState<DataSourcesData>({
+    autoScrape: true,
+    seekersOutputDir: "",
+    baselineUrls: [""],
+  });
+
+  // Step 4 state (Upload)
   const [files, setFiles] = useState<File[]>([]);
   const [urls, setUrls] = useState<string[]>([""]);
 
-  // Step 4 state
+  // Step 5 state
   const [confirmed, setConfirmed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -51,8 +59,9 @@ export function BuildWizard() {
     switch (step) {
       case 0: return selectedTemplate !== null;
       case 1: return config.name.trim().length >= 3;
-      case 2: return files.length > 0 || urls.some((u) => u.trim());
-      case 3: return confirmed;
+      case 2: return true; // Data Sources is always optional
+      case 3: return files.length > 0 || urls.some((u) => u.trim());
+      case 4: return confirmed;
       default: return false;
     }
   };
@@ -86,7 +95,12 @@ export function BuildWizard() {
         language: config.language,
         quality_tier: config.qualityTier,
         platforms: config.platforms,
-        baseline_urls: urls.filter((u) => u.trim()),
+        baseline_urls: [
+          ...dataSources.baselineUrls.filter((u) => u.trim()),
+          ...urls.filter((u) => u.trim()),
+        ],
+        seekers_output_dir: dataSources.seekersOutputDir || undefined,
+        auto_scrape: dataSources.autoScrape,
         files: uploadedPaths,
       };
 
@@ -160,6 +174,13 @@ export function BuildWizard() {
           />
         )}
         {step === 2 && (
+          <StepDataSources
+            domain={selectedTemplate?.domain ?? "custom"}
+            data={dataSources}
+            onChange={(updates) => setDataSources((prev) => ({ ...prev, ...updates }))}
+          />
+        )}
+        {step === 3 && (
           <StepUpload
             files={files}
             urls={urls}
@@ -167,7 +188,7 @@ export function BuildWizard() {
             onUrlsChange={setUrls}
           />
         )}
-        {step === 3 && (
+        {step === 4 && (
           <StepReview
             data={{
               name: config.name,
@@ -179,6 +200,8 @@ export function BuildWizard() {
               fileCount: files.length,
               totalFileSize: files.reduce((s, f) => s + f.size, 0),
               urlCount: urls.filter((u) => u.trim()).length,
+              autoScrape: dataSources.autoScrape,
+              baselineUrlCount: dataSources.baselineUrls.filter((u) => u.trim()).length,
             }}
             confirmed={confirmed}
             onConfirmChange={setConfirmed}
@@ -200,7 +223,7 @@ export function BuildWizard() {
           Back
         </Button>
 
-        {step < 3 ? (
+        {step < 4 ? (
           <Button
             onClick={() => setStep((s) => s + 1)}
             disabled={!canProceed()}
