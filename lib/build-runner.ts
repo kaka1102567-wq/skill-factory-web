@@ -23,9 +23,12 @@ export function startBuild(config: BuildConfig): ChildProcess {
   const pythonPath = getSetting("python_path") || process.env.PYTHON_PATH || "py";
   const pipelinePath = getSetting("pipeline_path") || process.env.PIPELINE_PATH || "./pipeline";
 
-  const cliPath = path.join(pipelinePath, "cli.py");
+  // USE_REAL_PIPELINE toggle: 'false' → fallback to mock_cli.py
+  const useReal = (process.env.USE_REAL_PIPELINE ?? "true").toLowerCase() !== "false";
+  const cliScript = useReal ? "cli.py" : "mock_cli.py";
+  const cliPath = path.join(pipelinePath, cliScript);
 
-  console.log(`[BUILD] Starting build ${config.id}: ${pythonPath} ${cliPath}`);
+  console.log(`[BUILD] Starting build ${config.id}: ${pythonPath} ${cliPath} (real=${useReal})`);
   console.log(`[BUILD] Config: ${config.configPath}, Output: ${config.outputDir}`);
 
   updateBuild(config.id, {
@@ -57,6 +60,7 @@ export function startBuild(config: BuildConfig): ChildProcess {
     env: {
       ...process.env,
       PYTHONUNBUFFERED: "1",
+      PYTHONIOENCODING: "utf-8",
       CLAUDE_API_KEY: claudeApiKey,
       CLAUDE_MODEL: claudeModel,
       SEEKERS_CACHE_DIR: seekersCacheDir,
