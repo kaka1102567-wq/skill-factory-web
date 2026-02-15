@@ -24,7 +24,6 @@ export async function POST(req: Request) {
       quality_tier,
       platforms,
       baseline_urls,
-      seekers_output_dir,
       github_repo,
       github_analyze_code,
     } = body;
@@ -42,7 +41,6 @@ export async function POST(req: Request) {
         quality_tier: quality_tier || "standard",
         platforms: platforms || ["claude"],
         baseline_urls: baseline_urls || [],
-        seekers_output_dir: seekers_output_dir || "",
         github_repo: github_repo || "",
         github_analyze_code: github_analyze_code !== false,
       });

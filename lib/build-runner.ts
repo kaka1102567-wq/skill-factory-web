@@ -5,6 +5,7 @@ import { updateBuild, insertBuildLog, getBuild, getSetting } from "./db";
 import { sseManager } from "./sse-manager";
 import { notifyBuildComplete } from "./notifications";
 import { parseYamlValue, baselineExists, findSeekersConfig, spawnScrape } from "./baseline-scraper";
+import { getBaselineForDomain } from "./baseline-registry";
 import type { PhaseId } from "@/types/build";
 
 // Track running processes globally (survives hot reload)
@@ -49,8 +50,20 @@ export function startBuild(config: BuildConfig): ChildProcess {
   // ─── Pre-scrape baseline if needed ──────────────────
   try {
     const configContent = fs.readFileSync(config.configPath, "utf-8");
-    const seekersDir = parseYamlValue(configContent, "seekers_output_dir");
+    let seekersDir = parseYamlValue(configContent, "seekers_output_dir");
     const domain = parseYamlValue(configContent, "domain");
+
+    // Auto-detect baseline path from registry if not set in config
+    if (!seekersDir && domain) {
+      const bl = getBaselineForDomain(domain);
+      if (bl.status === "ready" && bl.path) {
+        seekersDir = bl.path;
+        const msg = `Auto-detected baseline for "${domain}": ${bl.refs_count} reference(s)`;
+        insertBuildLog(config.id, { level: "info", message: msg });
+        sseManager.broadcast(config.id, "log", { level: "info", message: msg, timestamp: new Date().toISOString() });
+      }
+    }
+
     const seekersConfig = seekersDir && !baselineExists(seekersDir) ? findSeekersConfig(domain) : null;
 
     if (seekersConfig) {

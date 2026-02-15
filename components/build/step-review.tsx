@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { AlertCircle, Loader2 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
@@ -34,20 +35,42 @@ interface StepReviewProps {
   error: string | null;
 }
 
+function useBaselineLabel(domain: string): string {
+  const [label, setLabel] = useState("Checking...");
+  useEffect(() => {
+    if (!domain) { setLabel("None"); return; }
+    fetch(`/api/baselines/${encodeURIComponent(domain)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!data || data.status === "none") {
+          setLabel("None (will auto-search during build)");
+        } else if (data.status === "pending") {
+          setLabel(`Pending — ${data.name || domain}`);
+        } else {
+          setLabel(`${data.refs_count} document(s) (${data.name || domain})`);
+        }
+      })
+      .catch(() => setLabel("None"));
+  }, [domain]);
+  return label;
+}
+
 export function StepReview({ data, confirmed, onConfirmChange, submitting, error }: StepReviewProps) {
   const tier = TIER_INFO[data.qualityTier];
+  const baselineLabel = useBaselineLabel(data.domain);
 
   const rows: [string, string][] = [
-    ["Template", data.templateName || "—"],
+    ["Template", data.templateName || "\u2014"],
     ["Skill Name", data.name],
     ["Domain", data.domain],
     ["Language", data.language === "vi" ? "Tieng Viet" : "English"],
     ["Quality", `${data.qualityTier} (${tier.time}, ${tier.cost})`],
     ["Platforms", data.platforms.join(", ")],
+    ["Baseline", baselineLabel],
     ["Auto-scrape", data.autoScrape ? `Yes (${data.baselineUrlCount || 0} URL(s))` : "No"],
-    ["Files", data.fileCount > 0 ? `${data.fileCount} file(s) (${(data.totalFileSize / 1024 / 1024).toFixed(1)} MB)` : "—"],
-    ["URLs", data.urlCount > 0 ? `${data.urlCount} URL(s)` : "—"],
-    ["GitHub", data.githubRepo || "—"],
+    ["Files", data.fileCount > 0 ? `${data.fileCount} file(s) (${(data.totalFileSize / 1024 / 1024).toFixed(1)} MB)` : "\u2014"],
+    ["URLs", data.urlCount > 0 ? `${data.urlCount} URL(s)` : "\u2014"],
+    ["GitHub", data.githubRepo || "\u2014"],
   ];
 
   return (

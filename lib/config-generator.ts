@@ -1,7 +1,10 @@
 /**
  * Generates a YAML config string from wizard form data.
  * Used when user fills out the Build Wizard instead of uploading raw YAML.
+ * seekers_output_dir is auto-detected from baseline registry — never from user input.
  */
+
+import { getBaselineForDomain } from "./baseline-registry";
 
 export interface WizardConfig {
   name: string;
@@ -10,7 +13,6 @@ export interface WizardConfig {
   quality_tier: string;
   platforms: string[];
   baseline_urls: string[];
-  seekers_output_dir?: string;
   description?: string;
   github_repo?: string;
   github_analyze_code?: boolean;
@@ -49,7 +51,11 @@ export function generateConfigYaml(config: WizardConfig): string {
   // Fields required by Python BuildConfig
   lines.push(`transcript_paths: []`);
   lines.push(`output_dir: "./output"`);
-  lines.push(`seekers_output_dir: ${yamlStr(config.seekers_output_dir || "")}`);
+
+  // Auto-detect seekers_output_dir from baseline registry (not from user input)
+  const baseline = getBaselineForDomain(config.domain);
+  const seekersDir = baseline.status === "ready" ? baseline.path : "";
+  lines.push(`seekers_output_dir: ${yamlStr(seekersDir)}`);
   lines.push(`claude_model: "claude-sonnet-4-20250514"`);
 
   // GitHub repo analysis

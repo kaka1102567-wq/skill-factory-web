@@ -166,7 +166,7 @@ export default function BaselinesPage() {
                         {bl.domain} | {bl.refs_count} refs | {bl.topics_count} topics
                       </p>
                       {bl.seekers_output_dir && (
-                        <p className="text-xs text-muted-foreground mt-1 font-mono">{bl.seekers_output_dir}</p>
+                        <p className="text-xs text-emerald-400 mt-1">Baseline ready</p>
                       )}
                       {urls.length > 0 && (
                         <div className="flex flex-wrap gap-1 mt-2">

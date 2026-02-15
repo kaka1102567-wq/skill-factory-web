@@ -32,7 +32,6 @@ export function BuildWizard() {
   // Step 3 state (Data Sources)
   const [dataSources, setDataSources] = useState<DataSourcesData>({
     autoScrape: true,
-    seekersOutputDir: "",
     baselineUrls: [""],
   });
 
@@ -104,7 +103,6 @@ export function BuildWizard() {
         platforms: config.platforms,
         baseline_urls: dataSources.baselineUrls.filter((u) => u.trim()),
         input_urls: inputUrls,
-        seekers_output_dir: dataSources.seekersOutputDir || undefined,
         auto_scrape: dataSources.autoScrape,
         files: uploadedPaths,
         github_repo: githubUrl || undefined,
