@@ -23,6 +23,16 @@ from ..prompts.p5_build_prompts import (
 
 MAX_ANTIGRAVITY_CHARS = 50000
 
+PATTERN_TYPES = {
+    "architecture": "Architecture Patterns",
+    "function": "Key Functions & Classes",
+    "configuration": "Configuration & Setup",
+    "error_handling": "Error Handling",
+    "integration": "Integration Patterns",
+    "best_practice": "Best Practices",
+    "general": "General Patterns",
+}
+
 
 def _load_skill_seekers_baseline(output_dir: str) -> dict | None:
     """Load skill_seekers baseline from P0 output if available."""
@@ -210,17 +220,98 @@ def _copy_dir_tree(src: str, dst: str) -> None:
         shutil.copytree(src, dst, dirs_exist_ok=True)
 
 
-def _package_claude(platform_dir, skill_path, knowledge_dir, refs_dir):
-    """Claude: SKILL.md (full frontmatter + routing) + knowledge/ + references/."""
+def _generate_examples(build_atoms: list, output_dir: str,
+                       config: BuildConfig, logger: PipelineLogger) -> bool:
+    """Generate examples/code_patterns.md from code_pattern atoms.
+
+    Returns True if examples were generated.
+    """
+    code_atoms = [a for a in build_atoms if a.get("category") == "code_pattern"]
+
+    if not code_atoms:
+        logger.info("No code atoms found — skipping examples/", phase="p5")
+        return False
+
+    # Group by pattern_type (extract from tags)
+    grouped: dict[str, list] = {}
+    for atom in code_atoms:
+        ptype = "general"
+        for tag in atom.get("tags", []):
+            if tag in PATTERN_TYPES:
+                ptype = tag
+                break
+        grouped.setdefault(ptype, []).append(atom)
+
+    content = (
+        f"# Code Patterns — {config.name}\n\n"
+        f"> Extracted from codebase analysis. "
+        f"{len(code_atoms)} patterns identified.\n\n"
+    )
+
+    for ptype, type_atoms in grouped.items():
+        section_title = PATTERN_TYPES.get(ptype, ptype.replace('_', ' ').title())
+        content += f"\n## {section_title}\n\n"
+        for atom in type_atoms:
+            content += f"### {atom.get('title', 'Pattern')}\n\n"
+            content += f"{atom.get('content', '')}\n\n"
+            ref = atom.get("baseline_reference")
+            if ref:
+                content += f"*Source: `{ref}`*\n\n"
+            content += "---\n\n"
+
+    examples_dir = os.path.join(output_dir, "examples")
+    os.makedirs(examples_dir, exist_ok=True)
+    write_file(os.path.join(examples_dir, "code_patterns.md"), content)
+
+    logger.info(
+        f"Generated examples/code_patterns.md ({len(code_atoms)} patterns)",
+        phase="p5",
+    )
+    return True
+
+
+def _update_skill_md_with_examples(output_dir: str) -> None:
+    """Add examples routing to SKILL.md if examples exist."""
+    skill_md_path = os.path.join(output_dir, "SKILL.md")
+    if not os.path.exists(skill_md_path):
+        return
+
+    with open(skill_md_path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    examples_section = (
+        "\n## Code Examples\n\n"
+        "When the user asks about code patterns, implementation examples, "
+        "or architecture:\n"
+        "-> Read `examples/code_patterns.md` for extracted code patterns "
+        "and best practices.\n"
+    )
+
+    if "## Code Examples" in content:
+        return  # Already has examples section
+
+    if "## References" in content:
+        content = content.replace("## References", examples_section + "\n## References")
+    else:
+        content += examples_section
+
+    write_file(skill_md_path, content)
+
+
+def _package_claude(platform_dir, skill_path, knowledge_dir, refs_dir,
+                     examples_dir=None):
+    """Claude: SKILL.md (full frontmatter + routing) + knowledge/ + references/ + examples/."""
     if os.path.exists(skill_path):
         shutil.copy2(skill_path, os.path.join(platform_dir, "SKILL.md"))
     _copy_dir_tree(knowledge_dir, os.path.join(platform_dir, "knowledge"))
     _copy_dir_tree(refs_dir, os.path.join(platform_dir, "references"))
+    if examples_dir:
+        _copy_dir_tree(examples_dir, os.path.join(platform_dir, "examples"))
 
 
 def _package_openclaw(platform_dir, config, build_atoms, avg_confidence,
-                      knowledge_dir, refs_dir):
-    """OpenClaw: simplified SKILL.md (name, description, version) + knowledge/ + references/."""
+                      knowledge_dir, refs_dir, examples_dir=None):
+    """OpenClaw: simplified SKILL.md (name, description, version) + knowledge/ + references/ + examples/."""
     lines = [
         "---",
         f"name: {config.name}",
@@ -237,9 +328,12 @@ def _package_openclaw(platform_dir, config, build_atoms, avg_confidence,
     write_file(os.path.join(platform_dir, "SKILL.md"), "\n".join(lines))
     _copy_dir_tree(knowledge_dir, os.path.join(platform_dir, "knowledge"))
     _copy_dir_tree(refs_dir, os.path.join(platform_dir, "references"))
+    if examples_dir:
+        _copy_dir_tree(examples_dir, os.path.join(platform_dir, "examples"))
 
 
-def _package_antigravity(platform_dir, config, knowledge_dir, refs_dir):
+def _package_antigravity(platform_dir, config, knowledge_dir, refs_dir,
+                         examples_dir=None):
     """Antigravity: single system_instructions.md with all content inlined."""
     lines = [
         f"# {config.name} — System Instructions",
@@ -287,6 +381,28 @@ def _package_antigravity(platform_dir, config, knowledge_dir, refs_dir):
         ref_text += "\n\n*[References truncated to fit size limit]*"
 
     lines.append(ref_text)
+
+    # Inline examples if available and within budget
+    if examples_dir and os.path.isdir(examples_dir):
+        examples_parts = []
+        for fname in sorted(os.listdir(examples_dir)):
+            if fname.endswith(".md"):
+                fpath = os.path.join(examples_dir, fname)
+                with open(fpath, "r", encoding="utf-8") as f:
+                    ex_content = f.read().strip()
+                if ex_content:
+                    examples_parts.append(ex_content)
+        if examples_parts:
+            ex_text = "\n\n".join(examples_parts)
+            current_len = len("\n".join(lines))
+            if current_len + len(ex_text) < MAX_ANTIGRAVITY_CHARS:
+                lines.extend(["", "---", "", "## Code Examples", ""])
+                lines.append(ex_text)
+            elif MAX_ANTIGRAVITY_CHARS - current_len > 1000:
+                budget = MAX_ANTIGRAVITY_CHARS - current_len - 200
+                lines.extend(["", "---", "", "## Code Examples (truncated)", ""])
+                lines.append(ex_text[:budget])
+
     lines.extend([
         "",
         "---",
@@ -321,17 +437,22 @@ def _package_for_platforms(config, output_dir, build_atoms,
     skill_path = os.path.join(output_dir, "SKILL.md")
     knowledge_dir = os.path.join(output_dir, "knowledge")
     refs_dir = os.path.join(output_dir, "references")
+    examples_dir = os.path.join(output_dir, "examples")
+    has_examples = os.path.isdir(examples_dir)
 
     packagers = {
         "claude": lambda d: _package_claude(
             d, skill_path, knowledge_dir, refs_dir,
+            examples_dir if has_examples else None,
         ),
         "openclaw": lambda d: _package_openclaw(
             d, config, build_atoms, avg_confidence,
             knowledge_dir, refs_dir,
+            examples_dir if has_examples else None,
         ),
         "antigravity": lambda d: _package_antigravity(
             d, config, knowledge_dir, refs_dir,
+            examples_dir if has_examples else None,
         ),
     }
 
@@ -355,6 +476,8 @@ def _package_for_platforms(config, output_dir, build_atoms,
         shutil.rmtree(knowledge_dir)
     if os.path.isdir(refs_dir):
         shutil.rmtree(refs_dir)
+    if os.path.isdir(examples_dir):
+        shutil.rmtree(examples_dir)
 
     platform_names = ", ".join(platforms)
     logger.info(
@@ -383,10 +506,13 @@ def _generate_readme(config: BuildConfig, metadata: dict,
     sources = []
     transcript_atoms = len([a for a in atoms if a.get("source") == "transcript"])
     baseline_atoms = len([a for a in atoms if a.get("source") == "baseline"])
+    codebase_atoms = len([a for a in atoms if a.get("source") == "codebase"])
     if transcript_atoms > 0:
         sources.append(f"{transcript_atoms} from expert transcript")
     if baseline_atoms > 0:
         sources.append(f"{baseline_atoms} from baseline documentation")
+    if codebase_atoms > 0:
+        sources.append(f"{codebase_atoms} from codebase analysis")
 
     categories = sorted(set(a.get("category", "general") for a in atoms))
     quality_score = metadata.get("avg_confidence", 0) * 100
@@ -614,6 +740,16 @@ def run_p5(config: BuildConfig, claude: ClaudeClient,
         skill_path = os.path.join(config.output_dir, "SKILL.md")
         write_file(skill_path, skill_content)
         output_files.append(skill_path)
+
+        # ── Step 2.3: Generate examples/ from code atoms ──
+        has_examples = _generate_examples(
+            build_atoms, config.output_dir, config, logger,
+        )
+        if has_examples:
+            _update_skill_md_with_examples(config.output_dir)
+            output_files.append(
+                os.path.join(config.output_dir, "examples", "code_patterns.md")
+            )
 
         # ── Step 2.5: Multi-platform packaging ──
         platforms_built = _package_for_platforms(
