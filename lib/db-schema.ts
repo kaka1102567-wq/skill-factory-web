@@ -99,7 +99,7 @@ export function initializeSchema(db: Database.Database) {
         "facebook-ads",
         "Build AI skill cho quảng cáo Facebook tại thị trường Việt Nam",
         "📘",
-        `name: fb-ads-vietnam\ndomain: facebook-ads\nlanguage: vi\nquality_tier: standard\nplatforms: [claude]\nbaseline_sources:\n  - url: https://developers.facebook.com/docs/marketing-api\n    type: documentation\n  - url: https://www.facebook.com/business/help\n    type: documentation`,
+        `name: fb-ads-vietnam\ndomain: facebook-ads\nlanguage: vi\nquality_tier: standard\nplatforms:\n  - claude\n  - openclaw\n  - antigravity\ntranscript_paths: []\noutput_dir: "./output"\nseekers_output_dir: "output/fb-ads-meta/"\nclaude_model: "claude-sonnet-4-20250514"\nbaseline_sources:\n  - url: https://developers.facebook.com/docs/marketing-api\n    type: documentation\n  - url: https://www.facebook.com/business/help\n    type: documentation`,
         1
       );
       insertTemplate.run(
