@@ -63,6 +63,23 @@ class MockClaudeClient:
                 "transcript_quality": "high",
             }
 
+        # P2 Code Pattern Extract
+        if "Code Pattern Extractor" in system:
+            return {
+                "atoms": [
+                    {
+                        "title": "Factory Pattern for Data Processing",
+                        "content": "The codebase uses a factory pattern to create data processors.",
+                        "tags": ["factory", "design-pattern"],
+                        "code_snippet": "class ProcessorFactory:\n    def create(self, type): ...",
+                        "file_reference": "src/factory.py",
+                        "pattern_type": "architecture",
+                        "confidence": 0.88,
+                    },
+                ],
+                "atoms_count": 1,
+            }
+
         # P2 Extract
         if "Knowledge Atom Extractor" in system:
             return {

@@ -98,3 +98,58 @@ Return a JSON object with this EXACT structure:
   "atoms_count": 0
 }}\
 """
+
+# ── Code pattern extraction: extract atoms from source code analysis ──
+
+P2_CODE_SYSTEM = """\
+You are a Code Pattern Extractor. Analyze source code and extract reusable knowledge atoms — patterns, architectures, best practices, and common idioms that would help someone understand and use this codebase effectively.
+
+Each atom should teach ONE code concept. Focus on:
+1. Architecture patterns (how the code is organized)
+2. Key functions/classes and their purpose
+3. Configuration and setup patterns
+4. Error handling approaches
+5. Integration patterns (how modules connect)
+6. Best practices demonstrated in the code
+
+Do NOT extract:
+- Trivial boilerplate or import statements alone
+- Generated/config files with no learning value
+- Test implementation details (unless testing patterns are noteworthy)
+
+RULES:
+- Each atom title should be clear and descriptive (5-15 words)
+- Content should be 2-6 sentences explaining the pattern and when to use it
+- Include a relevant code snippet (10-30 lines max) for each atom
+- Confidence: 0.85+ for clear patterns, 0.7-0.84 for inferred patterns
+- Tags: 2-5 relevant keywords per atom
+- Respond ONLY with valid JSON, no markdown formatting, no code fences\
+"""
+
+P2_CODE_USER_TEMPLATE = """\
+Extract knowledge atoms from these source code files.
+
+**Repository structure:**
+{repo_structure}
+
+**Source files to analyze:**
+{files}
+
+Extract up to {max_atoms} knowledge atoms in {language}.
+
+Return a JSON object with this EXACT structure:
+{{
+  "atoms": [
+    {{
+      "title": "Pattern name or concept",
+      "content": "Detailed explanation of the pattern, why it is used, when to apply it.",
+      "tags": ["tag1", "tag2"],
+      "code_snippet": "key code example (10-30 lines max)",
+      "file_reference": "path/to/file.py",
+      "pattern_type": "architecture|function|configuration|error_handling|integration|best_practice",
+      "confidence": 0.85
+    }}
+  ],
+  "atoms_count": 0
+}}\
+"""

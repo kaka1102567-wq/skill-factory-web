@@ -17,11 +17,14 @@ from ..seekers.taxonomy import get_all_categories
 from ..prompts.p2_extract_prompts import (
     P2_SYSTEM, P2_USER_TEMPLATE,
     P2_GAP_SYSTEM, P2_GAP_USER_TEMPLATE,
+    P2_CODE_SYSTEM, P2_CODE_USER_TEMPLATE,
 )
 
 
 MAX_GAP_FILL_ATOMS = 10
+MAX_CODE_ATOMS = 15
 MAX_CONTENT_CHARS = 12000  # ~3000 tokens excerpt per gap topic
+CODE_CHUNK_SIZE = 5  # files per Claude call
 
 
 def run_p2(config: BuildConfig, claude: ClaudeClient,
@@ -140,17 +143,25 @@ def run_p2(config: BuildConfig, claude: ClaudeClient,
                     claude, atom_counter, logger,
                 )
 
+        # ── Stream C: Code analysis extraction ──
+        code_atoms: list[KnowledgeAtom] = []
+        code_atoms, atom_counter = _extract_code_atoms(
+            config, claude, atom_counter, logger,
+        )
+
         # ── Merge streams ──
-        all_atoms = transcript_atoms + gap_atoms
+        all_atoms = transcript_atoms + gap_atoms + code_atoms
 
         if not all_atoms:
             raise PhaseError(phase_id, "No atoms extracted from any source")
 
         transcript_count = len(transcript_atoms)
         gap_count = len(gap_atoms)
+        code_count = len(code_atoms)
         logger.info(
             f"Extracted: {transcript_count} from transcript"
             f" + {gap_count} from baseline"
+            f" + {code_count} from codebase"
             f" = {len(all_atoms)} total",
             phase=phase_id,
         )
@@ -189,6 +200,7 @@ def run_p2(config: BuildConfig, claude: ClaudeClient,
                 "total_atoms": len(all_atoms),
                 "transcript_atoms": transcript_count,
                 "gap_fill_atoms": gap_count,
+                "code_atoms": code_count,
                 "chunks_processed": total_chunks,
                 "avg_confidence": round(avg_confidence, 3),
             },
@@ -287,6 +299,128 @@ def _extract_keywords(text: str, max_kw: int = 8) -> list[str]:
     filtered = [w for w in words if w not in STOP_WORDS and not w.isdigit()]
     counts = Counter(filtered)
     return [w for w, _ in counts.most_common(max_kw)]
+
+
+def _extract_code_atoms(
+    config: BuildConfig, claude: ClaudeClient,
+    atom_counter: int, logger: PipelineLogger,
+) -> tuple[list[KnowledgeAtom], int]:
+    """Stream C: Extract code pattern atoms from code_analysis.json."""
+    phase_id = "p2"
+
+    # code_analysis.json is in input/ dir (sibling of output/)
+    from pathlib import Path
+    build_dir = Path(config.output_dir).parent
+    code_analysis_path = build_dir / "input" / "code_analysis.json"
+
+    if not code_analysis_path.exists():
+        logger.info(
+            "No code_analysis.json found — skipping code extraction",
+            phase=phase_id,
+        )
+        return [], atom_counter
+
+    try:
+        analysis = read_json(str(code_analysis_path))
+    except Exception as e:
+        logger.warn(f"Failed to read code_analysis.json: {e}", phase=phase_id)
+        return [], atom_counter
+
+    analyzed_files = analysis.get("analyzed_files", [])
+    if not analyzed_files:
+        logger.info(
+            "No source files in code_analysis.json — skipping code extraction",
+            phase=phase_id,
+        )
+        return [], atom_counter
+
+    repo_structure = json.dumps(
+        analysis.get("repo_structure", {}), indent=2, ensure_ascii=False,
+    )
+
+    # Chunk files (max CODE_CHUNK_SIZE per Claude call)
+    file_chunks = [
+        analyzed_files[i:i + CODE_CHUNK_SIZE]
+        for i in range(0, len(analyzed_files), CODE_CHUNK_SIZE)
+    ]
+
+    code_atoms: list[KnowledgeAtom] = []
+
+    for ci, chunk in enumerate(file_chunks):
+        if len(code_atoms) >= MAX_CODE_ATOMS:
+            break
+
+        remaining = MAX_CODE_ATOMS - len(code_atoms)
+
+        # Build files text
+        files_text = ""
+        for f in chunk:
+            lang = f.get("language", "text")
+            files_text += (
+                f"\n\n### File: {f['path']} ({lang}, {f.get('lines', 0)} lines)\n"
+                f"```{lang}\n{f['content']}\n```\n"
+            )
+
+        user_prompt = P2_CODE_USER_TEMPLATE.format(
+            repo_structure=repo_structure,
+            files=files_text,
+            max_atoms=remaining,
+            language=config.language,
+        )
+
+        try:
+            result = claude.call_json(
+                system=P2_CODE_SYSTEM, user=user_prompt,
+                max_tokens=4096, phase=phase_id,
+            )
+
+            raw_atoms = result.get("atoms", [])[:remaining]
+            for raw in raw_atoms:
+                atom_counter += 1
+                content = raw.get("content", "")
+                snippet = raw.get("code_snippet", "")
+                if snippet:
+                    content += f"\n\n```\n{snippet}\n```"
+
+                atom = KnowledgeAtom(
+                    id=f"atom_{atom_counter:04d}",
+                    title=raw.get("title", "Untitled"),
+                    content=content,
+                    category="code_pattern",
+                    tags=raw.get("tags", []) + [
+                        "code",
+                        raw.get("pattern_type", "general"),
+                    ],
+                    source_video="code_analysis",
+                    confidence=float(raw.get("confidence", 0.85)),
+                    status="raw",
+                    created_at=datetime.now(timezone.utc).isoformat(),
+                    source="codebase",
+                    gap_filled=False,
+                    verification_note=f"From: {raw.get('file_reference', 'N/A')}",
+                    baseline_reference=raw.get("file_reference"),
+                )
+                code_atoms.append(atom)
+
+            logger.debug(
+                f"Code chunk {ci+1}/{len(file_chunks)}: "
+                f"extracted {len(raw_atoms)} atoms",
+                phase=phase_id,
+            )
+
+        except Exception as e:
+            logger.warn(
+                f"Code extraction failed for chunk {ci+1}: {e}",
+                phase=phase_id,
+            )
+
+    logger.info(
+        f"Code extraction: {len(code_atoms)} atoms from "
+        f"{len(analyzed_files)} files",
+        phase=phase_id,
+    )
+
+    return code_atoms[:MAX_CODE_ATOMS], atom_counter
 
 
 def _extract_gap_atoms(
