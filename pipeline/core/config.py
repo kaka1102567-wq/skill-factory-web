@@ -35,6 +35,15 @@ def load_config(config_path: str, output_dir: str) -> BuildConfig:
 
     tier_map = {"draft": "draft", "standard": "standard", "premium": "premium"}
 
+    # Auto-discover unprocessed PDFs in input dir
+    pdf_exts = {'.pdf'}
+    pdf_paths = []
+    for search_dir in search_dirs:
+        if search_dir.exists():
+            for p in sorted(search_dir.iterdir()):
+                if p.suffix.lower() in pdf_exts and str(p) not in pdf_paths:
+                    pdf_paths.append(str(p))
+
     return BuildConfig(
         name=raw.get("name", "Untitled"),
         domain=raw.get("domain", "custom"),
@@ -50,6 +59,8 @@ def load_config(config_path: str, output_dir: str) -> BuildConfig:
         seekers_cache_dir=os.environ.get("SEEKERS_CACHE_DIR", "./data/cache"),
         seekers_cache_ttl_hours=int(os.environ.get("SEEKERS_CACHE_TTL_HOURS", "168")),
         seekers_output_dir=raw.get("seekers_output_dir", ""),
+        input_urls=raw.get("input_urls", []),
+        input_pdfs=pdf_paths,
     )
 
 

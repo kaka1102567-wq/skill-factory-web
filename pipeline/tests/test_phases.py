@@ -328,3 +328,29 @@ class TestP5Build:
         assert os.path.exists(os.path.join(out, "SKILL.md"))
         assert os.path.isdir(os.path.join(out, "knowledge"))
         assert not os.path.isdir(os.path.join(out, "claude"))
+
+    def test_readme_generated_in_output(self, build_config, mock_claude, logger, seekers_cache, seekers_lookup):
+        """P5 generates README.md in output directory."""
+        self._setup_p4_output(build_config.output_dir)
+        result = run_p5(build_config, mock_claude, seekers_cache, seekers_lookup, logger)
+        assert result.status == "done"
+
+        readme_path = os.path.join(build_config.output_dir, "README.md")
+        assert os.path.exists(readme_path)
+        with open(readme_path) as f:
+            content = f.read()
+        assert "AI Skill Package" in content
+        assert "## Statistics" in content
+        assert build_config.name in content
+
+    def test_readme_in_package_zip(self, build_config, mock_claude, logger, seekers_cache, seekers_lookup):
+        """README.md is included in package.zip."""
+        import zipfile
+        self._setup_p4_output(build_config.output_dir)
+        result = run_p5(build_config, mock_claude, seekers_cache, seekers_lookup, logger)
+        assert result.status == "done"
+
+        zip_path = os.path.join(build_config.output_dir, "package.zip")
+        with zipfile.ZipFile(zip_path, "r") as zf:
+            names = zf.namelist()
+        assert "README.md" in names

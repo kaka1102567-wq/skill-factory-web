@@ -77,14 +77,14 @@ export function startBuild(config: BuildConfig): ChildProcess {
           : `Baseline scrape ${code === 0 ? "produced no output" : `failed (code ${code})`}, continuing without pre-scraped baseline...`;
         insertBuildLog(config.id, { level: ok ? "info" : "warn", message: msg });
         sseManager.broadcast(config.id, "log", { level: ok ? "info" : "warn", message: msg, timestamp: new Date().toISOString() });
-        _spawnPipeline(config, pythonPath, cliPath);
+        _preProcessInputs(config, pythonPath, cliPath);
       });
 
       scrapeProc.on("error", (err) => {
         const msg = `Baseline scrape error: ${err.message}, continuing...`;
         insertBuildLog(config.id, { level: "warn", message: msg });
         sseManager.broadcast(config.id, "log", { level: "warn", message: msg, timestamp: new Date().toISOString() });
-        _spawnPipeline(config, pythonPath, cliPath);
+        _preProcessInputs(config, pythonPath, cliPath);
       });
 
       return scrapeProc;
@@ -95,7 +95,103 @@ export function startBuild(config: BuildConfig): ChildProcess {
     insertBuildLog(config.id, { level: "warn", message: msg });
   }
 
-  return _spawnPipeline(config, pythonPath, cliPath);
+  return _preProcessInputs(config, pythonPath, cliPath);
+}
+
+// ─── Pre-process Inputs (URLs + PDFs) before pipeline ─
+
+function _preProcessInputs(config: BuildConfig, pythonPath: string, cliPath: string): ChildProcess {
+  const configContent = fs.readFileSync(config.configPath, "utf-8");
+  const buildDir = path.dirname(config.outputDir);
+  const inputDir = path.join(buildDir, "input");
+
+  // Parse input_urls from config.yaml
+  const urlsMatch = configContent.match(/input_urls:\s*\n((?:\s+-\s*.+\n)*)/);
+  const urls: string[] = [];
+  if (urlsMatch) {
+    const lines = urlsMatch[1].split("\n");
+    for (const line of lines) {
+      const m = line.match(/^\s+-\s*["']?(.+?)["']?\s*$/);
+      if (m) urls.push(m[1]);
+    }
+  }
+
+  // Check for PDFs in input dir
+  const pdfFiles: string[] = [];
+  if (fs.existsSync(inputDir)) {
+    for (const f of fs.readdirSync(inputDir)) {
+      if (f.toLowerCase().endsWith(".pdf")) pdfFiles.push(f);
+    }
+  }
+
+  const hasUrls = urls.length > 0;
+  const hasPdfs = pdfFiles.length > 0;
+
+  if (!hasUrls && !hasPdfs) {
+    return _spawnPipeline(config, pythonPath, cliPath);
+  }
+
+  const pipelinePath = path.dirname(cliPath);
+  const realCliPath = path.join(pipelinePath, "cli.py");
+
+  // Chain: fetch URLs → extract PDFs → spawn pipeline
+  const runStep = (stepName: string, args: string[], timeoutMs: number): Promise<number> => {
+    return new Promise((resolve) => {
+      const msg = `Pre-processing: ${stepName}...`;
+      insertBuildLog(config.id, { level: "info", phase: null, message: msg });
+      sseManager.broadcast(config.id, "log", { level: "info", phase: "pre", message: msg, timestamp: new Date().toISOString() });
+
+      const proc = spawn(pythonPath, [realCliPath, ...args], {
+        cwd: process.cwd(),
+        env: { ...process.env, PYTHONUNBUFFERED: "1", PYTHONIOENCODING: "utf-8" },
+      });
+
+      const timer = setTimeout(() => { proc.kill("SIGTERM"); }, timeoutMs);
+
+      proc.stdout?.on("data", (chunk: Buffer) => {
+        const text = chunk.toString().trim();
+        if (text) handlePlainLog(config.id, text, "debug");
+      });
+      proc.stderr?.on("data", (chunk: Buffer) => {
+        const text = chunk.toString().trim();
+        if (text) handlePlainLog(config.id, text, "debug");
+      });
+      proc.on("exit", (code) => { clearTimeout(timer); resolve(code ?? 1); });
+      proc.on("error", () => { clearTimeout(timer); resolve(1); });
+    });
+  };
+
+  // Run async chain, then spawn pipeline
+  (async () => {
+    if (hasUrls) {
+      const urlStr = urls.join(",");
+      const code = await runStep(`fetching ${urls.length} URLs`, ["fetch-urls", "--urls", urlStr, "--output-dir", inputDir], 60_000);
+      const lvl = code === 0 ? "info" : "warn";
+      const msg = code === 0 ? `Fetched ${urls.length} URLs` : `URL fetch exited with code ${code}, continuing...`;
+      insertBuildLog(config.id, { level: lvl, message: msg });
+      sseManager.broadcast(config.id, "log", { level: lvl, phase: "pre", message: msg, timestamp: new Date().toISOString() });
+    }
+
+    if (hasPdfs) {
+      const code = await runStep(`extracting ${pdfFiles.length} PDFs`, ["extract-pdf", "--input-dir", inputDir, "--output-dir", inputDir], 120_000);
+      const lvl = code === 0 ? "info" : "warn";
+      const msg = code === 0 ? `Extracted ${pdfFiles.length} PDFs` : `PDF extraction exited with code ${code}, continuing...`;
+      insertBuildLog(config.id, { level: lvl, message: msg });
+      sseManager.broadcast(config.id, "log", { level: lvl, phase: "pre", message: msg, timestamp: new Date().toISOString() });
+    }
+
+    const doneMsg = "Pre-processing complete";
+    insertBuildLog(config.id, { level: "info", message: doneMsg });
+    sseManager.broadcast(config.id, "log", { level: "info", phase: "pre", message: doneMsg, timestamp: new Date().toISOString() });
+
+    _spawnPipeline(config, pythonPath, cliPath);
+  })();
+
+  // Return a placeholder process — the real pipeline will be spawned after pre-processing
+  // We create a no-op child so the caller has something to track
+  const placeholder = spawn(pythonPath, ["--version"], { stdio: "ignore" });
+  runningProcesses.set(config.id, placeholder);
+  return placeholder;
 }
 
 // ─── Pipeline Spawn (extracted for pre-scrape chaining) ─

@@ -41,6 +41,17 @@ def main():
     status_parser = subparsers.add_parser("status", help="Check build status")
     status_parser.add_argument("--output", required=True, help="Build output directory")
 
+    # ── fetch-urls ──
+    fetch_parser = subparsers.add_parser("fetch-urls", help="Fetch URLs and convert to Markdown")
+    fetch_parser.add_argument("--urls", required=True, help="Comma or newline separated URLs")
+    fetch_parser.add_argument("--output-dir", required=True, help="Output directory for .md files")
+
+    # ── extract-pdf ──
+    pdf_parser = subparsers.add_parser("extract-pdf", help="Extract text from PDFs to Markdown")
+    pdf_parser.add_argument("--input", default=None, help="Single PDF file path")
+    pdf_parser.add_argument("--input-dir", default=None, help="Directory containing PDF files")
+    pdf_parser.add_argument("--output-dir", required=True, help="Output directory for .md files")
+
     args = parser.parse_args()
 
     if not args.command:
@@ -53,6 +64,10 @@ def main():
         sys.exit(cmd_resolve(args))
     elif args.command == "status":
         sys.exit(cmd_status(args))
+    elif args.command == "fetch-urls":
+        sys.exit(cmd_fetch_urls(args))
+    elif args.command == "extract-pdf":
+        sys.exit(cmd_extract_pdf(args))
 
 
 def cmd_build(args) -> int:
@@ -129,6 +144,25 @@ def cmd_status(args) -> int:
     from dataclasses import asdict
     print(json.dumps(asdict(state), indent=2, ensure_ascii=False))
     return 0
+
+
+def cmd_fetch_urls(args) -> int:
+    """Fetch URLs and convert to Markdown input files."""
+    from pipeline.commands.fetch_urls import run_fetch_urls
+    return run_fetch_urls(args.urls, args.output_dir)
+
+
+def cmd_extract_pdf(args) -> int:
+    """Extract text from PDF files to Markdown."""
+    from pipeline.commands.extract_pdf import run_extract_pdf
+    if not args.input and not args.input_dir:
+        _error_json("Either --input or --input-dir is required")
+        return 1
+    return run_extract_pdf(
+        input_path=args.input,
+        input_dir=args.input_dir,
+        output_dir=args.output_dir,
+    )
 
 
 def _find_config(output_dir: str) -> str | None:

@@ -160,6 +160,9 @@ class BuildConfig:
     seekers_cache_dir: str = "./data/cache"
     seekers_cache_ttl_hours: int = 168
     seekers_output_dir: str = ""
+    # Multi-input sources
+    input_urls: list[str] = field(default_factory=list)
+    input_pdfs: list[str] = field(default_factory=list)
     # Quality
     min_phase_score: float = 70.0
     auto_resolve_threshold: float = 0.8

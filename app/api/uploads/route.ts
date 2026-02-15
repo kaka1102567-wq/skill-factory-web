@@ -18,7 +18,7 @@ export async function POST(req: Request) {
     const uploadDir = path.join(process.cwd(), "data", "uploads", uuidv4());
     await mkdir(uploadDir, { recursive: true });
 
-    const uploadedFiles: { name: string; path: string; size: number }[] = [];
+    const uploadedFiles: { name: string; path: string; size: number; type: string }[] = [];
 
     for (const file of files) {
       const ext = path.extname(file.name).toLowerCase();
@@ -40,7 +40,8 @@ export async function POST(req: Request) {
       const filePath = path.join(uploadDir, file.name);
       await writeFile(filePath, buffer);
 
-      uploadedFiles.push({ name: file.name, path: filePath, size: file.size });
+      const type = ext === ".pdf" ? "pdf" : ext === ".md" ? "markdown" : "text";
+      uploadedFiles.push({ name: file.name, path: filePath, size: file.size, type });
     }
 
     return NextResponse.json({

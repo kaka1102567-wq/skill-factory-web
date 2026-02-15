@@ -60,7 +60,7 @@ export function BuildWizard() {
       case 0: return selectedTemplate !== null;
       case 1: return config.name.trim().length >= 3;
       case 2: return true; // Data Sources is always optional
-      case 3: return files.length > 0 || urls.some((u) => u.trim());
+      case 3: return files.length > 0 || urls.some((u) => u.trim().match(/^https?:\/\/.+/));
       case 4: return confirmed;
       default: return false;
     }
@@ -87,6 +87,9 @@ export function BuildWizard() {
         uploadedPaths = uploadData.files.map((f: { path: string }) => f.path);
       }
 
+      // Separate input URLs (for content fetch) from baseline URLs
+      const inputUrls = urls.filter((u) => u.trim().match(/^https?:\/\/.+/));
+
       // Create build
       const body = {
         name: config.name,
@@ -95,10 +98,8 @@ export function BuildWizard() {
         language: config.language,
         quality_tier: config.qualityTier,
         platforms: config.platforms,
-        baseline_urls: [
-          ...dataSources.baselineUrls.filter((u) => u.trim()),
-          ...urls.filter((u) => u.trim()),
-        ],
+        baseline_urls: dataSources.baselineUrls.filter((u) => u.trim()),
+        input_urls: inputUrls,
         seekers_output_dir: dataSources.seekersOutputDir || undefined,
         auto_scrape: dataSources.autoScrape,
         files: uploadedPaths,
