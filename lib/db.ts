@@ -150,6 +150,83 @@ export function getAllSettings(): Record<string, string> {
   return Object.fromEntries(rows.map(r => [r.key, r.value]));
 }
 
+// ─── Baselines ──────────────────────────────────────────
+
+export interface Baseline {
+  id: string;
+  domain: string;
+  name: string;
+  config_path: string | null;
+  seekers_output_dir: string | null;
+  status: string;
+  source_urls: string | null;
+  refs_count: number;
+  topics_count: number;
+  last_scraped_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export function getBaselines(domain?: string): Baseline[] {
+  const db = getDb();
+  if (domain) {
+    return db.prepare("SELECT * FROM baselines WHERE domain = ? ORDER BY updated_at DESC").all(domain) as Baseline[];
+  }
+  return db.prepare("SELECT * FROM baselines ORDER BY updated_at DESC").all() as Baseline[];
+}
+
+export function getBaseline(id: string): Baseline | null {
+  return getDb().prepare("SELECT * FROM baselines WHERE id = ?").get(id) as Baseline | null;
+}
+
+export function createBaseline(baseline: {
+  id: string;
+  domain: string;
+  name: string;
+  config_path?: string;
+  seekers_output_dir?: string;
+  source_urls?: string[];
+}): Baseline {
+  const db = getDb();
+  db.prepare(`
+    INSERT INTO baselines (id, domain, name, config_path, seekers_output_dir, status, source_urls)
+    VALUES (?, ?, ?, ?, ?, 'pending', ?)
+  `).run(
+    baseline.id, baseline.domain, baseline.name,
+    baseline.config_path || null,
+    baseline.seekers_output_dir || null,
+    baseline.source_urls ? JSON.stringify(baseline.source_urls) : null,
+  );
+  return getBaseline(baseline.id)!;
+}
+
+export function updateBaseline(id: string, updates: Partial<{
+  name: string;
+  config_path: string;
+  seekers_output_dir: string;
+  status: string;
+  source_urls: string;
+  refs_count: number;
+  topics_count: number;
+  last_scraped_at: string;
+}>): void {
+  const db = getDb();
+  const setClauses: string[] = ["updated_at = datetime('now')"];
+  const values: unknown[] = [];
+
+  for (const [key, value] of Object.entries(updates)) {
+    setClauses.push(`${key} = ?`);
+    values.push(value);
+  }
+
+  values.push(id);
+  db.prepare(`UPDATE baselines SET ${setClauses.join(", ")} WHERE id = ?`).run(...values);
+}
+
+export function deleteBaseline(id: string): void {
+  getDb().prepare("DELETE FROM baselines WHERE id = ?").run(id);
+}
+
 // ─── Stats ─────────────────────────────────────────────
 
 export function getDashboardStats(): DashboardStats {

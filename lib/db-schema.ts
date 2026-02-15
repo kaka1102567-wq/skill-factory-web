@@ -62,6 +62,24 @@ export function initializeSchema(db: Database.Database) {
       description TEXT,
       updated_at  TEXT DEFAULT (datetime('now'))
     );
+
+    CREATE TABLE IF NOT EXISTS baselines (
+      id              TEXT PRIMARY KEY,
+      domain          TEXT NOT NULL,
+      name            TEXT NOT NULL,
+      config_path     TEXT,
+      seekers_output_dir TEXT,
+      status          TEXT NOT NULL DEFAULT 'pending',
+      source_urls     TEXT,
+      refs_count      INTEGER DEFAULT 0,
+      topics_count    INTEGER DEFAULT 0,
+      last_scraped_at TEXT,
+      created_at      TEXT DEFAULT (datetime('now')),
+      updated_at      TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_baselines_domain
+      ON baselines(domain);
   `);
 
   // Seed settings if empty
@@ -131,6 +149,26 @@ export function initializeSchema(db: Database.Database) {
       );
     });
     seedTemplates();
+  }
+
+  // Seed baselines if empty
+  const baselineCount = db
+    .prepare("SELECT COUNT(*) as count FROM baselines")
+    .get() as { count: number };
+  if (baselineCount.count === 0) {
+    const insertBaseline = db.prepare(
+      "INSERT INTO baselines (id, domain, name, config_path, seekers_output_dir, status, source_urls, refs_count, topics_count, last_scraped_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    );
+    const seedBaselines = db.transaction(() => {
+      insertBaseline.run(
+        "bl-fb-ads", "facebook-ads", "Facebook Ads & Marketing API",
+        "configs/seekers/meta_ads.json", "output/fb-ads-meta/",
+        "ready",
+        JSON.stringify(["https://www.facebook.com/business/help", "https://developers.facebook.com/docs/marketing-api"]),
+        12, 11, new Date().toISOString()
+      );
+    });
+    seedBaselines();
   }
 
   // Seed demo builds for UI development
