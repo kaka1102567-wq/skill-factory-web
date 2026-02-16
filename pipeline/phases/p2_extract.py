@@ -10,7 +10,7 @@ from ..core.types import BuildConfig, PhaseResult, KnowledgeAtom
 from ..core.logger import PipelineLogger
 from ..core.utils import read_all_transcripts, chunk_text, write_json, read_json
 from ..core.errors import PhaseError
-from ..clients.claude_client import ClaudeClient
+from ..clients.claude_client import ClaudeClient, CreditExhaustedError
 from ..seekers.cache import SeekersCache
 from ..seekers.lookup import SeekersLookup
 from ..seekers.taxonomy import get_all_categories
@@ -117,6 +117,8 @@ def run_p2(config: BuildConfig, claude: ClaudeClient,
                     phase=phase_id,
                 )
 
+            except CreditExhaustedError:
+                raise
             except Exception as e:
                 logger.warn(
                     f"Claude call failed for chunk {chunk_info['chunk_index']} "
@@ -206,6 +208,8 @@ def run_p2(config: BuildConfig, claude: ClaudeClient,
             },
         )
 
+    except CreditExhaustedError:
+        raise
     except Exception as e:
         logger.phase_failed(phase_id, phase_name, str(e))
         return PhaseResult(
@@ -371,7 +375,7 @@ def _extract_code_atoms(
         try:
             result = claude.call_json(
                 system=P2_CODE_SYSTEM, user=user_prompt,
-                max_tokens=4096, phase=phase_id,
+                max_tokens=8192, phase=phase_id,
             )
 
             raw_atoms = result.get("atoms", [])[:remaining]
@@ -408,6 +412,8 @@ def _extract_code_atoms(
                 phase=phase_id,
             )
 
+        except CreditExhaustedError:
+            raise
         except Exception as e:
             logger.warn(
                 f"Code extraction failed for chunk {ci+1}: {e}",
@@ -494,6 +500,8 @@ def _extract_gap_atoms(
                 phase=phase_id,
             )
 
+        except CreditExhaustedError:
+            raise
         except Exception as e:
             logger.warn(
                 f"Gap-fill failed for '{topic}': {e}",

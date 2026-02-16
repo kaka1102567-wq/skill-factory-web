@@ -13,7 +13,7 @@ from ..core.types import BuildConfig, PhaseResult
 from ..core.logger import PipelineLogger
 from ..core.utils import read_json, write_json, write_file, create_zip
 from ..core.errors import PhaseError
-from ..clients.claude_client import ClaudeClient
+from ..clients.claude_client import ClaudeClient, CreditExhaustedError
 from ..seekers.cache import SeekersCache
 from ..seekers.lookup import SeekersLookup
 from ..prompts.p5_build_prompts import (
@@ -704,6 +704,8 @@ def run_p5(config: BuildConfig, claude: ClaudeClient,
                         f"Empty content for pillar '{pillar_name}'",
                         phase=phase_id,
                     )
+            except CreditExhaustedError:
+                raise
             except Exception as e:
                 logger.warn(
                     f"Failed to generate {pillar_name}.md: {e}",
@@ -847,6 +849,8 @@ def run_p5(config: BuildConfig, claude: ClaudeClient,
             },
         )
 
+    except CreditExhaustedError:
+        raise
     except Exception as e:
         logger.phase_failed(phase_id, phase_name, str(e))
         return PhaseResult(

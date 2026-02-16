@@ -24,17 +24,30 @@ class MockClaudeClient:
         self.total_output_tokens = 0
         self.total_cost_usd = 0.0
         self.call_count = 0
+        self.model = "mock-sonnet"
+        self.model_light = "mock-haiku"
+        self.base_url = None
+        self._consecutive_credit_errors = 0
+        self.model_usage = {"main": 0, "light": 0}
 
     def call(self, system, user, **kwargs):
         self.call_count += 1
         self.total_input_tokens += 100
         self.total_output_tokens += 200
+        if kwargs.get("use_light_model"):
+            self.model_usage["light"] += 1
+        else:
+            self.model_usage["main"] += 1
         return '{"result": "mock"}'
 
     def call_json(self, system, user, **kwargs):
         self.call_count += 1
         self.total_input_tokens += 100
         self.total_output_tokens += 200
+        if kwargs.get("use_light_model"):
+            self.model_usage["light"] += 1
+        else:
+            self.model_usage["main"] += 1
 
         # P1 Audit
         if "Knowledge Auditor" in system:
@@ -142,7 +155,26 @@ class MockClaudeClient:
                 },
             }
 
-        # P4 Verify
+        # P4 Batch Verify
+        if "batch" in system.lower() or "Knowledge Verification Expert" in system:
+            # Parse atom count from user prompt if possible
+            import re
+            batch_match = re.search(r'batch of (\d+)', user)
+            batch_size = int(batch_match.group(1)) if batch_match else 10
+            return {
+                "results": [
+                    {
+                        "atom_id": f"atom_{j:04d}",
+                        "status": "verified",
+                        "confidence_adjustment": 0.05,
+                        "verification_note": "Mock batch verified",
+                        "baseline_reference": None,
+                    }
+                    for j in range(1, batch_size + 1)
+                ]
+            }
+
+        # P4 Verify (legacy single)
         if "Verification Expert" in system:
             return {
                 "atom_id": "atom_0001",

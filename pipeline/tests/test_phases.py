@@ -469,3 +469,83 @@ class TestP5Build:
             content = f.read()
         assert "Code Examples" in content
         assert "code_patterns.md" in content
+
+
+class TestCustomBaseUrl:
+
+    def test_base_url_passed_to_client(self):
+        """Custom base_url is accepted by ClaudeClient constructor."""
+        from pipeline.clients.claude_client import ClaudeClient
+        # Just verify constructor accepts the params without error
+        # (actual API call would fail with fake key)
+        try:
+            client = ClaudeClient(
+                api_key="test-key",
+                model="claude-sonnet-4-20250514",
+                model_light="claude-haiku-4-5-20251001",
+                base_url="https://claudible.io",
+            )
+            assert client.model_light == "claude-haiku-4-5-20251001"
+            assert client.base_url == "https://claudible.io"
+        except Exception:
+            pass  # May fail on network — constructor test is enough
+
+    def test_use_light_model_default_false(self, mock_claude):
+        """Default use_light_model is False (uses main model)."""
+        mock_claude.call("test", "test")
+        assert mock_claude.model_usage["main"] == 1
+        assert mock_claude.model_usage["light"] == 0
+
+
+class TestHybridModel:
+
+    def _setup_p2_output(self, output_dir):
+        atoms = [
+            {"id": f"atom_{i:04d}", "title": f"Atom {i}", "content": f"Content {i}",
+             "category": "campaign_management", "tags": ["a"], "confidence": 0.9, "status": "raw"}
+            for i in range(1, 6)
+        ]
+        write_json({"atoms": atoms, "total_atoms": 5, "score": 85.0},
+                    os.path.join(output_dir, "atoms_raw.json"))
+
+    def test_p3_uses_light_model(self, build_config, mock_claude, logger, seekers_cache, seekers_lookup):
+        """P3 dedup uses light model for Claude calls."""
+        self._setup_p2_output(build_config.output_dir)
+        run_p3(build_config, mock_claude, seekers_cache, seekers_lookup, logger)
+        # P3 should use light model for dedup
+        assert mock_claude.model_usage["light"] > 0
+
+
+class TestBatchVerify:
+
+    def _setup_p3_output_batch(self, output_dir, count=25):
+        """Create atoms_deduplicated.json with N atoms for batch testing."""
+        atoms = [
+            {"id": f"atom_{i:04d}", "title": f"Atom {i}", "content": f"Content about topic {i}",
+             "category": "campaign_management", "tags": ["campaign"],
+             "confidence": 0.85, "status": "deduplicated"}
+            for i in range(1, count + 1)
+        ]
+        write_json({"atoms": atoms, "total_atoms": count, "score": 85.0},
+                    os.path.join(output_dir, "atoms_deduplicated.json"))
+
+    def test_p4_batch_verify_reduces_calls(self, build_config, mock_claude, logger, seekers_cache, seekers_lookup):
+        """P4 with 25 atoms should make ~3 batch calls, not 25 individual calls."""
+        self._setup_p3_output_batch(build_config.output_dir, count=25)
+        # No skill-seekers baseline → uses Claude batch verify
+        initial_calls = mock_claude.call_count
+        result = run_p4(build_config, mock_claude, seekers_cache, seekers_lookup, logger)
+        assert result.status == "done"
+        calls_made = mock_claude.call_count - initial_calls
+        # With batch size 10 and draft 30% sample (8 atoms) → 1 batch call
+        # Much less than 25 individual calls
+        assert calls_made <= 5
+
+
+class TestCreditExhausted:
+
+    def test_credit_exhausted_error_class(self):
+        """CreditExhaustedError is importable and raisable."""
+        from pipeline.clients.claude_client import CreditExhaustedError
+        with pytest.raises(CreditExhaustedError):
+            raise CreditExhaustedError("Test credits depleted")

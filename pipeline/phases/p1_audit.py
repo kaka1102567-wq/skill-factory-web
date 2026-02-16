@@ -10,7 +10,7 @@ from ..core.types import BuildConfig, PhaseResult, InventoryItem
 from ..core.logger import PipelineLogger
 from ..core.utils import read_all_transcripts, chunk_text, write_json, read_json
 from ..core.errors import PhaseError
-from ..clients.claude_client import ClaudeClient
+from ..clients.claude_client import ClaudeClient, CreditExhaustedError
 from ..seekers.cache import SeekersCache
 from ..seekers.lookup import SeekersLookup
 from ..seekers.taxonomy import get_all_categories
@@ -83,6 +83,8 @@ def run_p1(config: BuildConfig, claude: ClaudeClient,
                     for topic in topics:
                         topic["source_file"] = filename
                     all_topics.extend(topics)
+                except CreditExhaustedError:
+                    raise
                 except Exception as e:
                     logger.warn(f"Claude call failed for chunk in {filename}: {e}", phase=phase_id)
 
@@ -181,6 +183,8 @@ def run_p1(config: BuildConfig, claude: ClaudeClient,
             },
         )
 
+    except CreditExhaustedError:
+        raise
     except Exception as e:
         logger.phase_failed(phase_id, phase_name, str(e))
         return PhaseResult(
