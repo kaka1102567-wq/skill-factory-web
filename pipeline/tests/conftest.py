@@ -298,6 +298,6 @@ def build_config(sample_config_path, sample_transcript_path, tmp_output_dir, tmp
         output_dir=tmp_output_dir,
         config_path=sample_config_path,
         claude_api_key="test-key",
-        claude_model="claude-sonnet-4-20250514",
+        claude_model="claude-sonnet-4-5-20250929",
         seekers_cache_dir=tmp_cache_dir,
     )

@@ -63,7 +63,7 @@ class TestE2EDryRun:
             output_dir=self.output_dir,
             config_path=self.config_path,
             claude_api_key="fake-key",
-            claude_model="claude-sonnet-4-20250514",
+            claude_model="claude-sonnet-4-5-20250929",
             seekers_cache_dir=self.cache_dir,
         )
 

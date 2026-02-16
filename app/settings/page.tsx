@@ -145,7 +145,7 @@ export default function SettingsPage() {
             className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors"
           >
             <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5 (cost saving)</option>
-            <option value="claude-sonnet-4-20250514">Claude Sonnet 4 (higher quality)</option>
+            <option value="claude-sonnet-4-5-20250929">Claude Sonnet 4.5 (higher quality)</option>
           </select>
           <p className="text-xs text-muted-foreground mt-1">
             Light model used for P3 (Dedup) and P4 (Verify). Haiku saves 67% cost per request.

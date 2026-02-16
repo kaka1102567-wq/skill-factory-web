@@ -230,7 +230,7 @@ function _preProcessInputs(config: BuildConfig, pythonPath: string, cliPath: str
 
 function _spawnPipeline(config: BuildConfig, pythonPath: string, cliPath: string): ChildProcess {
   const claudeApiKey = getSetting("claude_api_key") || process.env.CLAUDE_API_KEY || "";
-  const claudeModel = getSetting("claude_model") || process.env.CLAUDE_MODEL || "claude-sonnet-4-20250514";
+  const claudeModel = getSetting("claude_model") || process.env.CLAUDE_MODEL || "claude-sonnet-4-5-20250929";
   const seekersCacheDir = getSetting("seekers_cache_dir") || process.env.SEEKERS_CACHE_DIR || "./data/cache";
   const claudeBaseUrl = getSetting("claude_base_url") || process.env.CLAUDE_BASE_URL || "";
   const claudeModelLight = getSetting("claude_model_light") || process.env.CLAUDE_MODEL_LIGHT || "claude-haiku-4-5-20251001";
@@ -456,7 +456,7 @@ export function resumeAfterResolve(config: ResolveConfig): ChildProcess {
   const cliPath = path.join(pipelinePath, useReal ? "cli.py" : "mock_cli.py");
 
   const claudeApiKey = getSetting("claude_api_key") || process.env.CLAUDE_API_KEY || "";
-  const claudeModel = getSetting("claude_model") || process.env.CLAUDE_MODEL || "claude-sonnet-4-20250514";
+  const claudeModel = getSetting("claude_model") || process.env.CLAUDE_MODEL || "claude-sonnet-4-5-20250929";
   const seekersCacheDir = getSetting("seekers_cache_dir") || process.env.SEEKERS_CACHE_DIR || "./data/cache";
   const claudeBaseUrl = getSetting("claude_base_url") || process.env.CLAUDE_BASE_URL || "";
   const claudeModelLight = getSetting("claude_model_light") || process.env.CLAUDE_MODEL_LIGHT || "claude-haiku-4-5-20251001";

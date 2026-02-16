@@ -57,7 +57,7 @@ export function generateConfigYaml(config: WizardConfig): string {
   const baseline = getBaselineForDomain(config.domain);
   const seekersDir = baseline.status === "ready" ? baseline.path : "";
   lines.push(`seekers_output_dir: ${yamlStr(seekersDir)}`);
-  lines.push(`claude_model: "claude-sonnet-4-20250514"`);
+  lines.push(`claude_model: "claude-sonnet-4-5-20250929"`);
 
   // API provider settings (read from Settings DB — user sets once)
   const baseUrl = getSetting("claude_base_url") || "";

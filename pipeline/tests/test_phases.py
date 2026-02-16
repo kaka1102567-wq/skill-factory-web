@@ -481,7 +481,7 @@ class TestCustomBaseUrl:
         try:
             client = ClaudeClient(
                 api_key="test-key",
-                model="claude-sonnet-4-20250514",
+                model="claude-sonnet-4-5-20250929",
                 model_light="claude-haiku-4-5-20251001",
                 base_url="https://claudible.io",
             )

@@ -47,11 +47,12 @@ class CreditExhaustedError(Exception):
 
 class ClaudeClient:
     PRICING = {
+        "claude-sonnet-4-5-20250929": {"input": 3.0, "output": 15.0},
         "claude-sonnet-4-20250514": {"input": 3.0, "output": 15.0},
         "claude-haiku-4-5-20251001": {"input": 0.80, "output": 4.0},
     }
 
-    def __init__(self, api_key: str, model: str = "claude-sonnet-4-20250514",
+    def __init__(self, api_key: str, model: str = "claude-sonnet-4-5-20250929",
                  model_light: Optional[str] = None, base_url: Optional[str] = None,
                  logger: Optional[PipelineLogger] = None, cache_dir: Optional[str] = None):
         if not api_key:

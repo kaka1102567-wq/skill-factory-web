@@ -154,7 +154,7 @@ class BuildConfig:
     config_path: str = ""
     # API
     claude_api_key: str = ""
-    claude_model: str = "claude-sonnet-4-20250514"
+    claude_model: str = "claude-sonnet-4-5-20250929"
     max_retries: int = 3
     # Seekers
     seekers_cache_dir: str = "./data/cache"
