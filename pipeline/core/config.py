@@ -63,6 +63,8 @@ def load_config(config_path: str, output_dir: str) -> BuildConfig:
         input_pdfs=pdf_paths,
         github_repo=raw.get("github_repo", ""),
         github_analyze_code=raw.get("github_analyze_code", True),
+        claude_base_url=raw.get("claude_base_url", "") or os.environ.get("CLAUDE_BASE_URL", ""),
+        claude_model_light=raw.get("claude_model_light", "") or os.environ.get("CLAUDE_MODEL_LIGHT", "claude-haiku-4-5-20251001"),
     )
 
 

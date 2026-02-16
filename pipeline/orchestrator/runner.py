@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from ..core.types import BuildConfig, PipelineState
 from ..core.logger import PipelineLogger
 from ..core.errors import PipelineError
-from ..clients.claude_client import ClaudeClient
+from ..clients.claude_client import ClaudeClient, CreditExhaustedError
 from ..seekers.cache import SeekersCache
 from ..seekers.lookup import SeekersLookup
 from ..phases.p0_baseline import run_p0
@@ -47,6 +47,8 @@ class PipelineRunner:
             self.claude = ClaudeClient(
                 api_key=config.claude_api_key,
                 model=config.claude_model,
+                model_light=config.claude_model_light,
+                base_url=config.claude_base_url or None,
                 logger=self.logger,
                 cache_dir=os.path.join(config.seekers_cache_dir, "claude"),
             )
@@ -78,49 +80,58 @@ class PipelineRunner:
         else:
             state = PipelineState(build_id=self.build_id)
 
-        for phase_id, phase_name, phase_func in PHASES:
-            # Skip completed phases
-            if should_skip_phase(state, phase_id):
-                self.logger.info(f"Skipping {phase_name} (already done)")
-                continue
+        try:
+            for phase_id, phase_name, phase_func in PHASES:
+                # Skip completed phases
+                if should_skip_phase(state, phase_id):
+                    self.logger.info(f"Skipping {phase_name} (already done)")
+                    continue
 
-            # P1+ require Claude client
-            if phase_id != "p0" and self.claude is None:
-                self.logger.error(
-                    f"Cannot run {phase_name}: CLAUDE_API_KEY not set",
-                    phase=phase_id,
+                # P1+ require Claude client
+                if phase_id != "p0" and self.claude is None:
+                    self.logger.error(
+                        f"Cannot run {phase_name}: CLAUDE_API_KEY not set",
+                        phase=phase_id,
+                    )
+                    return 1
+
+                # Run phase
+                result = phase_func(
+                    self.config,
+                    self.claude,
+                    self.cache,
+                    self.lookup,
+                    self.logger,
                 )
-                return 1
 
-            # Run phase
-            result = phase_func(
-                self.config,
-                self.claude,
-                self.cache,
-                self.lookup,
-                self.logger,
+                # Update state and checkpoint
+                update_state_with_result(state, result)
+                save_checkpoint(state, self.config.output_dir)
+
+                # Phase failed → stop
+                if result.status == "failed":
+                    self.logger.error(
+                        f"Pipeline stopped: {phase_name} failed — {result.error_message}"
+                    )
+                    return 1
+
+                # P3 conflicts → pause for review
+                # Exit 0 so build-runner.ts sees "completed" — the conflict event
+                # already set status="paused" on the TS side (line 227-234)
+                if state.is_paused:
+                    self.logger.info(
+                        f"Pipeline paused: {state.pause_reason}. "
+                        "Waiting for conflict review."
+                    )
+                    return 0
+
+        except CreditExhaustedError as e:
+            self.logger.error(str(e))
+            self.logger.error(
+                "Pipeline stopped. Please add API credits, then retry this build."
             )
-
-            # Update state and checkpoint
-            update_state_with_result(state, result)
             save_checkpoint(state, self.config.output_dir)
-
-            # Phase failed → stop
-            if result.status == "failed":
-                self.logger.error(
-                    f"Pipeline stopped: {phase_name} failed — {result.error_message}"
-                )
-                return 1
-
-            # P3 conflicts → pause for review
-            # Exit 0 so build-runner.ts sees "completed" — the conflict event
-            # already set status="paused" on the TS side (line 227-234)
-            if state.is_paused:
-                self.logger.info(
-                    f"Pipeline paused: {state.pause_reason}. "
-                    "Waiting for conflict review."
-                )
-                return 0
+            return 1
 
         # All phases complete
         self.logger.info(

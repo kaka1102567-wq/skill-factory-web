@@ -166,6 +166,9 @@ class BuildConfig:
     # GitHub repo analysis
     github_repo: str = ""
     github_analyze_code: bool = True
+    # API provider
+    claude_base_url: str = ""
+    claude_model_light: str = "claude-haiku-4-5-20251001"
     # Quality
     min_phase_score: float = 70.0
     auto_resolve_threshold: float = 0.8
