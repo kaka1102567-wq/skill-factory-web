@@ -1,4 +1,8 @@
-"""Claude API wrapper with retry, cost tracking, and JSON response parsing."""
+"""Claude API wrapper with retry, cost tracking, and JSON response parsing.
+
+Supports dual SDK: OpenAI-compatible format for custom providers (e.g. Claudible),
+Anthropic SDK for direct Anthropic API access.
+"""
 
 import json
 import re
@@ -7,11 +11,33 @@ import hashlib
 import os
 from typing import Optional
 
-import anthropic
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 from ..core.logger import PipelineLogger
 from ..core.errors import ClaudeAPIError
+
+# Import both SDKs — availability determines which format is used
+_RETRYABLE_EXCEPTIONS = []
+
+try:
+    import anthropic
+    _RETRYABLE_EXCEPTIONS.extend([anthropic.RateLimitError, anthropic.APIStatusError])
+    HAS_ANTHROPIC = True
+except ImportError:
+    anthropic = None
+    HAS_ANTHROPIC = False
+
+try:
+    import openai as _openai_mod
+    from openai import OpenAI
+    _RETRYABLE_EXCEPTIONS.extend([_openai_mod.RateLimitError, _openai_mod.APIStatusError])
+    HAS_OPENAI = True
+except ImportError:
+    _openai_mod = None
+    OpenAI = None
+    HAS_OPENAI = False
+
+_RETRYABLE_EXCEPTIONS = tuple(_RETRYABLE_EXCEPTIONS) if _RETRYABLE_EXCEPTIONS else (ConnectionError,)
 
 
 class CreditExhaustedError(Exception):
@@ -30,15 +56,32 @@ class ClaudeClient:
                  logger: Optional[PipelineLogger] = None, cache_dir: Optional[str] = None):
         if not api_key:
             raise ClaudeAPIError("CLAUDE_API_KEY not set", retryable=False)
-        client_kwargs = {"api_key": api_key}
-        if base_url:
-            client_kwargs["base_url"] = base_url
-        self.client = anthropic.Anthropic(**client_kwargs)
+
         self.model = model
         self.model_light = model_light or model
         self.base_url = base_url
         self.logger = logger or PipelineLogger()
-        self.cache_dir = cache_dir  # Optional response cache
+        self.cache_dir = cache_dir
+
+        # Choose SDK based on base_url
+        if base_url:
+            if not HAS_OPENAI:
+                raise ImportError(
+                    "openai package required for custom base_url. "
+                    "Run: pip install openai"
+                )
+            api_base = base_url.rstrip("/")
+            if not api_base.endswith("/v1"):
+                api_base = api_base + "/v1"
+            self.client = OpenAI(api_key=api_key, base_url=api_base)
+            self._use_openai_format = True
+        else:
+            if not HAS_ANTHROPIC:
+                raise ImportError(
+                    "anthropic package required. Run: pip install anthropic"
+                )
+            self.client = anthropic.Anthropic(api_key=api_key)
+            self._use_openai_format = False
 
         self.total_input_tokens = 0
         self.total_output_tokens = 0
@@ -76,6 +119,7 @@ class ClaudeClient:
             "insufficient credits",
             "payment required",
             "billing hard limit",
+            "quota exceeded",
         ]
         if any(phrase in error_msg for phrase in credit_phrases):
             self._consecutive_credit_errors += 1
@@ -89,10 +133,40 @@ class ClaudeClient:
                     f"consecutive failures. Add credits and retry."
                 )
 
+    def _call_api(self, system: str, user: str, max_tokens: int,
+                  temperature: float, active_model: str) -> tuple:
+        """Internal: call API using the appropriate SDK format.
+
+        Returns (text, input_tokens, output_tokens).
+        """
+        if self._use_openai_format:
+            response = self.client.chat.completions.create(
+                model=active_model,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                messages=[
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": user},
+                ],
+            )
+            text = response.choices[0].message.content
+            inp_tok = getattr(response.usage, 'prompt_tokens', 0) or 0
+            out_tok = getattr(response.usage, 'completion_tokens', 0) or 0
+        else:
+            response = self.client.messages.create(
+                model=active_model, max_tokens=max_tokens,
+                temperature=temperature, system=system,
+                messages=[{"role": "user", "content": user}],
+            )
+            text = response.content[0].text
+            inp_tok = response.usage.input_tokens
+            out_tok = response.usage.output_tokens
+        return text, inp_tok, out_tok
+
     @retry(
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=2, min=4, max=60),
-        retry=retry_if_exception_type((anthropic.RateLimitError, anthropic.APIStatusError)),
+        retry=retry_if_exception_type(_RETRYABLE_EXCEPTIONS),
     )
     def call(self, system: str, user: str, max_tokens: int = 4096,
              temperature: float = 0.0, phase: str = None,
@@ -112,27 +186,36 @@ class ClaudeClient:
 
         start = time.time()
         try:
-            response = self.client.messages.create(
-                model=active_model, max_tokens=max_tokens,
-                temperature=temperature, system=system,
-                messages=[{"role": "user", "content": user}],
+            text, inp_tok, out_tok = self._call_api(
+                system, user, max_tokens, temperature, active_model
             )
-        except anthropic.RateLimitError:
-            self.logger.warn("Rate limited, retrying...", phase=phase)
-            raise
-        except anthropic.APIStatusError as e:
-            self._check_credit_error(e, phase)
-            if e.status_code >= 500:
-                self.logger.warn(f"Server error ({e.status_code}), retrying...", phase=phase)
+        except Exception as e:
+            is_rate_limit = (
+                (HAS_ANTHROPIC and isinstance(e, anthropic.RateLimitError))
+                or (HAS_OPENAI and isinstance(e, _openai_mod.RateLimitError))
+            )
+            if is_rate_limit:
+                self.logger.warn("Rate limited, retrying...", phase=phase)
                 raise
-            raise ClaudeAPIError(str(e), status_code=e.status_code, retryable=False)
+
+            is_api_error = (
+                (HAS_ANTHROPIC and isinstance(e, anthropic.APIStatusError))
+                or (HAS_OPENAI and isinstance(e, _openai_mod.APIStatusError))
+            )
+            if is_api_error:
+                self._check_credit_error(e, phase)
+                status_code = getattr(e, 'status_code', 0)
+                if status_code >= 500:
+                    self.logger.warn(f"Server error ({status_code}), retrying...", phase=phase)
+                    raise
+                raise ClaudeAPIError(str(e), status_code=status_code, retryable=False)
+
+            raise
 
         # Reset credit error counter on success
         self._consecutive_credit_errors = 0
 
         # Track cost
-        inp_tok = response.usage.input_tokens
-        out_tok = response.usage.output_tokens
         self.total_input_tokens += inp_tok
         self.total_output_tokens += out_tok
         pricing = self.PRICING.get(active_model, {"input": 3.0, "output": 15.0})
@@ -146,7 +229,6 @@ class ClaudeClient:
             phase=phase)
         self.logger.report_cost(self.total_cost_usd, self.total_input_tokens + self.total_output_tokens)
 
-        text = response.content[0].text
         self._set_cache(cache_key, text)
         return text
 

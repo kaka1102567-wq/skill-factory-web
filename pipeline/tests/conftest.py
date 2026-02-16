@@ -27,6 +27,7 @@ class MockClaudeClient:
         self.model = "mock-sonnet"
         self.model_light = "mock-haiku"
         self.base_url = None
+        self._use_openai_format = False
         self._consecutive_credit_errors = 0
         self.model_usage = {"main": 0, "light": 0}
 
