@@ -98,9 +98,15 @@ export function initializeSchema(db: Database.Database) {
       insertSetting.run("default_quality_tier", "standard", "Default quality: draft|standard|premium");
       insertSetting.run("notification_telegram_token", "", "Telegram bot token");
       insertSetting.run("notification_telegram_chat_id", "", "Telegram chat ID");
+      insertSetting.run("claude_base_url", "", "Custom API base URL (e.g. https://claudible.io)");
+      insertSetting.run("claude_model_light", "claude-haiku-4-5-20251001", "Light model for P3/P4 (cost saving)");
     });
     seedSettings();
   }
+
+  // Ensure new settings exist (for DB upgrades)
+  db.prepare(`INSERT OR IGNORE INTO settings (key, value, description) VALUES ('claude_base_url', '', 'Custom API base URL')`).run();
+  db.prepare(`INSERT OR IGNORE INTO settings (key, value, description) VALUES ('claude_model_light', 'claude-haiku-4-5-20251001', 'Light model for P3/P4')`).run();
 
   // Seed templates if empty
   const templateCount = db
@@ -192,39 +198,4 @@ export function initializeSchema(db: Database.Database) {
     seedBaselines();
   }
 
-  // Seed demo builds for UI development
-  const buildCount = db
-    .prepare("SELECT COUNT(*) as count FROM builds")
-    .get() as { count: number };
-  if (buildCount.count === 0) {
-    const insertBuild = db.prepare(`
-      INSERT INTO builds (id, name, domain, status, current_phase, phase_progress,
-        config_yaml, template_id, quality_score, atoms_extracted, atoms_deduplicated,
-        atoms_verified, api_cost_usd, tokens_used, created_by, created_at, started_at, completed_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-    const seedBuilds = db.transaction(() => {
-      insertBuild.run(
-        "demo-001", "FB Ads Vietnam 2025", "facebook-ads", "completed", null, 100,
-        "name: fb-ads-vietnam", "tpl-fb-ads", 94.2, 487, 203, 198,
-        8.50, 245000, "Boss", "2025-02-10T08:00:00Z", "2025-02-10T08:01:00Z", "2025-02-10T08:15:00Z"
-      );
-      insertBuild.run(
-        "demo-002", "Google Ads Cơ Bản", "google-ads", "running", "p3", 63,
-        "name: google-ads-basic", "tpl-google-ads", null, 312, null, null,
-        5.20, 156000, "Marketing", "2025-02-11T10:00:00Z", "2025-02-11T10:01:00Z", null
-      );
-      insertBuild.run(
-        "demo-003", "Chainlink VRF Guide", "blockchain", "queued", null, 0,
-        "name: chainlink-vrf", "tpl-blockchain", null, null, null, null,
-        0, 0, "Dev", "2025-02-12T14:00:00Z", null, null
-      );
-      insertBuild.run(
-        "demo-004", "TikTok Ads Strategy", "custom", "failed", "p4", 45,
-        "name: tiktok-ads", "tpl-custom", null, 256, 134, null,
-        6.80, 198000, "Content", "2025-02-09T09:00:00Z", "2025-02-09T09:01:00Z", "2025-02-09T09:12:00Z"
-      );
-    });
-    seedBuilds();
-  }
 }

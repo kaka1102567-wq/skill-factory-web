@@ -232,6 +232,8 @@ function _spawnPipeline(config: BuildConfig, pythonPath: string, cliPath: string
   const claudeApiKey = getSetting("claude_api_key") || process.env.CLAUDE_API_KEY || "";
   const claudeModel = getSetting("claude_model") || process.env.CLAUDE_MODEL || "claude-sonnet-4-20250514";
   const seekersCacheDir = getSetting("seekers_cache_dir") || process.env.SEEKERS_CACHE_DIR || "./data/cache";
+  const claudeBaseUrl = getSetting("claude_base_url") || process.env.CLAUDE_BASE_URL || "";
+  const claudeModelLight = getSetting("claude_model_light") || process.env.CLAUDE_MODEL_LIGHT || "claude-haiku-4-5-20251001";
 
   const proc = spawn(pythonPath, [
     cliPath, "build",
@@ -247,6 +249,8 @@ function _spawnPipeline(config: BuildConfig, pythonPath: string, cliPath: string
       CLAUDE_API_KEY: claudeApiKey,
       CLAUDE_MODEL: claudeModel,
       SEEKERS_CACHE_DIR: seekersCacheDir,
+      CLAUDE_BASE_URL: claudeBaseUrl,
+      CLAUDE_MODEL_LIGHT: claudeModelLight,
     },
   });
 
@@ -454,6 +458,8 @@ export function resumeAfterResolve(config: ResolveConfig): ChildProcess {
   const claudeApiKey = getSetting("claude_api_key") || process.env.CLAUDE_API_KEY || "";
   const claudeModel = getSetting("claude_model") || process.env.CLAUDE_MODEL || "claude-sonnet-4-20250514";
   const seekersCacheDir = getSetting("seekers_cache_dir") || process.env.SEEKERS_CACHE_DIR || "./data/cache";
+  const claudeBaseUrl = getSetting("claude_base_url") || process.env.CLAUDE_BASE_URL || "";
+  const claudeModelLight = getSetting("claude_model_light") || process.env.CLAUDE_MODEL_LIGHT || "claude-haiku-4-5-20251001";
 
   console.log(`[BUILD] Resuming build ${config.id} after conflict resolution`);
 
@@ -472,6 +478,8 @@ export function resumeAfterResolve(config: ResolveConfig): ChildProcess {
       CLAUDE_API_KEY: claudeApiKey,
       CLAUDE_MODEL: claudeModel,
       SEEKERS_CACHE_DIR: seekersCacheDir,
+      CLAUDE_BASE_URL: claudeBaseUrl,
+      CLAUDE_MODEL_LIGHT: claudeModelLight,
     },
   });
 

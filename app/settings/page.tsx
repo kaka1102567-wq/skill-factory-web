@@ -115,6 +115,19 @@ export default function SettingsPage() {
       {/* API Keys */}
       <Section icon={Key} title="API Keys">
         <Field label="Claude API Key" value={settings.claude_api_key} onChange={(v) => update("claude_api_key", v)} placeholder="sk-ant-..." type="password" />
+        <div>
+          <label className="text-xs font-medium text-muted-foreground block mb-1">API Base URL</label>
+          <Input
+            type="text"
+            value={settings.claude_base_url || ""}
+            onChange={(e) => update("claude_base_url", e.target.value)}
+            placeholder="https://api.anthropic.com (default)"
+            className="text-sm"
+          />
+          <p className="text-xs text-muted-foreground mt-1">
+            Leave empty for direct Anthropic. Set URL for alternative providers (e.g. https://claudible.io)
+          </p>
+        </div>
         <Field label="Gemini API Key" value={settings.gemini_api_key} onChange={(v) => update("gemini_api_key", v)} placeholder="AIza..." type="password" />
       </Section>
 
@@ -124,6 +137,20 @@ export default function SettingsPage() {
         <Field label="Pipeline Path" value={settings.pipeline_path} onChange={(v) => update("pipeline_path", v)} placeholder="./pipeline" />
         <Field label="Max Concurrent Builds" value={settings.max_concurrent_builds} onChange={(v) => update("max_concurrent_builds", v)} placeholder="2" />
         <Field label="Default Quality Tier" value={settings.default_quality_tier} onChange={(v) => update("default_quality_tier", v)} placeholder="standard" />
+        <div>
+          <label className="text-xs font-medium text-muted-foreground block mb-1">Light Model (for Dedup + Verify)</label>
+          <select
+            value={settings.claude_model_light || "claude-haiku-4-5-20251001"}
+            onChange={(e) => update("claude_model_light", e.target.value)}
+            className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors"
+          >
+            <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5 (cost saving)</option>
+            <option value="claude-sonnet-4-20250514">Claude Sonnet 4 (higher quality)</option>
+          </select>
+          <p className="text-xs text-muted-foreground mt-1">
+            Light model used for P3 (Dedup) and P4 (Verify). Haiku saves 67% cost per request.
+          </p>
+        </div>
       </Section>
 
       {/* Notifications */}

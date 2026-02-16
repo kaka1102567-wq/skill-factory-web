@@ -5,6 +5,7 @@
  */
 
 import { getBaselineForDomain } from "./baseline-registry";
+import { getSetting } from "./db";
 
 export interface WizardConfig {
   name: string;
@@ -57,6 +58,12 @@ export function generateConfigYaml(config: WizardConfig): string {
   const seekersDir = baseline.status === "ready" ? baseline.path : "";
   lines.push(`seekers_output_dir: ${yamlStr(seekersDir)}`);
   lines.push(`claude_model: "claude-sonnet-4-20250514"`);
+
+  // API provider settings (read from Settings DB — user sets once)
+  const baseUrl = getSetting("claude_base_url") || "";
+  const modelLight = getSetting("claude_model_light") || "claude-haiku-4-5-20251001";
+  lines.push(`claude_base_url: ${yamlStr(baseUrl)}`);
+  lines.push(`claude_model_light: ${yamlStr(modelLight)}`);
 
   // GitHub repo analysis
   lines.push(`github_repo: ${yamlStr(config.github_repo || "")}`);
