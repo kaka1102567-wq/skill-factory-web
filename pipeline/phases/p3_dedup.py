@@ -10,7 +10,7 @@ from ..core.types import BuildConfig, PhaseResult, KnowledgeAtom, Conflict
 from ..core.logger import PipelineLogger
 from ..core.utils import read_json, write_json
 from ..core.errors import PhaseError
-from ..clients.claude_client import ClaudeClient
+from ..clients.claude_client import ClaudeClient, CreditExhaustedError
 from ..seekers.cache import SeekersCache
 from ..seekers.lookup import SeekersLookup
 from ..prompts.p3_dedup_prompts import P3_SYSTEM, P3_USER_TEMPLATE
@@ -75,75 +75,57 @@ def run_p3(config: BuildConfig, claude: ClaudeClient,
         all_unique_atoms = []
         all_conflicts = []
         total_duplicates = cross_stats["duplicates_merged"]
-        total_groups = len(groups)
 
-        for gi, (category, atoms) in enumerate(groups.items()):
-            progress = int((gi / max(total_groups, 1)) * 80)
+        # Split into solo groups (>= MIN_ATOMS_FOR_SOLO) and mini groups
+        MIN_ATOMS_FOR_SOLO = 15
+        solo_groups = {k: v for k, v in groups.items() if len(v) >= MIN_ATOMS_FOR_SOLO}
+        medium_groups = {k: v for k, v in groups.items()
+                         if 3 <= len(v) < MIN_ATOMS_FOR_SOLO}
+        tiny_groups = {k: v for k, v in groups.items() if len(v) <= 2}
+
+        # Tiny groups — keep as-is, no Claude call needed
+        for category, atoms in tiny_groups.items():
+            for a in atoms:
+                a["status"] = "deduplicated"
+            all_unique_atoms.extend(atoms)
+
+        # Batch mini groups into one Claude call
+        if medium_groups:
+            mini_total = sum(len(v) for v in medium_groups.values())
+            logger.info(
+                f"Batch dedup {len(medium_groups)} small groups ({mini_total} atoms)",
+                phase=phase_id,
+            )
+            combined_atoms = []
+            for cat, atoms in medium_groups.items():
+                for a in atoms:
+                    a["_batch_category"] = cat
+                combined_atoms.extend(atoms)
+
+            all_unique_atoms, all_conflicts, total_duplicates = (
+                _dedup_group(
+                    "combined_batch", combined_atoms, raw_atoms,
+                    config, claude, lookup, logger,
+                    all_unique_atoms, all_conflicts, total_duplicates,
+                    phase_id,
+                )
+            )
+
+        # Solo groups — each gets its own Claude call
+        total_solo = len(solo_groups)
+        for gi, (category, atoms) in enumerate(solo_groups.items()):
+            progress = int(((gi + 1) / max(total_solo, 1)) * 80)
             logger.phase_progress(phase_id, phase_name, progress)
             logger.info(f"Dedup group '{category}': {len(atoms)} atoms", phase=phase_id)
 
-            # Small groups — keep as-is, no Claude call needed
-            if len(atoms) <= 2:
-                for a in atoms:
-                    a["status"] = "deduplicated"
-                all_unique_atoms.extend(atoms)
-                continue
-
-            # Call Claude for deduplication
-            atoms_json = json.dumps(atoms, ensure_ascii=False, indent=1)
-            user_prompt = P3_USER_TEMPLATE.format(
-                atom_count=len(atoms),
-                language=config.language,
-                domain=config.domain,
-                atoms_json=atoms_json,
+            all_unique_atoms, all_conflicts, total_duplicates = (
+                _dedup_group(
+                    category, atoms, raw_atoms,
+                    config, claude, lookup, logger,
+                    all_unique_atoms, all_conflicts, total_duplicates,
+                    phase_id,
+                )
             )
-
-            try:
-                result = claude.call_json(
-                    system=P3_SYSTEM, user=user_prompt,
-                    max_tokens=4096, phase=phase_id,
-                )
-
-                unique = result.get("unique_atoms", [])
-                conflicts = result.get("conflicts", [])
-                stats = result.get("stats", {})
-
-                total_duplicates += stats.get("duplicates_found", 0)
-                all_unique_atoms.extend(unique)
-
-                # Build Conflict objects
-                for c in conflicts:
-                    conflict = Conflict(
-                        id=f"conflict_{len(all_conflicts)+1:03d}",
-                        atom_a=_find_atom(raw_atoms, c.get("atom_a_id", "")),
-                        atom_b=_find_atom(raw_atoms, c.get("atom_b_id", "")),
-                        conflict_type=c.get("conflict_type", "contradictory_data"),
-                        description=c.get("description", ""),
-                    )
-                    # Cross-check with baseline if lookup available
-                    if lookup:
-                        topic = conflict.description[:100]
-                        check = lookup.verify_claim(conflict.description, topic)
-                        conflict.baseline_evidence = check.get("evidence", "")[:500]
-                        if check.get("verified") and check.get("confidence", 0) > config.auto_resolve_threshold:
-                            conflict.auto_resolved = True
-                            conflict.resolution = "keep_a"
-                            conflict.resolution_note = f"Auto-resolved: baseline supports atom_a (confidence {check['confidence']})"
-
-                    all_conflicts.append(conflict)
-
-                logger.debug(
-                    f"Group '{category}': {len(atoms)}→{len(unique)} atoms, "
-                    f"{len(conflicts)} conflicts",
-                    phase=phase_id,
-                )
-
-            except Exception as e:
-                logger.warn(f"Claude dedup failed for group '{category}': {e}", phase=phase_id)
-                # Fallback: keep all atoms in this group
-                for a in atoms:
-                    a["status"] = "deduplicated"
-                all_unique_atoms.extend(atoms)
 
         # Separate unresolved conflicts
         unresolved = [c for c in all_conflicts if not c.auto_resolved]
@@ -238,6 +220,8 @@ def run_p3(config: BuildConfig, claude: ClaudeClient,
             },
         )
 
+    except CreditExhaustedError:
+        raise
     except Exception as e:
         logger.phase_failed(phase_id, phase_name, str(e))
         return PhaseResult(
@@ -246,6 +230,74 @@ def run_p3(config: BuildConfig, claude: ClaudeClient,
             duration_seconds=time.time() - start_time,
             error_message=str(e),
         )
+
+
+def _dedup_group(category, atoms, raw_atoms, config, claude, lookup,
+                  logger, all_unique_atoms, all_conflicts,
+                  total_duplicates, phase_id):
+    """Call Claude to dedup a single group, return updated accumulators."""
+    atoms_json = json.dumps(atoms, ensure_ascii=False, indent=1)
+    user_prompt = P3_USER_TEMPLATE.format(
+        atom_count=len(atoms),
+        language=config.language,
+        domain=config.domain,
+        atoms_json=atoms_json,
+    )
+
+    try:
+        result = claude.call_json(
+            system=P3_SYSTEM, user=user_prompt,
+            max_tokens=4096, phase=phase_id,
+            use_light_model=True,
+        )
+
+        unique = result.get("unique_atoms", [])
+        conflicts = result.get("conflicts", [])
+        stats = result.get("stats", {})
+
+        total_duplicates += stats.get("duplicates_found", 0)
+        all_unique_atoms.extend(unique)
+
+        for c in conflicts:
+            conflict = Conflict(
+                id=f"conflict_{len(all_conflicts)+1:03d}",
+                atom_a=_find_atom(raw_atoms, c.get("atom_a_id", "")),
+                atom_b=_find_atom(raw_atoms, c.get("atom_b_id", "")),
+                conflict_type=c.get("conflict_type", "contradictory_data"),
+                description=c.get("description", ""),
+            )
+            if lookup:
+                topic = conflict.description[:100]
+                check = lookup.verify_claim(conflict.description, topic)
+                conflict.baseline_evidence = check.get("evidence", "")[:500]
+                if (check.get("verified")
+                        and check.get("confidence", 0) > config.auto_resolve_threshold):
+                    conflict.auto_resolved = True
+                    conflict.resolution = "keep_a"
+                    conflict.resolution_note = (
+                        f"Auto-resolved: baseline supports atom_a "
+                        f"(confidence {check['confidence']})"
+                    )
+            all_conflicts.append(conflict)
+
+        logger.debug(
+            f"Group '{category}': {len(atoms)}->{len(unique)} atoms, "
+            f"{len(conflicts)} conflicts",
+            phase=phase_id,
+        )
+
+    except CreditExhaustedError:
+        raise
+    except Exception as e:
+        logger.warn(
+            f"Claude dedup failed for group '{category}': {e}",
+            phase=phase_id,
+        )
+        for a in atoms:
+            a["status"] = "deduplicated"
+        all_unique_atoms.extend(atoms)
+
+    return all_unique_atoms, all_conflicts, total_duplicates
 
 
 def _find_atom(atoms: list[dict], atom_id: str) -> dict:

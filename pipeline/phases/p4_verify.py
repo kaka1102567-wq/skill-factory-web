@@ -11,10 +11,13 @@ from ..core.logger import PipelineLogger
 from ..core.config import get_tier_params
 from ..core.utils import read_json, write_json
 from ..core.errors import PhaseError
-from ..clients.claude_client import ClaudeClient
+from ..clients.claude_client import ClaudeClient, CreditExhaustedError
 from ..seekers.cache import SeekersCache
 from ..seekers.lookup import SeekersLookup
-from ..prompts.p4_verify_prompts import P4_SYSTEM, P4_USER_TEMPLATE
+from ..prompts.p4_verify_prompts import (
+    P4_SYSTEM, P4_USER_TEMPLATE,
+    P4_BATCH_VERIFY_SYSTEM, P4_BATCH_VERIFY_USER_TEMPLATE,
+)
 
 STOP_WORDS = frozenset({
     'là', 'và', 'của', 'các', 'có', 'được', 'cho', 'trong', 'với',
@@ -206,93 +209,117 @@ def _verify_with_skill_seekers(atoms_to_verify, ss_references, logger):
     return strong_count + weak_count, none_count, verified_ids
 
 
-def _verify_with_claude(atoms_to_verify, config, claude, lookup, logger):
-    """Verify atoms via Seekers lookup + Claude API (legacy flow)."""
+BATCH_SIZE = 10
+
+
+def _verify_with_claude_batch(atoms_to_verify, config, claude, lookup, logger):
+    """Verify atoms via Claude API in batches of BATCH_SIZE (light model)."""
     phase_id = "p4"
     verified_count = 0
     updated_count = 0
     flagged_count = 0
     verified_ids = set()
 
-    for i, atom in enumerate(atoms_to_verify):
-        total = len(atoms_to_verify)
-        progress = int((i / max(total, 1)) * 85)
+    total_batches = (len(atoms_to_verify) + BATCH_SIZE - 1) // BATCH_SIZE
+    logger.info(
+        f"Batch verifying {len(atoms_to_verify)} atoms in "
+        f"{total_batches} batches (light model)",
+        phase=phase_id,
+    )
+
+    for i in range(0, len(atoms_to_verify), BATCH_SIZE):
+        batch = atoms_to_verify[i:i + BATCH_SIZE]
+        batch_num = (i // BATCH_SIZE) + 1
+        progress = int((batch_num / max(total_batches, 1)) * 85)
         logger.phase_progress(phase_id, "Verify", progress)
+        logger.info(
+            f"Batch {batch_num}/{total_batches} ({len(batch)} atoms)",
+            phase=phase_id,
+        )
 
-        atom_id = atom.get("id", "")
-        atom_title = atom.get("title", "")
-        atom_content = atom.get("content", "")
-
-        # Look up baseline evidence via Seekers
-        evidence_text = ""
+        # Collect baseline excerpts for entire batch
+        baseline_excerpts = ""
         if lookup:
-            claim = f"{atom_title}. {atom_content}"
-            check = lookup.verify_claim(claim, atom_title)
-            if check.get("evidence"):
-                evidence_text = (
-                    f"Source: {check.get('source_url', 'unknown')}\n"
-                    f"Match type: {check.get('match_type', 'unknown')}\n"
-                    f"Content:\n{check['evidence']}"
-                )
+            all_keywords = []
+            for a in batch:
+                all_keywords.extend(a.get("tags", []))
+            unique_kw = list(set(all_keywords))[:20]
+            for kw in unique_kw:
+                hits = lookup.lookup_by_topic(kw, max_results=2)
+                for h in hits:
+                    if h.get("content"):
+                        baseline_excerpts += (
+                            f"\n### {h.get('title', kw)}\n"
+                            f"{h['content'][:500]}\n"
+                        )
 
-        # No evidence — mark with lower confidence, skip Claude
-        if not evidence_text:
-            atom["status"] = "verified"
-            atom["confidence"] = max(
-                0.4, float(atom.get("confidence", 0.5)) * 0.8,
-            )
-            atom["verification_note"] = (
-                "No baseline evidence available — confidence reduced"
-            )
-            verified_ids.add(atom_id)
-            verified_count += 1
-            continue
+        # Build atoms JSON for prompt
+        atoms_json = json.dumps([{
+            "atom_id": a.get("id", ""),
+            "title": a.get("title", ""),
+            "content": a.get("content", ""),
+            "category": a.get("category", ""),
+            "tags": a.get("tags", []),
+        } for a in batch], ensure_ascii=False, indent=2)
 
-        # Call Claude for verification
-        atom_json = json.dumps(atom, ensure_ascii=False, indent=1)
-        user_prompt = P4_USER_TEMPLATE.format(
-            language=config.language, domain=config.domain,
-            atom_json=atom_json, evidence=evidence_text,
+        user_prompt = P4_BATCH_VERIFY_USER_TEMPLATE.format(
+            baseline_excerpts=baseline_excerpts or "(No baseline references available)",
+            atoms_json=atoms_json,
+            batch_size=len(batch),
         )
 
         try:
             result = claude.call_json(
-                system=P4_SYSTEM, user=user_prompt,
-                max_tokens=2048, phase=phase_id,
+                system=P4_BATCH_VERIFY_SYSTEM,
+                user=user_prompt,
+                max_tokens=4096,
+                phase=phase_id,
+                use_light_model=True,
             )
 
-            status = result.get("status", "verified")
-            new_confidence = float(
-                result.get("confidence", atom.get("confidence", 0.5)),
-            )
-            note = result.get("note", "")
+            results_list = result.get("results", [])
+            results_map = {r.get("atom_id", ""): r for r in results_list}
 
-            atom["status"] = status
-            atom["confidence"] = new_confidence
-            atom["verification_note"] = note
+            for atom in batch:
+                atom_id = atom.get("id", "")
+                r = results_map.get(atom_id)
+                if r:
+                    status = r.get("status", "verified")
+                    adj = float(r.get("confidence_adjustment", 0))
+                    atom["status"] = status
+                    atom["confidence"] = min(
+                        1.0, float(atom.get("confidence", 0.5)) + adj,
+                    )
+                    atom["verification_note"] = r.get(
+                        "verification_note", "",
+                    )
+                    atom["baseline_reference"] = r.get(
+                        "baseline_reference",
+                    )
+                    if status == "flagged":
+                        flagged_count += 1
+                    else:
+                        verified_count += 1
+                else:
+                    atom["status"] = "verified"
+                    atom["verification_note"] = (
+                        "Expert insight — batch verify fallback"
+                    )
+                    verified_count += 1
+                verified_ids.add(atom_id)
 
-            if status == "updated" and result.get("updated_content"):
-                atom["content"] = result["updated_content"]
-                updated_count += 1
-            elif status == "flagged":
-                flagged_count += 1
-            else:
-                verified_count += 1
-
-            atom["baseline_reference"] = result.get(
-                "evidence_source", "",
-            )
-            verified_ids.add(atom_id)
-
+        except CreditExhaustedError:
+            raise
         except Exception as e:
             logger.warn(
-                f"Claude verify failed for {atom_id}: {e}",
+                f"Batch verify failed for batch {batch_num}: {e}",
                 phase=phase_id,
             )
-            atom["status"] = "verified"
-            atom["verification_note"] = f"Verification skipped: {e}"
-            verified_ids.add(atom_id)
-            verified_count += 1
+            for atom in batch:
+                atom["status"] = "verified"
+                atom["verification_note"] = f"Verification skipped: {e}"
+                verified_ids.add(atom.get("id", ""))
+                verified_count += 1
 
     return verified_count, updated_count, flagged_count, verified_ids
 
@@ -373,7 +400,7 @@ def run_p4(config: BuildConfig, claude: ClaudeClient,
             flagged_count = unverified_count
         else:
             verified_count, updated_count, flagged_count, verified_ids = (
-                _verify_with_claude(
+                _verify_with_claude_batch(
                     atoms_to_verify, config, claude, lookup, logger,
                 )
             )
@@ -436,6 +463,8 @@ def run_p4(config: BuildConfig, claude: ClaudeClient,
             },
         )
 
+    except CreditExhaustedError:
+        raise
     except Exception as e:
         logger.phase_failed(phase_id, phase_name, str(e))
         return PhaseResult(

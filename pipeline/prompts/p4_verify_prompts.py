@@ -46,3 +46,45 @@ Return a JSON object with this EXACT structure:
   }}
 }}\
 """
+
+# ── Batch Verify Prompts (10 atoms per request) ──
+
+P4_BATCH_VERIFY_SYSTEM = """\
+You are a Knowledge Verification Expert.
+You will receive a BATCH of knowledge atoms and baseline reference material.
+For EACH atom, verify its accuracy against the provided references.
+
+Return a JSON object with a "results" array.
+
+Rules:
+- Evaluate EACH atom independently
+- "verified" = content matches or supported by baseline
+- "flagged" = content contradicts baseline
+- "unverified" = not found in baseline (expert insight — still valid, NOT an error)
+- confidence_adjustment: 0.0 to 0.1 (boost if baseline-verified)
+- Return results in SAME ORDER as input atoms
+- Respond ONLY with valid JSON, no markdown formatting, no code fences\
+"""
+
+P4_BATCH_VERIFY_USER_TEMPLATE = """\
+## Baseline References
+{baseline_excerpts}
+
+## Atoms to Verify (batch of {batch_size})
+{atoms_json}
+
+For EACH atom, return a verdict. Output ONLY valid JSON:
+{{
+  "results": [
+    {{
+      "atom_id": "atom_XXXX",
+      "status": "verified",
+      "confidence_adjustment": 0.05,
+      "verification_note": "Brief explanation",
+      "baseline_reference": "reference file name or null"
+    }}
+  ]
+}}
+
+Return EXACTLY {batch_size} results in same order as input.\
+"""
