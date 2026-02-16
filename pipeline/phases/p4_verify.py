@@ -247,10 +247,12 @@ def _verify_with_claude_batch(atoms_to_verify, config, claude, lookup, logger):
             for kw in unique_kw:
                 hits = lookup.lookup_by_topic(kw, max_results=2)
                 for h in hits:
-                    if h.get("content"):
+                    content = h.content if hasattr(h, 'content') else h.get("content", "")
+                    title = h.title if hasattr(h, 'title') else h.get("title", kw)
+                    if content:
                         baseline_excerpts += (
-                            f"\n### {h.get('title', kw)}\n"
-                            f"{h['content'][:500]}\n"
+                            f"\n### {title}\n"
+                            f"{content[:500]}\n"
                         )
 
         # Build atoms JSON for prompt
