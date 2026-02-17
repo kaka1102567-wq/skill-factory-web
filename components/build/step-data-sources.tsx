@@ -10,6 +10,7 @@ import {
   AlertCircle,
   Clock,
   Loader2,
+  Search,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -68,16 +69,30 @@ function BaselineStatus({ domain }: { domain: string }) {
 
   if (!baseline || baseline.status === "none") {
     return (
-      <div className="rounded-xl border border-zinc-700 p-4">
-        <div className="flex items-center gap-2 text-zinc-400">
-          <AlertCircle className="h-4 w-4 shrink-0" />
-          <span className="text-sm font-medium">
-            No reference documents for this domain
-          </span>
+      <div className="space-y-2">
+        <div className="rounded-xl border border-zinc-700 p-4">
+          <div className="flex items-center gap-2 text-zinc-400">
+            <AlertCircle className="h-4 w-4 shrink-0" />
+            <span className="text-sm font-medium">
+              No reference documents for this domain
+            </span>
+          </div>
+          <p className="text-xs text-zinc-500 mt-1 ml-6">
+            AI will only use the transcripts/URLs/PDFs you provide
+          </p>
         </div>
-        <p className="text-xs text-zinc-500 mt-1 ml-6">
-          AI will only use the transcripts/URLs/PDFs you provide
-        </p>
+        <div className="rounded-xl border border-blue-800 bg-blue-950/30 p-4">
+          <div className="flex items-center gap-2 text-blue-400">
+            <Search className="h-4 w-4 shrink-0" />
+            <span className="text-sm font-medium">
+              Smart Auto-Discovery available
+            </span>
+          </div>
+          <p className="text-xs text-zinc-500 mt-1 ml-6">
+            If you don&apos;t add URLs below, the system will automatically find
+            official documentation for &quot;{domain}&quot; (~$0.05, 2-3 min)
+          </p>
+        </div>
       </div>
     );
   }

@@ -6,6 +6,7 @@ import { sseManager } from "./sse-manager";
 import { notifyBuildComplete } from "./notifications";
 import { parseYamlValue, baselineExists, findSeekersConfig, spawnScrape } from "./baseline-scraper";
 import { getBaselineForDomain } from "./baseline-registry";
+import { yamlStr } from "./config-generator";
 import type { PhaseId } from "@/types/build";
 
 // Track running processes globally (survives hot reload)
@@ -117,6 +118,106 @@ function _preProcessInputs(config: BuildConfig, pythonPath: string, cliPath: str
   const configContent = fs.readFileSync(config.configPath, "utf-8");
   const buildDir = path.dirname(config.outputDir);
   const inputDir = path.join(buildDir, "input");
+
+  // ★ Auto-Discovery: if no baseline and auto_discover_baseline enabled
+  const seekersDir = parseYamlValue(configContent, "seekers_output_dir");
+  const hasBaseline = !!seekersDir;
+  const autoDiscover = parseYamlValue(configContent, "auto_discover_baseline") !== "false";
+  const domain = parseYamlValue(configContent, "domain");
+  const language = parseYamlValue(configContent, "language") || "en";
+
+  if (!hasBaseline && autoDiscover && domain) {
+    const discoveryDir = path.join(buildDir, "baseline");
+    const pipelinePath = path.dirname(cliPath);
+    const realCliPath = path.join(pipelinePath, "cli.py");
+
+    const claudeApiKey = getSetting("claude_api_key") || process.env.CLAUDE_API_KEY || "";
+    const claudeModel = getSetting("claude_model") || process.env.CLAUDE_MODEL || "claude-sonnet-4-5-20250929";
+    const claudeModelLight = getSetting("claude_model_light") || process.env.CLAUDE_MODEL_LIGHT || "claude-haiku-4-5-20251001";
+    const claudeBaseUrl = getSetting("claude_base_url") || process.env.CLAUDE_BASE_URL || "";
+
+    if (claudeApiKey) {
+      const discoverMsg = `Auto-discovering baseline for: ${domain}`;
+      insertBuildLog(config.id, { level: "info", phase: null, message: discoverMsg });
+      sseManager.broadcast(config.id, "log", { level: "info", phase: "discovery", message: discoverMsg, timestamp: new Date().toISOString() });
+
+      const discoverArgs = [
+        realCliPath, "discover-baseline",
+        "--domain", domain,
+        "--language", language,
+        "--output", discoveryDir,
+        "--max-refs", "15",
+        "--api-key", claudeApiKey,
+        "--model", claudeModel,
+        "--model-light", claudeModelLight,
+      ];
+      if (claudeBaseUrl) discoverArgs.push("--base-url", claudeBaseUrl);
+
+      const discoverProc = spawn(pythonPath, discoverArgs, {
+        cwd: process.cwd(),
+        env: { ...process.env, PYTHONUNBUFFERED: "1", PYTHONIOENCODING: "utf-8" },
+      });
+
+      runningProcesses.set(config.id, discoverProc);
+
+      discoverProc.stdout?.on("data", (chunk: Buffer) => {
+        const text = chunk.toString().trim();
+        if (text) {
+          for (const line of text.split("\n")) {
+            const trimmed = line.trim();
+            if (!trimmed) continue;
+            try { handleParsedLog(config.id, JSON.parse(trimmed)); } catch { handlePlainLog(config.id, trimmed, "debug"); }
+          }
+        }
+      });
+      discoverProc.stderr?.on("data", (chunk: Buffer) => {
+        const text = chunk.toString().trim();
+        if (text) handlePlainLog(config.id, text, "debug");
+      });
+
+      discoverProc.on("exit", (code) => {
+        const summaryPath = path.join(discoveryDir, "baseline_summary.json");
+        const ok = code === 0 && fs.existsSync(summaryPath);
+        const msg = ok
+          ? "Auto-discovery complete — baseline ready"
+          : "Auto-discovery did not find baseline — continuing without";
+        insertBuildLog(config.id, { level: ok ? "info" : "warn", message: msg });
+        sseManager.broadcast(config.id, "log", { level: ok ? "info" : "warn", phase: "discovery", message: msg, timestamp: new Date().toISOString() });
+
+        // If discovery succeeded, update config so pipeline uses it
+        if (ok) {
+          try {
+            const updated = configContent.replace(
+              /^seekers_output_dir:.*$/m,
+              `seekers_output_dir: ${yamlStr(discoveryDir)}`,
+            );
+            fs.writeFileSync(config.configPath, updated, "utf-8");
+          } catch { /* config update failed, pipeline still runs */ }
+        }
+
+        _continuePreProcessInputs(config, pythonPath, cliPath, inputDir);
+      });
+
+      discoverProc.on("error", (err) => {
+        const msg = `Auto-discovery error: ${err.message} — continuing without baseline`;
+        insertBuildLog(config.id, { level: "warn", message: msg });
+        sseManager.broadcast(config.id, "log", { level: "warn", phase: "discovery", message: msg, timestamp: new Date().toISOString() });
+        _continuePreProcessInputs(config, pythonPath, cliPath, inputDir);
+      });
+
+      const placeholder = spawn(pythonPath, ["--version"], { stdio: "ignore" });
+      return placeholder;
+    }
+  }
+
+  return _continuePreProcessInputs(config, pythonPath, cliPath, inputDir);
+}
+
+/** Continues pre-processing after optional auto-discovery step. */
+function _continuePreProcessInputs(
+  config: BuildConfig, pythonPath: string, cliPath: string, inputDir: string,
+): ChildProcess {
+  const configContent = fs.readFileSync(config.configPath, "utf-8");
 
   // Parse input_urls from config.yaml
   const urlsMatch = configContent.match(/input_urls:\s*\n((?:\s+-\s*.+\n)*)/);

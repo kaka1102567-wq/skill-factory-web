@@ -20,7 +20,7 @@ export interface WizardConfig {
 }
 
 /** Escape YAML string value — quote if it contains special chars */
-function yamlStr(val: string): string {
+export function yamlStr(val: string): string {
   if (/[:#{}[\],&*?|>!%@`"']/.test(val) || val.trim() !== val) {
     return `"${val.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
   }
@@ -64,6 +64,10 @@ export function generateConfigYaml(config: WizardConfig): string {
   const modelLight = getSetting("claude_model_light") || "claude-haiku-4-5-20251001";
   lines.push(`claude_base_url: ${yamlStr(baseUrl)}`);
   lines.push(`claude_model_light: ${yamlStr(modelLight)}`);
+
+  // Auto-discovery: enable when no baseline URLs provided
+  const autoDiscover = !config.baseline_urls?.length && baseline.status !== "ready";
+  lines.push(`auto_discover_baseline: ${autoDiscover}`);
 
   // GitHub repo analysis
   lines.push(`github_repo: ${yamlStr(config.github_repo || "")}`);
