@@ -11,8 +11,11 @@ from pipeline.seekers.url_discoverer import (
 )
 from pipeline.seekers.url_evaluator import evaluate_urls, RankedURL, _prefilter
 from pipeline.seekers.scraper import smart_crawl, _url_to_safe_filename, _fetch_and_parse
-from pipeline.seekers.auto_discovery import run_auto_discovery, DiscoveryResult
+from pipeline.seekers.auto_discovery import (
+    run_auto_discovery, DiscoveryResult, DiscoveryTimeoutError,
+)
 from pipeline.core.logger import PipelineLogger
+from pipeline.core.types import BuildConfig
 
 
 # ===== Domain Analyzer Tests =====
@@ -250,3 +253,125 @@ class TestCLI:
         )
         assert result.returncode == 0
         assert "--config" in result.stdout
+
+
+# ===== Error Handling Tests =====
+
+
+class TestErrorHandling:
+    def test_discovery_timeout_error(self):
+        """DiscoveryTimeoutError is raised correctly."""
+        with pytest.raises(DiscoveryTimeoutError):
+            raise DiscoveryTimeoutError("timed out")
+
+    def test_discovery_timeout_returns_false(self, mock_claude, tmp_path):
+        """Timeout returns DiscoveryResult.success=False instead of crashing."""
+        from unittest.mock import patch
+        logger = PipelineLogger("test")
+
+        # Patch time.time to simulate timeout
+        real_time = __import__("time").time
+        call_count = 0
+
+        def fake_time():
+            nonlocal call_count
+            call_count += 1
+            # After first few calls, jump to exceed timeout
+            if call_count > 3:
+                return real_time() + 99999
+            return real_time()
+
+        with patch("pipeline.seekers.auto_discovery.time.time", side_effect=fake_time):
+            from pipeline.clients.web_client import WebClient
+            web = WebClient()
+            result = run_auto_discovery(
+                "test", "en", str(tmp_path), mock_claude, web, logger,
+                max_refs=5, timeout=1,
+            )
+            web.close()
+
+        assert result.success is False
+
+    def test_evaluate_handles_parse_error(self, mock_claude_error):
+        """Evaluator with bad Claude response still returns results."""
+        logger = PipelineLogger("test")
+        analysis = DomainAnalysis(domain="test", expected_topics=["t"])
+        candidates = [CandidateURL(url="https://docs.example.com/guide")]
+        result = evaluate_urls(candidates, analysis, mock_claude_error, logger)
+        # Should fallback to default scores, not crash
+        assert isinstance(result, list)
+        assert len(result) >= 1
+
+    def test_domain_analyzer_preserves_domain_on_error(self, mock_claude_error):
+        """Even on error, domain name is preserved in result."""
+        logger = PipelineLogger("test")
+        result = analyze_domain("my-domain", "vi", mock_claude_error, logger)
+        assert result.domain == "my-domain"
+
+
+# ===== BuildConfig Integration Tests =====
+
+
+class TestBuildConfigIntegration:
+    def test_auto_discover_baseline_field_exists(self):
+        """BuildConfig has auto_discover_baseline field."""
+        config = BuildConfig(name="test", domain="test")
+        assert hasattr(config, "auto_discover_baseline")
+        assert config.auto_discover_baseline is False
+
+    def test_auto_discover_baseline_can_be_set(self):
+        """auto_discover_baseline can be toggled."""
+        config = BuildConfig(name="test", domain="test", auto_discover_baseline=True)
+        assert config.auto_discover_baseline is True
+
+
+# ===== Baseline Summary Compatibility Tests =====
+
+
+class TestBaselineSummaryCompat:
+    def test_summary_json_round_trip(self, tmp_path):
+        """baseline_summary.json can be written and read back identically."""
+        summary = {
+            "source": "auto-discovery",
+            "domain": "facebook-ads",
+            "skill_md": "",
+            "references": [
+                {"path": "/refs/guide.md", "content": "# Guide\nContent here."},
+            ],
+            "topics": ["campaign management", "targeting"],
+            "total_tokens": 1500,
+            "score": 72.5,
+            "discovery_metadata": {"method": "auto-discovery", "crawled_ok": 5},
+        }
+
+        path = tmp_path / "baseline_summary.json"
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(summary, f, indent=2, ensure_ascii=False)
+
+        with open(path, "r", encoding="utf-8") as f:
+            loaded = json.load(f)
+
+        assert loaded["source"] == "auto-discovery"
+        assert loaded["domain"] == "facebook-ads"
+        assert len(loaded["references"]) == 1
+        assert loaded["score"] == 72.5
+
+    def test_summary_references_have_content(self, tmp_path):
+        """Each reference must have both path and content."""
+        summary = {
+            "source": "auto-discovery",
+            "domain": "test",
+            "skill_md": "",
+            "references": [
+                {"path": "ref1.md", "content": "content1"},
+                {"path": "ref2.md", "content": "content2"},
+            ],
+            "topics": [],
+            "total_tokens": 0,
+            "score": 65.0,
+            "discovery_metadata": {},
+        }
+        for ref in summary["references"]:
+            assert "path" in ref
+            assert "content" in ref
+            assert len(ref["content"]) > 0

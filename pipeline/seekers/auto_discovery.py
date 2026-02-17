@@ -2,12 +2,21 @@
 
 import json
 import os
+import signal
+import time
 from dataclasses import dataclass, field
 
 from .domain_analyzer import analyze_domain
 from .url_discoverer import discover_urls
 from .url_evaluator import evaluate_urls
 from .scraper import smart_crawl
+
+DISCOVERY_TIMEOUT_SECONDS = 300  # 5 minutes
+
+
+class DiscoveryTimeoutError(Exception):
+    """Raised when discovery exceeds the time limit."""
+    pass
 
 
 @dataclass
@@ -21,7 +30,8 @@ class DiscoveryResult:
 
 
 def run_auto_discovery(domain, language, output_dir, claude_client, web_client,
-                       logger, max_refs=15) -> DiscoveryResult:
+                       logger, max_refs=15,
+                       timeout=DISCOVERY_TIMEOUT_SECONDS) -> DiscoveryResult:
     """Run the full auto-discovery pipeline (synchronous).
 
     Steps:
@@ -31,8 +41,40 @@ def run_auto_discovery(domain, language, output_dir, claude_client, web_client,
       4. Crawl top URLs with fallback strategies
       5. Build baseline_summary.json (compatible with P0 format)
     """
+    start_time = time.time()
+
+    def _check_timeout(step: str) -> None:
+        elapsed = time.time() - start_time
+        if elapsed > timeout:
+            raise DiscoveryTimeoutError(
+                f"Discovery timed out at step '{step}' after {elapsed:.0f}s"
+            )
+
     os.makedirs(output_dir, exist_ok=True)
     os.makedirs(os.path.join(output_dir, "references"), exist_ok=True)
+
+    try:
+        return _run_steps(
+            domain, language, output_dir, claude_client,
+            web_client, logger, max_refs, _check_timeout,
+        )
+    except DiscoveryTimeoutError as e:
+        logger.warn(str(e), phase="discovery")
+        return DiscoveryResult(
+            success=False, output_dir=output_dir,
+            discovery_metadata={"error": str(e)},
+        )
+    except Exception as e:
+        logger.error(f"Discovery failed: {e}", phase="discovery")
+        return DiscoveryResult(
+            success=False, output_dir=output_dir,
+            discovery_metadata={"error": str(e)},
+        )
+
+
+def _run_steps(domain, language, output_dir, claude_client, web_client,
+               logger, max_refs, check_timeout) -> DiscoveryResult:
+    """Internal: execute the 5 discovery steps."""
 
     # Step 1: Analyze domain
     logger.info("Step 1/5: Analyzing domain...", phase="discovery")
@@ -42,6 +84,7 @@ def run_auto_discovery(domain, language, output_dir, claude_client, web_client,
         f"{len(analysis.search_queries)} queries",
         phase="discovery",
     )
+    check_timeout("analyze")
 
     # Step 2: Discover URLs
     logger.info("Step 2/5: Discovering URLs...", phase="discovery")
@@ -50,6 +93,7 @@ def run_auto_discovery(domain, language, output_dir, claude_client, web_client,
     if not candidates:
         logger.warn("No candidate URLs found", phase="discovery")
         return DiscoveryResult(success=False, output_dir=output_dir)
+    check_timeout("discover")
 
     # Step 3: Evaluate and rank
     logger.info("Step 3/5: Evaluating URLs...", phase="discovery")
@@ -58,6 +102,7 @@ def run_auto_discovery(domain, language, output_dir, claude_client, web_client,
     if not ranked:
         logger.warn("No URLs passed evaluation", phase="discovery")
         return DiscoveryResult(success=False, output_dir=output_dir)
+    check_timeout("evaluate")
 
     # Step 4: Crawl
     logger.info("Step 4/5: Crawling...", phase="discovery")
@@ -67,10 +112,19 @@ def run_auto_discovery(domain, language, output_dir, claude_client, web_client,
     if not ok_refs:
         logger.warn("All crawls failed", phase="discovery")
         return DiscoveryResult(success=False, output_dir=output_dir)
+    check_timeout("crawl")
 
     # Step 5: Build baseline_summary.json
     logger.info("Step 5/5: Building baseline...", phase="discovery")
+    return _build_summary(
+        analysis, output_dir, ok_refs, crawled,
+        candidates, ranked, claude_client, logger,
+    )
 
+
+def _build_summary(analysis, output_dir, ok_refs, crawled, candidates,
+                   ranked, claude_client, logger) -> DiscoveryResult:
+    """Build baseline_summary.json from crawled references."""
     references = []
     for ref in ok_refs:
         try:
@@ -116,7 +170,7 @@ def run_auto_discovery(domain, language, output_dir, claude_client, web_client,
     # Report cost
     cost = getattr(claude_client, "total_cost_usd", 0.0)
     tokens = getattr(claude_client, "total_input_tokens", 0) + getattr(
-        claude_client, "total_output_tokens", 0
+        claude_client, "total_output_tokens", 0,
     )
     logger.report_cost(cost, tokens)
 
