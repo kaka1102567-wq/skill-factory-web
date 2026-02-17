@@ -172,6 +172,8 @@ class BuildConfig:
     # Quality
     min_phase_score: float = 70.0
     auto_resolve_threshold: float = 0.8
+    # Auto-discovery
+    auto_discover_baseline: bool = False
 
 
 @dataclass

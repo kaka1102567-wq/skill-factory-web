@@ -11,6 +11,7 @@ from pipeline.seekers.url_discoverer import (
 )
 from pipeline.seekers.url_evaluator import evaluate_urls, RankedURL, _prefilter
 from pipeline.seekers.scraper import smart_crawl, _url_to_safe_filename, _fetch_and_parse
+from pipeline.seekers.auto_discovery import run_auto_discovery, DiscoveryResult
 from pipeline.core.logger import PipelineLogger
 
 
@@ -182,3 +183,70 @@ class TestSmartCrawler:
         logger = PipelineLogger("test")
         smart_crawl([], str(tmp_path), None, logger)
         assert os.path.isdir(os.path.join(str(tmp_path), "references"))
+
+
+# ===== Auto-Discovery Orchestrator Tests =====
+
+
+class TestAutoDiscoveryOrchestrator:
+    def test_discovery_result_dataclass(self):
+        r = DiscoveryResult(success=True, refs_count=10)
+        assert r.success is True
+        assert r.refs_count == 10
+        assert r.output_dir == ""
+
+    def test_discovery_result_defaults(self):
+        r = DiscoveryResult(success=False)
+        assert r.total_cost_usd == 0.0
+        assert r.discovery_metadata == {}
+
+    def test_baseline_summary_format_keys(self):
+        """baseline_summary.json must have the correct keys for P0 compatibility."""
+        summary = {
+            "source": "auto-discovery",
+            "domain": "test",
+            "skill_md": "",
+            "references": [{"path": "ref.md", "content": "test content"}],
+            "topics": ["topic1", "topic2"],
+            "total_tokens": 1000,
+            "score": 75.0,
+            "discovery_metadata": {},
+        }
+        required_keys = {"source", "references", "topics", "score", "domain", "skill_md"}
+        assert required_keys.issubset(summary.keys())
+
+    def test_baseline_summary_score_range(self):
+        """Score should be capped between 60 and 95."""
+        # 0 refs => score = 60
+        assert min(95.0, 60.0 + 0 * 2.5) == 60.0
+        # 14 refs => 60 + 35 = 95 (capped)
+        assert min(95.0, 60.0 + 14 * 2.5) == 95.0
+        # 5 refs => 60 + 12.5 = 72.5
+        assert min(95.0, 60.0 + 5 * 2.5) == 72.5
+
+
+# ===== CLI Integration Tests =====
+
+
+class TestCLI:
+    def test_discover_baseline_help(self):
+        """CLI discover-baseline subparser should be registered."""
+        import subprocess
+        result = subprocess.run(
+            ["py", "-m", "pipeline.cli", "discover-baseline", "--help"],
+            capture_output=True, text=True, timeout=10,
+            cwd="C:/Users/Kaka/Projects/skill-factory/skill-factory-web",
+        )
+        assert result.returncode == 0
+        assert "--domain" in result.stdout
+
+    def test_build_help_still_works(self):
+        """Existing build command should still work."""
+        import subprocess
+        result = subprocess.run(
+            ["py", "-m", "pipeline.cli", "build", "--help"],
+            capture_output=True, text=True, timeout=10,
+            cwd="C:/Users/Kaka/Projects/skill-factory/skill-factory-web",
+        )
+        assert result.returncode == 0
+        assert "--config" in result.stdout

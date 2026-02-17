@@ -58,6 +58,19 @@ def main():
     repo_parser.add_argument("--output-dir", required=True, help="Output directory for analysis files")
     repo_parser.add_argument("--no-code", action="store_true", help="Skip code analysis, docs only")
 
+    # ── discover-baseline ──
+    discover_parser = subparsers.add_parser(
+        "discover-baseline", help="Auto-discover and build baseline for a domain",
+    )
+    discover_parser.add_argument("--domain", required=True, help="Domain/topic name")
+    discover_parser.add_argument("--language", default="en", help="Target language")
+    discover_parser.add_argument("--output", required=True, help="Output directory")
+    discover_parser.add_argument("--max-refs", type=int, default=15, help="Max references")
+    discover_parser.add_argument("--api-key", default="", help="Claude API key")
+    discover_parser.add_argument("--model", default="", help="Claude model")
+    discover_parser.add_argument("--model-light", default="", help="Claude light model")
+    discover_parser.add_argument("--base-url", default="", help="Custom API base URL")
+
     args = parser.parse_args()
 
     if not args.command:
@@ -76,6 +89,8 @@ def main():
         sys.exit(cmd_extract_pdf(args))
     elif args.command == "analyze-repo":
         sys.exit(cmd_analyze_repo(args))
+    elif args.command == "discover-baseline":
+        sys.exit(cmd_discover_baseline(args))
 
 
 def cmd_build(args) -> int:
@@ -181,6 +196,62 @@ def cmd_analyze_repo(args) -> int:
         output_dir=args.output_dir,
         analyze_code_flag=not args.no_code,
     )
+
+
+def cmd_discover_baseline(args) -> int:
+    """Auto-discover and build baseline for a domain."""
+    from pipeline.core.logger import PipelineLogger
+    from pipeline.clients.claude_client import ClaudeClient
+    from pipeline.clients.web_client import WebClient
+    from pipeline.seekers.auto_discovery import run_auto_discovery
+
+    logger = PipelineLogger("discover")
+
+    api_key = args.api_key or os.environ.get("CLAUDE_API_KEY", "")
+    model = args.model or os.environ.get("CLAUDE_MODEL", "claude-sonnet-4-5-20250929")
+    model_light = args.model_light or os.environ.get("CLAUDE_MODEL_LIGHT", "claude-haiku-4-5-20251001")
+    base_url = args.base_url or os.environ.get("CLAUDE_BASE_URL", "")
+
+    if not api_key:
+        _error_json("CLAUDE_API_KEY is required for discover-baseline")
+        return 1
+
+    try:
+        claude = ClaudeClient(
+            api_key=api_key, model=model,
+            model_light=model_light,
+            base_url=base_url or None,
+            logger=logger,
+        )
+    except Exception as e:
+        _error_json(f"Failed to initialize Claude client: {e}")
+        return 1
+
+    web = WebClient()
+
+    try:
+        result = run_auto_discovery(
+            domain=args.domain,
+            language=args.language,
+            output_dir=args.output,
+            claude_client=claude,
+            web_client=web,
+            logger=logger,
+            max_refs=args.max_refs,
+        )
+    except Exception as e:
+        _error_json(f"Discovery error: {e}")
+        return 1
+    finally:
+        web.close()
+
+    logger.info(
+        f"Discovery {'succeeded' if result.success else 'failed'}: "
+        f"{result.refs_count} refs, {result.topics_count} topics, "
+        f"cost ${result.total_cost_usd:.4f}",
+    )
+
+    return 0 if result.success else 1
 
 
 def _find_config(output_dir: str) -> str | None:
