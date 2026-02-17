@@ -1,6 +1,7 @@
 """Domain Analyzer — uses Claude Haiku to analyze a domain and suggest doc sources."""
 
 import json
+import re
 from dataclasses import dataclass, field
 
 
@@ -57,7 +58,7 @@ def analyze_domain(domain: str, language: str, claude_client, logger) -> DomainA
             max_tokens=2000,
             use_light_model=True,
         )
-        data = json.loads(response)
+        data = _parse_json(response)
         result = DomainAnalysis(
             domain=domain,
             official_sites=data.get("official_sites", []),
@@ -87,3 +88,20 @@ def analyze_domain(domain: str, language: str, claude_client, logger) -> DomainA
             expected_topics=[],
             difficulty="medium",
         )
+
+
+def _parse_json(text: str):
+    """Parse JSON from Claude response, stripping markdown code fences."""
+    text = text.strip()
+    if text.startswith("```"):
+        text = text.split("\n", 1)[1] if "\n" in text else text[3:]
+    if text.endswith("```"):
+        text = text[:-3]
+    text = text.strip()
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        match = re.search(r'[\[{].*[\]}]', text, re.DOTALL)
+        if match:
+            return json.loads(match.group())
+        raise

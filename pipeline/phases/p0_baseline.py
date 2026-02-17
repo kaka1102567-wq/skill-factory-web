@@ -1,5 +1,7 @@
 """Phase 0 — Baseline: Build knowledge base from official documentation."""
 
+import json
+import os
 import time
 from datetime import datetime, timezone
 
@@ -62,6 +64,33 @@ def _run_p0_skill_seekers(config, logger):
     )
 
     return score, total_tokens, baseline
+
+
+def _run_p0_prebuilt(config, logger):
+    """Load baseline from a pre-built baseline_summary.json (auto-discovery output)."""
+    phase_id = "p0"
+
+    for src in config.baseline_sources:
+        if isinstance(src, str) and src.endswith(".json") and os.path.exists(src):
+            with open(src, "r", encoding="utf-8") as f:
+                data = json.load(f)
+
+            write_json(data, f"{config.output_dir}/baseline_summary.json")
+
+            refs_count = len(data.get("references", []))
+            topics_count = len(data.get("topics", []))
+            score = data.get("score", 85.0)
+            total_tokens = data.get("total_tokens", 0)
+
+            logger.info(
+                f"Pre-built baseline loaded: {refs_count} refs, "
+                f"{topics_count} topics, {total_tokens} tokens",
+                phase=phase_id,
+            )
+            return score, refs_count, data
+
+    logger.warn("No valid baseline JSON files found", phase=phase_id)
+    return 50.0, 0, None
 
 
 def _run_p0_legacy(config, cache, logger):
@@ -188,6 +217,11 @@ def run_p0(config: BuildConfig, claude=None,
 
     try:
         use_skill_seekers = bool(config.seekers_output_dir)
+        has_prebuilt = (
+            config.baseline_sources
+            and isinstance(config.baseline_sources[0], str)
+            and config.baseline_sources[0].endswith(".json")
+        )
 
         if use_skill_seekers:
             logger.info(
@@ -195,6 +229,14 @@ def run_p0(config: BuildConfig, claude=None,
                 phase=phase_id,
             )
             score, atoms_count, summary = _run_p0_skill_seekers(
+                config, logger,
+            )
+        elif has_prebuilt:
+            logger.info(
+                "Loading pre-built baseline (auto-discovery)",
+                phase=phase_id,
+            )
+            score, atoms_count, summary = _run_p0_prebuilt(
                 config, logger,
             )
         else:

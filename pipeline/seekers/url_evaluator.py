@@ -1,6 +1,7 @@
 """URL Evaluator — uses Claude Haiku to score and rank candidate URLs."""
 
 import json
+import re
 from dataclasses import dataclass
 
 
@@ -71,7 +72,7 @@ def evaluate_urls(candidates, analysis, claude_client, logger, max_refs=15) -> l
                 system=_SYSTEM_PROMPT, user=user,
                 max_tokens=4000, use_light_model=True,
             )
-            items = json.loads(response)
+            items = _parse_json(response)
             if not isinstance(items, list):
                 items = [items]
             for item in items:
@@ -111,3 +112,20 @@ def _prefilter(candidates) -> list:
         c for c in candidates
         if not any(x in c.url.lower() for x in _EXCLUDE_SUBSTRINGS)
     ]
+
+
+def _parse_json(text: str):
+    """Parse JSON from Claude response, stripping markdown code fences."""
+    text = text.strip()
+    if text.startswith("```"):
+        text = text.split("\n", 1)[1] if "\n" in text else text[3:]
+    if text.endswith("```"):
+        text = text[:-3]
+    text = text.strip()
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        match = re.search(r'[\[{].*[\]}]', text, re.DOTALL)
+        if match:
+            return json.loads(match.group())
+        raise
