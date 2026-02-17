@@ -241,10 +241,10 @@ def _load_coverage_matrix(output_dir: str) -> dict | None:
 
 
 def _load_baseline(output_dir: str) -> dict | None:
-    """Load skill_seekers baseline from P0 output."""
+    """Load baseline from P0 output (skill_seekers or auto-discovery)."""
     try:
         summary = read_json(f"{output_dir}/baseline_summary.json")
-        if summary.get("source") == "skill_seekers":
+        if summary.get("source") in ("skill_seekers", "auto-discovery"):
             return summary
     except (FileNotFoundError, json.JSONDecodeError):
         return None

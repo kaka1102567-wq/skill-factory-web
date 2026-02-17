@@ -10,7 +10,9 @@ Each Knowledge Atom must be:
 - **Accurate**: Faithfully represents what was said in the transcript
 
 RULES:
-- Extract 5-20 atoms per chunk depending on density
+- Be thorough — extract ALL distinct knowledge atoms. Each unique concept, technique, tip, metric, tool, or process is a SEPARATE atom
+- DO NOT merge related concepts into one atom. Example: "Facebook Pixel tracks conversions" and "Facebook Pixel enables retargeting" are TWO separate atoms
+- For a typical 20-30 line transcript, expect 12-20 atoms minimum
 - Each atom title should be clear and descriptive (5-15 words)
 - Content should be 2-6 sentences, written in clear instructional language
 - Confidence: 0.9+ = directly stated, 0.7-0.89 = clearly implied, 0.5-0.69 = inferred

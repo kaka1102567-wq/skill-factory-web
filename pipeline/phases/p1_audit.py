@@ -147,10 +147,12 @@ def run_p1(config: BuildConfig, claude: ClaudeClient,
         else:
             score = 0.0
 
-        # Boost score with coverage if available
-        if coverage_matrix:
-            cs = coverage_matrix["summary"]["coverage_score"]
-            score = min(100.0, score * 0.7 + cs * 0.3)
+        # Boost score for corroborated topics (overlap with baseline)
+        if coverage_matrix and inventory:
+            overlap_count = coverage_matrix["summary"]["overlap_count"]
+            overlap_ratio = overlap_count / max(len(inventory), 1)
+            # Boost up to +15 points for topics confirmed by baseline
+            score = min(100.0, score + overlap_ratio * 15)
 
         # Save output
         output_path = f"{config.output_dir}/inventory.json"
@@ -232,10 +234,10 @@ STOP_WORDS = frozenset({
 
 
 def _load_skill_seekers_baseline(output_dir: str) -> dict | None:
-    """Load skill_seekers baseline from P0 output if available."""
+    """Load baseline from P0 output (skill_seekers or auto-discovery)."""
     try:
         summary = read_json(f"{output_dir}/baseline_summary.json")
-        if summary.get("source") == "skill_seekers":
+        if summary.get("source") in ("skill_seekers", "auto-discovery"):
             return summary
     except (FileNotFoundError, KeyError, json.JSONDecodeError):
         pass

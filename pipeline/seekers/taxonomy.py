@@ -43,8 +43,19 @@ TAXONOMIES = {
 }
 
 
+_DOMAIN_ALIASES = {
+    "facebook-ads": "fb_ads",
+    "facebook_ads": "fb_ads",
+    "fb-ads": "fb_ads",
+    "meta-ads": "fb_ads",
+    "google-ads": "google_ads",
+    "googleads": "google_ads",
+}
+
+
 def get_taxonomy(domain: str) -> dict:
-    return TAXONOMIES.get(domain, TAXONOMIES["custom"])
+    key = _DOMAIN_ALIASES.get(domain, domain)
+    return TAXONOMIES.get(key, TAXONOMIES["custom"])
 
 
 def get_all_categories(domain: str) -> list[str]:
