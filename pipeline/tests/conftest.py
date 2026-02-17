@@ -39,6 +39,34 @@ class MockClaudeClient:
             self.model_usage["light"] += 1
         else:
             self.model_usage["main"] += 1
+
+        # Domain Analyzer
+        if "Documentation Research Expert" in system:
+            return json.dumps({
+                "official_sites": ["https://docs.example.com"],
+                "doc_patterns": ["/docs/", "/guide/"],
+                "search_queries": [
+                    "example documentation",
+                    "example tutorial",
+                    "example API",
+                ],
+                "expected_topics": [
+                    "getting started", "configuration", "api reference",
+                ],
+                "difficulty": "easy",
+                "notes": "",
+            })
+
+        # URL Evaluator
+        if "Documentation Quality Evaluator" in system:
+            return json.dumps([
+                {
+                    "url": "https://docs.example.com/guide",
+                    "relevance": 9, "quality": 8, "authority": 9,
+                    "reason": "Official documentation",
+                },
+            ])
+
         return '{"result": "mock"}'
 
     def call_json(self, system, user, **kwargs):
@@ -301,3 +329,20 @@ def build_config(sample_config_path, sample_transcript_path, tmp_output_dir, tmp
         claude_model="claude-sonnet-4-5-20250929",
         seekers_cache_dir=tmp_cache_dir,
     )
+
+
+class _ErrorClaudeClient(MockClaudeClient):
+    """MockClaudeClient that always returns invalid JSON."""
+
+    def call(self, system, user, **kwargs):
+        self.call_count += 1
+        return "INVALID JSON {{{"
+
+    def call_json(self, system, user, **kwargs):
+        self.call_count += 1
+        raise ValueError("Forced JSON parse error")
+
+
+@pytest.fixture
+def mock_claude_error():
+    return _ErrorClaudeClient()
