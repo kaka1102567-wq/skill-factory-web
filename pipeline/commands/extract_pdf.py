@@ -12,7 +12,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 MAX_PAGES = 500
-MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
+MAX_FILE_SIZE = 200 * 1024 * 1024  # 200MB
+MIN_TEXT_LENGTH = 20  # Minimum chars per page to consider extraction successful
 
 
 def _log(level: str, message: str) -> None:
@@ -76,6 +77,31 @@ def _remove_header_footer(text: str, header: str, footer: str) -> str:
         if idx >= 0:
             text = text[:idx] + text[idx + len(footer):]
     return text.strip()
+
+
+def _check_tesseract() -> bool:
+    """Check if Tesseract OCR binary is available."""
+    import shutil
+    return shutil.which("tesseract") is not None
+
+
+def _ocr_page(page, language: str = "vie+eng", dpi: int = 300) -> str:
+    """OCR a single PDF page using PyMuPDF pixmap + pytesseract."""
+    try:
+        import pytesseract
+        from PIL import Image
+        import io
+    except ImportError:
+        return ""
+
+    try:
+        pix = page.get_pixmap(dpi=dpi)
+        img = Image.open(io.BytesIO(pix.tobytes("png")))
+        text = pytesseract.image_to_string(img, lang=language)
+        return text.strip()
+    except Exception as e:
+        _log("debug", f"OCR failed for page: {e}")
+        return ""
 
 
 def _detect_heading(line: str, spans: list | None = None) -> int:
@@ -143,17 +169,36 @@ def extract_single_pdf(pdf_path: str, output_dir: str) -> str | None:
         page_count = MAX_PAGES
         truncated = True
 
-    # Check if PDF has extractable text
-    first_page_text = doc[0].get_text().strip() if page_count > 0 else ""
-    if not first_page_text:
-        _log("warn", f"PDF appears to be scanned/image-based. Text extraction limited. Consider using a text-based PDF.")
-
-    # Extract text per page
+    # Extract text per page (fast pass)
     pages_text = []
+    empty_pages = 0
     for i in range(page_count):
         page = doc[i]
         text = page.get_text()
         pages_text.append(text)
+        if len(text.strip()) < MIN_TEXT_LENGTH:
+            empty_pages += 1
+
+    # OCR fallback for scanned/image-based PDFs
+    needs_ocr = empty_pages > page_count * 0.5
+    if needs_ocr:
+        has_tesseract = _check_tesseract()
+        if has_tesseract:
+            _log("info", f"Scanned PDF detected ({empty_pages}/{page_count} pages empty). Using OCR (slower)...")
+            ocr_count = 0
+            for i in range(page_count):
+                if len(pages_text[i].strip()) < MIN_TEXT_LENGTH:
+                    ocr_text = _ocr_page(doc[i])
+                    if ocr_text:
+                        pages_text[i] = ocr_text
+                        ocr_count += 1
+            _log("info", f"OCR extracted text from {ocr_count}/{empty_pages} pages")
+        else:
+            _log("warn",
+                "Scanned PDF requires Tesseract OCR but it is not installed. "
+                "Install: choco install tesseract (Windows) or apt install tesseract-ocr (Linux). "
+                "Skipping OCR — text extraction will be limited."
+            )
 
     # Detect title from first page or filename
     basename = Path(pdf_path).stem

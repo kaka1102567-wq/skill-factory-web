@@ -339,7 +339,8 @@ function _continuePreProcessInputs(
 
     if (hasPdfs) {
       sseManager.broadcast(config.id, "pre-step", { id: "pre_pdfs", label: `Extracting ${pdfFiles.length} PDFs`, status: "running" });
-      const pdfTimeout = Math.max(120_000, pdfFiles.length * 30_000);
+      // OCR can take ~10s/page, 50 pages × 14 files = ~7000s worst case
+      const pdfTimeout = Math.max(300_000, pdfFiles.length * 120_000);
       const code = await runStep(`extracting ${pdfFiles.length} PDFs`, ["extract-pdf", "--input-dir", inputDir, "--output-dir", inputDir], pdfTimeout);
       const lvl = code === 0 ? "info" : "warn";
       const msg = code === 0 ? `Extracted ${pdfFiles.length} PDFs` : `PDF extraction exited with code ${code}, continuing...`;
