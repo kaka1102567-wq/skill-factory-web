@@ -169,7 +169,14 @@ function _preProcessInputs(config: BuildConfig, pythonPath: string, cliPath: str
           for (const line of text.split("\n")) {
             const trimmed = line.trim();
             if (!trimmed) continue;
-            try { handleParsedLog(config.id, JSON.parse(trimmed)); } catch { handlePlainLog(config.id, trimmed, "debug"); }
+            try {
+              const parsed = JSON.parse(trimmed);
+              handleParsedLog(config.id, parsed);
+              _emitDiscoveryStep(config.id, (parsed.message as string) || "");
+            } catch {
+              handlePlainLog(config.id, trimmed, "debug");
+              _emitDiscoveryStep(config.id, trimmed);
+            }
           }
         }
       });
@@ -186,6 +193,13 @@ function _preProcessInputs(config: BuildConfig, pythonPath: string, cliPath: str
           : "Auto-discovery did not find baseline — continuing without";
         insertBuildLog(config.id, { level: ok ? "info" : "warn", message: msg });
         sseManager.broadcast(config.id, "log", { level: ok ? "info" : "warn", phase: "discovery", message: msg, timestamp: new Date().toISOString() });
+
+        // Mark all discovery steps done/failed
+        for (let i = 1; i <= 5; i++) {
+          sseManager.broadcast(config.id, "pre-step", {
+            id: `discovery_${i}`, label: DISCOVERY_STEP_LABELS[i], status: ok ? "done" : "failed",
+          });
+        }
 
         // If discovery succeeded, update config so pipeline uses it
         if (ok) {
@@ -214,6 +228,31 @@ function _preProcessInputs(config: BuildConfig, pythonPath: string, cliPath: str
   }
 
   return _continuePreProcessInputs(config, pythonPath, cliPath, inputDir);
+}
+
+const DISCOVERY_STEP_RE = /^Step (\d)\/5:\s*(.+?)\.{0,3}$/;
+const DISCOVERY_STEP_LABELS: Record<number, string> = {
+  1: "Analyzing domain",
+  2: "Discovering URLs",
+  3: "Evaluating URLs",
+  4: "Crawling references",
+  5: "Building baseline",
+};
+
+function _emitDiscoveryStep(buildId: string, message: string): void {
+  const m = message.match(DISCOVERY_STEP_RE);
+  if (!m) return;
+  const step = parseInt(m[1]);
+  const label = DISCOVERY_STEP_LABELS[step] || m[2];
+  // Mark previous steps done, current as running
+  for (let i = 1; i < step; i++) {
+    sseManager.broadcast(buildId, "pre-step", {
+      id: `discovery_${i}`, label: DISCOVERY_STEP_LABELS[i] || `Step ${i}`, status: "done",
+    });
+  }
+  sseManager.broadcast(buildId, "pre-step", {
+    id: `discovery_${step}`, label, status: "running",
+  });
 }
 
 /** Continues pre-processing after optional auto-discovery step. */
@@ -288,21 +327,25 @@ function _continuePreProcessInputs(
   // Run async chain, then spawn pipeline
   (async () => {
     if (hasUrls) {
+      sseManager.broadcast(config.id, "pre-step", { id: "pre_urls", label: `Fetching ${urls.length} URLs`, status: "running" });
       const urlStr = urls.join(",");
       const code = await runStep(`fetching ${urls.length} URLs`, ["fetch-urls", "--urls", urlStr, "--output-dir", inputDir], 60_000);
       const lvl = code === 0 ? "info" : "warn";
       const msg = code === 0 ? `Fetched ${urls.length} URLs` : `URL fetch exited with code ${code}, continuing...`;
       insertBuildLog(config.id, { level: lvl, message: msg });
       sseManager.broadcast(config.id, "log", { level: lvl, phase: "pre", message: msg, timestamp: new Date().toISOString() });
+      sseManager.broadcast(config.id, "pre-step", { id: "pre_urls", label: `Fetching ${urls.length} URLs`, status: code === 0 ? "done" : "failed" });
     }
 
     if (hasPdfs) {
+      sseManager.broadcast(config.id, "pre-step", { id: "pre_pdfs", label: `Extracting ${pdfFiles.length} PDFs`, status: "running" });
       const pdfTimeout = Math.max(120_000, pdfFiles.length * 30_000);
       const code = await runStep(`extracting ${pdfFiles.length} PDFs`, ["extract-pdf", "--input-dir", inputDir, "--output-dir", inputDir], pdfTimeout);
       const lvl = code === 0 ? "info" : "warn";
       const msg = code === 0 ? `Extracted ${pdfFiles.length} PDFs` : `PDF extraction exited with code ${code}, continuing...`;
       insertBuildLog(config.id, { level: lvl, message: msg });
       sseManager.broadcast(config.id, "log", { level: lvl, phase: "pre", message: msg, timestamp: new Date().toISOString() });
+      sseManager.broadcast(config.id, "pre-step", { id: "pre_pdfs", label: `Extracting ${pdfFiles.length} PDFs`, status: code === 0 ? "done" : "failed" });
 
       // Auto-merge chapter PDFs after extraction
       if (code === 0) {
@@ -311,6 +354,7 @@ function _continuePreProcessInputs(
     }
 
     if (hasGithub) {
+      sseManager.broadcast(config.id, "pre-step", { id: "pre_github", label: "Analyzing GitHub repo", status: "running" });
       const repoArgs = ["analyze-repo", "--repo", githubRepo, "--output-dir", inputDir];
       if (!analyzeCode) repoArgs.push("--no-code");
       const code = await runStep(`analyzing GitHub repo`, repoArgs, 180_000);
@@ -320,6 +364,7 @@ function _continuePreProcessInputs(
         : `Repo analysis exited with code ${code}, continuing without code analysis...`;
       insertBuildLog(config.id, { level: lvl, message: msg });
       sseManager.broadcast(config.id, "log", { level: lvl, phase: "pre", message: msg, timestamp: new Date().toISOString() });
+      sseManager.broadcast(config.id, "pre-step", { id: "pre_github", label: "Analyzing GitHub repo", status: code === 0 ? "done" : "failed" });
     }
 
     const doneMsg = "Pre-processing complete";

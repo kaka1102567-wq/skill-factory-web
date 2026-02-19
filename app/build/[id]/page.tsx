@@ -14,6 +14,9 @@ import {
   Wifi,
   WifiOff,
   Trash2,
+  FileText,
+  Activity,
+  BarChart3,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -40,6 +43,8 @@ import { PhaseStepper } from "@/components/build/phase-stepper";
 import { LogViewer } from "@/components/build/log-viewer";
 import { QualityReport } from "@/components/build/quality-report";
 import { ConflictReview } from "@/components/build/conflict-review";
+import { SkillPreview } from "@/components/build/skill-preview";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { Build } from "@/types/build";
 
 export default function BuildDetailPage() {
@@ -54,7 +59,7 @@ export default function BuildDetailPage() {
     { id: string; atom_a: string; atom_b: string; source_a?: string; source_b?: string; baseline?: string }[]
   >([]);
 
-  const { logs, phases, buildState, connected, finished } =
+  const { logs, phases, preSteps, buildState, cost, connected, finished } =
     useBuildStream(buildId);
 
   // Fetch initial build data
@@ -180,8 +185,15 @@ export default function BuildDetailPage() {
               </span>
               <span className="flex items-center gap-1">
                 <DollarSign className="w-3 h-3" />
-                {formatCost(build.api_cost_usd)}
+                {isActive && cost.total_cost > 0
+                  ? formatCost(cost.total_cost)
+                  : formatCost(build.api_cost_usd)}
               </span>
+              {isActive && cost.total_tokens > 0 && (
+                <span className="text-yellow-400">
+                  {cost.total_tokens.toLocaleString()} tok
+                </span>
+              )}
               {isActive && (
                 <span
                   className={cn(
@@ -293,34 +305,44 @@ export default function BuildDetailPage() {
         {/* Left: Phase Stepper */}
         <div className="lg:col-span-1">
           <div className="p-4 rounded-xl bg-card border border-border">
-            <PhaseStepper phases={phases} />
+            <PhaseStepper phases={phases} preSteps={preSteps} />
           </div>
         </div>
 
-        {/* Right: Logs or Quality Report */}
+        {/* Right: Tabs — Monitor / Preview / Quality */}
         <div className="lg:col-span-2">
-          {isComplete && (
-            <div className="space-y-4">
-              <QualityReport build={build} phases={phases} />
-              <div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowLogs(!showLogs)}
-                  className="text-xs mb-2"
-                >
-                  {showLogs ? "Hide logs" : "Show logs"} ({logs.length} entries)
-                </Button>
-                {showLogs && (
-                  <div className="rounded-xl border border-border overflow-hidden">
-                    <LogViewer logs={logs} />
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
+          {isComplete ? (
+            <Tabs defaultValue="quality">
+              <TabsList className="mb-3">
+                <TabsTrigger value="quality" className="gap-1.5 text-xs">
+                  <BarChart3 className="h-3.5 w-3.5" />
+                  Quality
+                </TabsTrigger>
+                <TabsTrigger value="preview" className="gap-1.5 text-xs">
+                  <FileText className="h-3.5 w-3.5" />
+                  Preview
+                </TabsTrigger>
+                <TabsTrigger value="logs" className="gap-1.5 text-xs">
+                  <Activity className="h-3.5 w-3.5" />
+                  Logs ({logs.length})
+                </TabsTrigger>
+              </TabsList>
 
-          {(isActive || isPaused || isFailed) && (
+              <TabsContent value="quality">
+                <QualityReport build={build} phases={phases} />
+              </TabsContent>
+
+              <TabsContent value="preview">
+                <SkillPreview buildId={buildId} />
+              </TabsContent>
+
+              <TabsContent value="logs">
+                <div className="rounded-xl border border-border overflow-hidden">
+                  <LogViewer logs={logs} />
+                </div>
+              </TabsContent>
+            </Tabs>
+          ) : (
             <div className="rounded-xl border border-border overflow-hidden relative">
               <LogViewer logs={logs} />
             </div>

@@ -18,6 +18,17 @@ export interface PhaseState {
   name: string;
 }
 
+export interface CostState {
+  total_cost: number;
+  total_tokens: number;
+}
+
+export interface PreStep {
+  id: string;
+  label: string;
+  status: "pending" | "running" | "done" | "failed";
+}
+
 export interface BuildStreamState {
   status: BuildStatus;
   current_phase: PhaseId | null;
@@ -41,6 +52,8 @@ export function useBuildStream(buildId: string) {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [phases, setPhases] = useState<PhaseState[]>(INITIAL_PHASES);
   const [buildState, setBuildState] = useState<BuildStreamState | null>(null);
+  const [cost, setCost] = useState<CostState>({ total_cost: 0, total_tokens: 0 });
+  const [preSteps, setPreSteps] = useState<PreStep[]>([]);
   const [connected, setConnected] = useState(false);
   const [finished, setFinished] = useState(false);
   const eventSourceRef = useRef<EventSource | null>(null);
@@ -125,6 +138,29 @@ export function useBuildStream(buildId: string) {
       }
     });
 
+    // Cost tracking
+    es.addEventListener("cost", (e) => {
+      const data = JSON.parse(e.data);
+      setCost({
+        total_cost: data.api_cost_usd ?? 0,
+        total_tokens: data.tokens_used ?? 0,
+      });
+    });
+
+    // Pre-processing / discovery steps
+    es.addEventListener("pre-step", (e) => {
+      const data = JSON.parse(e.data) as PreStep;
+      setPreSteps((prev) => {
+        const idx = prev.findIndex((s) => s.id === data.id);
+        if (idx >= 0) {
+          const next = [...prev];
+          next[idx] = { ...next[idx], ...data };
+          return next;
+        }
+        return [...prev, data];
+      });
+    });
+
     // Conflict (pauses build)
     es.addEventListener("conflict", () => {
       setBuildState((prev) =>
@@ -167,5 +203,5 @@ export function useBuildStream(buildId: string) {
     };
   }, [connect]);
 
-  return { logs, phases, buildState, connected, finished };
+  return { logs, phases, preSteps, buildState, cost, connected, finished };
 }

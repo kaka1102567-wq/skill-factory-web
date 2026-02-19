@@ -1,7 +1,7 @@
-import { Check, Loader2, Circle, X } from "lucide-react";
+import { Check, Loader2, Circle, X, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Progress } from "@/components/ui/progress";
-import type { PhaseState } from "@/hooks/use-build-stream";
+import type { PhaseState, PreStep } from "@/hooks/use-build-stream";
 import { PHASES } from "@/types/build";
 
 const PHASE_COLORS: Record<string, string> = {
@@ -13,12 +13,118 @@ const PHASE_COLORS: Record<string, string> = {
   p5: "text-cyan-400 border-cyan-400",
 };
 
-export function PhaseStepper({ phases }: { phases: PhaseState[] }) {
+function StepIcon({ status }: { status: string }) {
+  if (status === "done") return <Check className="w-3 h-3" />;
+  if (status === "running") return <Loader2 className="w-3 h-3 animate-spin" />;
+  if (status === "failed") return <X className="w-3 h-3" />;
+  return <Circle className="w-2.5 h-2.5" />;
+}
+
+function PreStepList({ steps }: { steps: PreStep[] }) {
+  if (steps.length === 0) return null;
+
+  const allDone = steps.every((s) => s.status === "done" || s.status === "failed");
+  const hasDiscovery = steps.some((s) => s.id.startsWith("discovery_"));
+  const hasPre = steps.some((s) => s.id.startsWith("pre_"));
+
+  return (
+    <div className="mb-4">
+      {hasDiscovery && (
+        <div className="mb-3">
+          <div className="flex items-center gap-2 mb-2">
+            <Search className="w-3.5 h-3.5 text-indigo-400" />
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              Auto-Discovery
+            </span>
+            {allDone && steps.filter((s) => s.id.startsWith("discovery_")).every((s) => s.status === "done") && (
+              <Check className="w-3 h-3 text-emerald-400" />
+            )}
+          </div>
+          <div className="ml-2 space-y-1">
+            {steps.filter((s) => s.id.startsWith("discovery_")).map((step) => (
+              <div key={step.id} className="flex items-center gap-2">
+                <div
+                  className={cn(
+                    "w-5 h-5 rounded-full flex items-center justify-center border transition-all",
+                    step.status === "done"
+                      ? "bg-emerald-500 border-emerald-500 text-white"
+                      : step.status === "running"
+                        ? "border-indigo-400 text-indigo-400 animate-pulse"
+                        : step.status === "failed"
+                          ? "bg-red-500 border-red-500 text-white"
+                          : "border-border text-muted-foreground"
+                  )}
+                >
+                  <StepIcon status={step.status} />
+                </div>
+                <span
+                  className={cn(
+                    "text-xs",
+                    step.status === "running" ? "text-foreground" : "text-muted-foreground"
+                  )}
+                >
+                  {step.label}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {hasPre && (
+        <div className="mb-3">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-xs">📥</span>
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              Input Processing
+            </span>
+          </div>
+          <div className="ml-2 space-y-1">
+            {steps.filter((s) => s.id.startsWith("pre_")).map((step) => (
+              <div key={step.id} className="flex items-center gap-2">
+                <div
+                  className={cn(
+                    "w-5 h-5 rounded-full flex items-center justify-center border transition-all",
+                    step.status === "done"
+                      ? "bg-emerald-500 border-emerald-500 text-white"
+                      : step.status === "running"
+                        ? "border-amber-400 text-amber-400 animate-pulse"
+                        : step.status === "failed"
+                          ? "bg-red-500 border-red-500 text-white"
+                          : "border-border text-muted-foreground"
+                  )}
+                >
+                  <StepIcon status={step.status} />
+                </div>
+                <span
+                  className={cn(
+                    "text-xs",
+                    step.status === "running" ? "text-foreground" : "text-muted-foreground"
+                  )}
+                >
+                  {step.label}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Separator between pre-steps and pipeline phases */}
+      <div className="border-b border-border mb-3" />
+    </div>
+  );
+}
+
+export function PhaseStepper({ phases, preSteps = [] }: { phases: PhaseState[]; preSteps?: PreStep[] }) {
   return (
     <div className="space-y-1">
       <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
         Pipeline Progress
       </h3>
+
+      <PreStepList steps={preSteps} />
+
       {phases.map((phase, idx) => {
         const meta = PHASES.find((p) => p.id === phase.id);
         const isLast = idx === phases.length - 1;
