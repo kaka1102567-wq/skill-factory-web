@@ -45,3 +45,10 @@ yarn-error.log*
 next-env.d.ts
 __pycache__/
 data/test-run/
+
+# Test outputs
+test-e2e*/
+fb-ads-transcript.txt
+
+# Discovery test outputs  
+test-discovery/
