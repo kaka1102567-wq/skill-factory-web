@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { writeFile, mkdir } from "fs/promises";
 import path from "path";
+import { existsSync } from "fs";
 import { v4 as uuidv4 } from "uuid";
 
 const ALLOWED_EXTENSIONS = [".txt", ".md", ".pdf", ".json", ".yaml", ".yml", ".csv"];
@@ -15,8 +16,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "No files uploaded" }, { status: 400 });
     }
 
-    const uploadDir = path.join(process.cwd(), "data", "uploads", uuidv4());
-    await mkdir(uploadDir, { recursive: true });
+    // Support appending to existing upload dir (for sequential uploads)
+    const existingDir = formData.get("upload_dir") as string | null;
+    let uploadDir: string;
+    if (existingDir && existsSync(existingDir)) {
+      uploadDir = existingDir;
+    } else {
+      uploadDir = path.join(process.cwd(), "data", "uploads", uuidv4());
+      await mkdir(uploadDir, { recursive: true });
+    }
 
     const uploadedFiles: { name: string; path: string; size: number; type: string }[] = [];
 
