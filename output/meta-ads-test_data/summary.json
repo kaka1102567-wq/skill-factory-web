@@ -1,0 +1,13 @@
+{
+  "name": "meta-ads-test",
+  "total_pages": 1,
+  "base_url": "https://www.facebook.com/business/help",
+  "llms_txt_detected": false,
+  "llms_txt_variant": null,
+  "pages": [
+    {
+      "title": "Meta Business Help Center: Help, Support & Troubleshooting | Meta Business Help Center",
+      "url": "https://www.facebook.com/business/help"
+    }
+  ]
+}

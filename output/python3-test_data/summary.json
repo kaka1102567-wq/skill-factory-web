@@ -1,0 +1,49 @@
+{
+  "name": "python3-test",
+  "total_pages": 10,
+  "base_url": "https://docs.python.org/3/",
+  "llms_txt_detected": false,
+  "llms_txt_variant": null,
+  "pages": [
+    {
+      "title": "3.14.3 Documentation",
+      "url": "https://docs.python.org/3/"
+    },
+    {
+      "title": "Download — Python 3.14.3 documentation",
+      "url": "https://docs.python.org/3/download.html"
+    },
+    {
+      "title": "Index — Python 3.14.3 documentation",
+      "url": "https://docs.python.org/3/genindex.html"
+    },
+    {
+      "title": "Python Module Index — Python 3.14.3 documentation",
+      "url": "https://docs.python.org/3/py-modindex.html"
+    },
+    {
+      "title": "What’s new in Python 3.14 — Python 3.14.3 documentation",
+      "url": "https://docs.python.org/3/whatsnew/3.14.html"
+    },
+    {
+      "title": "What’s New in Python — Python 3.14.3 documentation",
+      "url": "https://docs.python.org/3/whatsnew/index.html"
+    },
+    {
+      "title": "The Python Tutorial — Python 3.14.3 documentation",
+      "url": "https://docs.python.org/3/tutorial/index.html"
+    },
+    {
+      "title": "The Python Standard Library — Python 3.14.3 documentation",
+      "url": "https://docs.python.org/3/library/index.html"
+    },
+    {
+      "title": "The Python Language Reference — Python 3.14.3 documentation",
+      "url": "https://docs.python.org/3/reference/index.html"
+    },
+    {
+      "title": "Python Setup and Usage — Python 3.14.3 documentation",
+      "url": "https://docs.python.org/3/using/index.html"
+    }
+  ]
+}

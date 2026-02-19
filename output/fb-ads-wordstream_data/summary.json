@@ -1,0 +1,13 @@
+{
+  "name": "fb-ads-wordstream",
+  "total_pages": 1,
+  "base_url": "https://www.wordstream.com/blog/ws/facebook-advertising",
+  "llms_txt_detected": true,
+  "llms_txt_variant": null,
+  "pages": [
+    {
+      "title": "Facebook Ad Benchmarks for YOUR Industry [Data]",
+      "url": "https://www.wordstream.com/blog/ws/facebook-advertising"
+    }
+  ]
+}

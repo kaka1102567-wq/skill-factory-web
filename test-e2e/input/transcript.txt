@@ -1,0 +1,19 @@
+Hôm nay mình sẽ chia sẻ về cách chạy Facebook Ads hiệu quả cho người mới bắt đầu.
+
+Đầu tiên, các bạn cần hiểu về cấu trúc tài khoản quảng cáo Facebook. Có 3 cấp: Campaign, Ad Set, và Ad. Campaign là nơi bạn chọn mục tiêu quảng cáo. Ad Set là nơi bạn thiết lập targeting, ngân sách và lịch chạy. Ad là nơi bạn tạo nội dung quảng cáo.
+
+Về targeting, Facebook cho phép bạn target theo demographics, interests, và behaviors. Demographics bao gồm tuổi, giới tính, vị trí. Interests là sở thích người dùng. Behaviors là hành vi mua sắm.
+
+Một tip quan trọng là sử dụng Facebook Pixel. Pixel là đoạn code JavaScript bạn gắn vào website. Nó giúp tracking conversion, retargeting visitors, và tối ưu quảng cáo. Bạn nên cài Pixel ngay từ đầu.
+
+Về ngân sách, mình recommend bắt đầu với 200-500k VND/ngày cho testing. Sau khi tìm được winning ad, scale lên dần. Đừng tăng ngân sách quá 20% mỗi ngày để tránh reset learning phase.
+
+Learning phase là giai đoạn Facebook thu thập data để tối ưu delivery. Thường cần 50 conversion events trong 7 ngày. Trong giai đoạn này, CPA có thể cao và không ổn định.
+
+Về creative, video ads thường có CPM thấp hơn image ads. Mình recommend tỷ lệ 16:9 cho feed và 9:16 cho stories. Hook 3 giây đầu rất quan trọng.
+
+Lookalike audience là tính năng mạnh của Facebook. Bạn upload customer list hoặc dùng Pixel data, Facebook sẽ tìm người tương tự. Lookalike 1% là chính xác nhất, 5-10% cho reach rộng hơn.
+
+A/B testing rất quan trọng. Test 1 yếu tố mỗi lần: headline, image, audience, hoặc placement. Chạy mỗi test ít nhất 3-5 ngày với đủ data.
+
+Cuối cùng, đo lường bằng ROAS (Return on Ad Spend). ROAS > 3x là tốt cho ecommerce. Theo dõi cả CPA, CTR, và frequency để tối ưu liên tục.

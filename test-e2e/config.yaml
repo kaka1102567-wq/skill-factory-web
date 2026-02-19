@@ -1,0 +1,26 @@
+name: "Facebook Ads E2E Test"
+domain: "facebook-ads"
+language: "vi"
+quality_tier: "draft"
+platforms:
+  - "claude"
+transcript_paths:
+  - "./test-e2e/input/transcript.txt"
+output_dir: "./test-e2e/output"
+seekers_output_dir: ""
+auto_discover_baseline: false
+claude_api_key: "sk-d67e7ca874db1b2adfea10711954a4ac50d4858e94e9152dca278b8cd1d29b77"
+claude_model: "claude-haiku-4-5-20251001"
+claude_model_light: "claude-haiku-4-5-20251001"
+claude_base_url: "https://claudible.io"
+max_retries: 2
+min_phase_score: 60.0
+auto_resolve_threshold: 0.7
+seekers_cache_dir: "./data/cache"
+seekers_cache_ttl_hours: 168
+baseline_sources:
+  - "./test-e2e/baseline/baseline_summary.json"
+input_urls: []
+input_pdfs: []
+github_repo: ""
+github_analyze_code: false

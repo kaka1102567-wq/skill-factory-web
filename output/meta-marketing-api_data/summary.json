@@ -1,0 +1,13 @@
+{
+  "name": "meta-marketing-api",
+  "total_pages": 1,
+  "base_url": "https://developers.facebook.com/docs/marketing-apis",
+  "llms_txt_detected": true,
+  "llms_txt_variant": null,
+  "pages": [
+    {
+      "title": "Marketing API - Documentation - Meta for Developers",
+      "url": "https://developers.facebook.com/docs/marketing-apis"
+    }
+  ]
+}

@@ -9,6 +9,9 @@ import { getBaselineForDomain } from "./baseline-registry";
 import { yamlStr } from "./config-generator";
 import type { PhaseId } from "@/types/build";
 
+// Chapter detection pattern: "01 ...", "01-...", "01_...", "01. ..."
+const CHAPTER_PATTERN = /^(\d{1,3})[\s._-]+(.+)\.pdf$/i;
+
 // Track running processes globally (survives hot reload)
 const globalForRunner = globalThis as unknown as { runningProcesses: Map<string, ChildProcess> };
 if (!globalForRunner.runningProcesses) {
@@ -294,11 +297,17 @@ function _continuePreProcessInputs(
     }
 
     if (hasPdfs) {
-      const code = await runStep(`extracting ${pdfFiles.length} PDFs`, ["extract-pdf", "--input-dir", inputDir, "--output-dir", inputDir], 120_000);
+      const pdfTimeout = Math.max(120_000, pdfFiles.length * 30_000);
+      const code = await runStep(`extracting ${pdfFiles.length} PDFs`, ["extract-pdf", "--input-dir", inputDir, "--output-dir", inputDir], pdfTimeout);
       const lvl = code === 0 ? "info" : "warn";
       const msg = code === 0 ? `Extracted ${pdfFiles.length} PDFs` : `PDF extraction exited with code ${code}, continuing...`;
       insertBuildLog(config.id, { level: lvl, message: msg });
       sseManager.broadcast(config.id, "log", { level: lvl, phase: "pre", message: msg, timestamp: new Date().toISOString() });
+
+      // Auto-merge chapter PDFs after extraction
+      if (code === 0) {
+        _detectAndMergeChapters(inputDir, pdfFiles, config.id);
+      }
     }
 
     if (hasGithub) {
@@ -325,6 +334,48 @@ function _continuePreProcessInputs(
   const placeholder = spawn(pythonPath, ["--version"], { stdio: "ignore" });
   runningProcesses.set(config.id, placeholder);
   return placeholder;
+}
+
+// ─── Chapter Detection & Merge ─────────────────────────
+
+function _detectAndMergeChapters(
+  inputDir: string, pdfFiles: string[], buildId: string,
+): { merged: boolean; chapterCount: number; mergedFile: string } {
+  const chapters: { index: number; filename: string }[] = [];
+  for (const f of pdfFiles) {
+    const match = f.match(CHAPTER_PATTERN);
+    if (match) chapters.push({ index: parseInt(match[1], 10), filename: f });
+  }
+
+  if (chapters.length < 2) return { merged: false, chapterCount: 0, mergedFile: "" };
+
+  chapters.sort((a, b) => a.index - b.index);
+
+  const mergedParts: string[] = [];
+  for (const ch of chapters) {
+    const txtName = ch.filename.replace(/\.pdf$/i, ".txt");
+    const txtPath = path.join(inputDir, txtName);
+    if (fs.existsSync(txtPath)) {
+      const content = fs.readFileSync(txtPath, "utf-8").trim();
+      if (content) {
+        mergedParts.push(`\n--- ${ch.filename} ---\n\n${content}`);
+      }
+      fs.unlinkSync(txtPath);
+    }
+  }
+
+  if (mergedParts.length === 0) return { merged: false, chapterCount: 0, mergedFile: "" };
+
+  const mergedFile = "merged-chapters.txt";
+  fs.writeFileSync(path.join(inputDir, mergedFile), mergedParts.join("\n\n").trim(), "utf-8");
+
+  const msg = `Auto-merged ${chapters.length} chapter PDFs → ${mergedFile}`;
+  insertBuildLog(buildId, { level: "info", message: msg });
+  sseManager.broadcast(buildId, "log", {
+    level: "info", phase: "pre", message: msg, timestamp: new Date().toISOString(),
+  });
+
+  return { merged: true, chapterCount: chapters.length, mergedFile };
 }
 
 // ─── Pipeline Spawn (extracted for pre-scrape chaining) ─

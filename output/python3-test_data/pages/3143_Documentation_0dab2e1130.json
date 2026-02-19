@@ -1,0 +1,40 @@
+{
+  "url": "https://docs.python.org/3/",
+  "title": "3.14.3 Documentation",
+  "content": "Welcome! This is the official documentation for Python 3.14.3.\n\nDocumentation sections:\n\nWhat's new in Python 3.14? Or all \"What's new\" documents since Python 2.0\n\nTutorial Start here: a tour of Python's syntax and features\n\nLibrary reference Standard library and builtins\n\nLanguage reference Syntax and language elements\n\nPython setup and usage How to install, configure, and use Python\n\nPython HOWTOs In-depth topic manuals\n\nInstalling Python modules Third-party modules and PyPI.org\n\nDistributing Python modules Publishing modules for use by other people\n\nExtending and embedding For C/C++ programmers\n\nPython's C API C API reference\n\nFAQs Frequently asked questions (with answers!)\n\nDeprecations Deprecated functionality\n\nIndices, glossary, and search:\n\nGlobal module index All modules and libraries\n\nGeneral index All functions, classes, and terms\n\nGlossary Terms explained\n\nSearch page Search this documentation\n\nComplete table of contents Lists all sections and subsections\n\nDownload the documentation\n\nHistory and license of Python\n\nAbout the documentation",
+  "headings": [
+    {
+      "level": "h1",
+      "text": "Python 3.14.3 documentation",
+      "id": ""
+    }
+  ],
+  "code_samples": [],
+  "patterns": [],
+  "links": [
+    "https://docs.python.org/3/download.html",
+    "https://docs.python.org/3/genindex.html",
+    "https://docs.python.org/3/py-modindex.html",
+    "https://docs.python.org/3/",
+    "https://docs.python.org/3/whatsnew/3.14.html",
+    "https://docs.python.org/3/whatsnew/index.html",
+    "https://docs.python.org/3/tutorial/index.html",
+    "https://docs.python.org/3/library/index.html",
+    "https://docs.python.org/3/reference/index.html",
+    "https://docs.python.org/3/using/index.html",
+    "https://docs.python.org/3/howto/index.html",
+    "https://docs.python.org/3/installing/index.html",
+    "https://docs.python.org/3/distributing/index.html",
+    "https://docs.python.org/3/extending/index.html",
+    "https://docs.python.org/3/c-api/index.html",
+    "https://docs.python.org/3/faq/index.html",
+    "https://docs.python.org/3/deprecations/index.html",
+    "https://docs.python.org/3/glossary.html",
+    "https://docs.python.org/3/search.html",
+    "https://docs.python.org/3/contents.html",
+    "https://docs.python.org/3/bugs.html",
+    "https://docs.python.org/3/license.html",
+    "https://docs.python.org/3/copyright.html",
+    "https://docs.python.org/3/about.html"
+  ]
+}

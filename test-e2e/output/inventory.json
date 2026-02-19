@@ -1,0 +1,516 @@
+{
+  "topics": [
+    {
+      "topic": "Cấu trúc tài khoản quảng cáo Facebook",
+      "category": "campaign_management",
+      "quality_score": 75,
+      "mentions": 1,
+      "summary": "Giải thích 3 cấp của tài khoản Facebook Ads: Campaign (mục tiêu), Ad Set (targeting, ngân sách, lịch chạy), và Ad (nội dung).",
+      "depth": "moderate",
+      "baseline_coverage": false,
+      "source_files": [
+        "transcript.txt"
+      ]
+    },
+    {
+      "topic": "Demographic targeting",
+      "category": "audience_targeting",
+      "quality_score": 65,
+      "mentions": 2,
+      "summary": "Targeting dựa trên thông tin nhân khẩu học bao gồm tuổi, giới tính, và vị trí địa lý.",
+      "depth": "surface",
+      "baseline_coverage": true,
+      "source_files": [
+        "transcript.txt"
+      ]
+    },
+    {
+      "topic": "Interest targeting",
+      "category": "audience_targeting",
+      "quality_score": 50,
+      "mentions": 1,
+      "summary": "Targeting dựa trên sở thích và quan tâm của người dùng.",
+      "depth": "mention_only",
+      "baseline_coverage": true,
+      "source_files": [
+        "transcript.txt"
+      ]
+    },
+    {
+      "topic": "Behavioral targeting",
+      "category": "audience_targeting",
+      "quality_score": 50,
+      "mentions": 1,
+      "summary": "Targeting dựa trên hành vi mua sắm của người dùng.",
+      "depth": "mention_only",
+      "baseline_coverage": false,
+      "source_files": [
+        "transcript.txt"
+      ]
+    },
+    {
+      "topic": "Facebook Pixel",
+      "category": "pixel_tracking",
+      "quality_score": 78,
+      "mentions": 3,
+      "summary": "Đoạn code JavaScript được gắn vào website để tracking conversion, retargeting visitors, và tối ưu quảng cáo.",
+      "depth": "moderate",
+      "baseline_coverage": true,
+      "source_files": [
+        "transcript.txt"
+      ]
+    },
+    {
+      "topic": "Conversion tracking",
+      "category": "pixel_tracking",
+      "quality_score": 65,
+      "mentions": 2,
+      "summary": "Sử dụng Pixel để theo dõi các hành động chuyển đổi của khách hàng trên website.",
+      "depth": "surface",
+      "baseline_coverage": true,
+      "source_files": [
+        "transcript.txt"
+      ]
+    },
+    {
+      "topic": "Retargeting",
+      "category": "audience_targeting",
+      "quality_score": 60,
+      "mentions": 1,
+      "summary": "Tiếp cận lại các khách truy cập website thông qua Pixel data.",
+      "depth": "surface",
+      "baseline_coverage": false,
+      "source_files": [
+        "transcript.txt"
+      ]
+    },
+    {
+      "topic": "Quản lý ngân sách",
+      "category": "campaign_management",
+      "quality_score": 72,
+      "mentions": 2,
+      "summary": "Khuyến nghị bắt đầu với 200-500k VND/ngày cho testing và tăng tối đa 20% mỗi ngày để tránh reset learning phase.",
+      "depth": "moderate",
+      "baseline_coverage": false,
+      "source_files": [
+        "transcript.txt"
+      ]
+    },
+    {
+      "topic": "Learning phase",
+      "category": "optimization",
+      "quality_score": 75,
+      "mentions": 2,
+      "summary": "Giai đoạn Facebook thu thập dữ liệu để tối ưu delivery, thường cần 50 conversion events trong 7 ngày với CPA cao và không ổn định.",
+      "depth": "moderate",
+      "baseline_coverage": false,
+      "source_files": [
+        "transcript.txt"
+      ]
+    },
+    {
+      "topic": "Video ads",
+      "category": "ad_creative",
+      "quality_score": 68,
+      "mentions": 1,
+      "summary": "Video quảng cáo có CPM thấp hơn image ads với tỷ lệ 16:9 cho feed và 9:16 cho stories.",
+      "depth": "surface",
+      "baseline_coverage": true,
+      "source_files": [
+        "transcript.txt"
+      ]
+    },
+    {
+      "topic": "Image ads",
+      "category": "ad_creative",
+      "quality_score": 50,
+      "mentions": 1,
+      "summary": "Quảng cáo hình ảnh có CPM cao hơn video ads.",
+      "depth": "mention_only",
+      "baseline_coverage": true,
+      "source_files": [
+        "transcript.txt"
+      ]
+    },
+    {
+      "topic": "Ad hook",
+      "category": "ad_creative",
+      "quality_score": 65,
+      "mentions": 1,
+      "summary": "3 giây đầu của quảng cáo rất quan trọng để thu hút sự chú ý của người xem.",
+      "depth": "surface",
+      "baseline_coverage": false,
+      "source_files": [
+        "transcript.txt"
+      ]
+    },
+    {
+      "topic": "Lookalike audience",
+      "category": "audience_targeting",
+      "quality_score": 78,
+      "mentions": 2,
+      "summary": "Tính năng tìm kiếm người dùng tương tự dựa trên customer list hoặc Pixel data, với Lookalike 1% chính xác nhất và 5-10% cho reach rộng hơn.",
+      "depth": "moderate",
+      "baseline_coverage": false,
+      "source_files": [
+        "transcript.txt"
+      ]
+    },
+    {
+      "topic": "A/B testing",
+      "category": "optimization",
+      "quality_score": 72,
+      "mentions": 2,
+      "summary": "Test một yếu tố mỗi lần (headline, image, audience, placement) chạy ít nhất 3-5 ngày với đủ dữ liệu.",
+      "depth": "moderate",
+      "baseline_coverage": false,
+      "source_files": [
+        "transcript.txt"
+      ]
+    },
+    {
+      "topic": "ROAS (Return on Ad Spend)",
+      "category": "optimization",
+      "quality_score": 70,
+      "mentions": 1,
+      "summary": "Chỉ số đo lường hiệu quả quảng cáo, với ROAS > 3x được coi là tốt cho ecommerce.",
+      "depth": "surface",
+      "baseline_coverage": true,
+      "source_files": [
+        "transcript.txt"
+      ]
+    },
+    {
+      "topic": "CPA (Cost Per Action)",
+      "category": "optimization",
+      "quality_score": 65,
+      "mentions": 2,
+      "summary": "Chi phí cho mỗi hành động chuyển đổi, cần theo dõi để tối ưu quảng cáo.",
+      "depth": "surface",
+      "baseline_coverage": true,
+      "source_files": [
+        "transcript.txt"
+      ]
+    },
+    {
+      "topic": "CTR (Click-Through Rate)",
+      "category": "optimization",
+      "quality_score": 60,
+      "mentions": 1,
+      "summary": "Tỷ lệ click-through là một chỉ số cần theo dõi để tối ưu liên tục.",
+      "depth": "surface",
+      "baseline_coverage": true,
+      "source_files": [
+        "transcript.txt"
+      ]
+    },
+    {
+      "topic": "Frequency",
+      "category": "optimization",
+      "quality_score": 60,
+      "mentions": 1,
+      "summary": "Tần suất hiển thị quảng cáo cho một người dùng, cần theo dõi để tối ưu.",
+      "depth": "surface",
+      "baseline_coverage": false,
+      "source_files": [
+        "transcript.txt"
+      ]
+    },
+    {
+      "topic": "CPM (Cost Per Mille)",
+      "category": "optimization",
+      "quality_score": 55,
+      "mentions": 2,
+      "summary": "Chi phí cho mỗi 1000 lần hiển thị quảng cáo, so sánh giữa video và image ads.",
+      "depth": "surface",
+      "baseline_coverage": true,
+      "source_files": [
+        "transcript.txt"
+      ]
+    },
+    {
+      "topic": "Lịch chạy quảng cáo",
+      "category": "campaign_management",
+      "quality_score": 50,
+      "mentions": 1,
+      "summary": "Thiết lập thời gian chạy quảng cáo trong Ad Set.",
+      "depth": "mention_only",
+      "baseline_coverage": false,
+      "source_files": [
+        "transcript.txt"
+      ]
+    }
+  ],
+  "total_topics": 20,
+  "score": 71.7,
+  "coverage_matrix": {
+    "overlap": [
+      {
+        "topic": "Demographic targeting",
+        "category": "audience_targeting",
+        "source": "transcript",
+        "status": "OVERLAP",
+        "matched_ref": "./test-e2e/baseline\\references\\business-ads-ad-targeting.md",
+        "match_count": 2
+      },
+      {
+        "topic": "Interest targeting",
+        "category": "audience_targeting",
+        "source": "transcript",
+        "status": "OVERLAP",
+        "matched_ref": "./test-e2e/baseline\\references\\business-ads-ad-targeting.md",
+        "match_count": 2
+      },
+      {
+        "topic": "Facebook Pixel",
+        "category": "pixel_tracking",
+        "source": "transcript",
+        "status": "OVERLAP",
+        "matched_ref": "./test-e2e/baseline\\references\\docs-marketing-api.md",
+        "match_count": 2
+      },
+      {
+        "topic": "Conversion tracking",
+        "category": "pixel_tracking",
+        "source": "transcript",
+        "status": "OVERLAP",
+        "matched_ref": "./test-e2e/baseline\\references\\docs-marketing-api-conversions-api-guides-end-to-end-implementation.md",
+        "match_count": 2
+      },
+      {
+        "topic": "Video ads",
+        "category": "ad_creative",
+        "source": "transcript",
+        "status": "OVERLAP",
+        "matched_ref": "./test-e2e/baseline\\references\\docs.md",
+        "match_count": 2
+      },
+      {
+        "topic": "Image ads",
+        "category": "ad_creative",
+        "source": "transcript",
+        "status": "OVERLAP",
+        "matched_ref": "./test-e2e/baseline\\references\\docs-marketing-api-reference.md",
+        "match_count": 2
+      },
+      {
+        "topic": "ROAS (Return on Ad Spend)",
+        "category": "optimization",
+        "source": "transcript",
+        "status": "OVERLAP",
+        "matched_ref": "./test-e2e/baseline\\references\\docs-marketing-api-conversions-api-guides-end-to-end-implementation.md",
+        "match_count": 2
+      },
+      {
+        "topic": "CPA (Cost Per Action)",
+        "category": "optimization",
+        "source": "transcript",
+        "status": "OVERLAP",
+        "matched_ref": "./test-e2e/baseline\\references\\docs-marketing-api.md",
+        "match_count": 3
+      },
+      {
+        "topic": "CTR (Click-Through Rate)",
+        "category": "optimization",
+        "source": "transcript",
+        "status": "OVERLAP",
+        "matched_ref": "./test-e2e/baseline\\references\\business-ads-ad-creative.md",
+        "match_count": 4
+      },
+      {
+        "topic": "CPM (Cost Per Mille)",
+        "category": "optimization",
+        "source": "transcript",
+        "status": "OVERLAP",
+        "matched_ref": "./test-e2e/baseline\\references\\docs-marketing-api.md",
+        "match_count": 2
+      }
+    ],
+    "unique_expert": [
+      {
+        "topic": "Cấu trúc tài khoản quảng cáo Facebook",
+        "category": "campaign_management",
+        "source": "transcript",
+        "status": "UNIQUE_EXPERT"
+      },
+      {
+        "topic": "Behavioral targeting",
+        "category": "audience_targeting",
+        "source": "transcript",
+        "status": "UNIQUE_EXPERT"
+      },
+      {
+        "topic": "Retargeting",
+        "category": "audience_targeting",
+        "source": "transcript",
+        "status": "UNIQUE_EXPERT"
+      },
+      {
+        "topic": "Quản lý ngân sách",
+        "category": "campaign_management",
+        "source": "transcript",
+        "status": "UNIQUE_EXPERT"
+      },
+      {
+        "topic": "Learning phase",
+        "category": "optimization",
+        "source": "transcript",
+        "status": "UNIQUE_EXPERT"
+      },
+      {
+        "topic": "Ad hook",
+        "category": "ad_creative",
+        "source": "transcript",
+        "status": "UNIQUE_EXPERT"
+      },
+      {
+        "topic": "Lookalike audience",
+        "category": "audience_targeting",
+        "source": "transcript",
+        "status": "UNIQUE_EXPERT"
+      },
+      {
+        "topic": "A/B testing",
+        "category": "optimization",
+        "source": "transcript",
+        "status": "UNIQUE_EXPERT"
+      },
+      {
+        "topic": "Frequency",
+        "category": "optimization",
+        "source": "transcript",
+        "status": "UNIQUE_EXPERT"
+      },
+      {
+        "topic": "Lịch chạy quảng cáo",
+        "category": "campaign_management",
+        "source": "transcript",
+        "status": "UNIQUE_EXPERT"
+      }
+    ],
+    "gap_to_fill": [
+      {
+        "topic": "Facebook Ads Account Setup",
+        "source": "baseline",
+        "status": "GAP_TO_FILL"
+      },
+      {
+        "topic": "Campaign Creation and Management",
+        "source": "baseline",
+        "status": "GAP_TO_FILL"
+      },
+      {
+        "topic": "Ad Sets and Ad Creative",
+        "source": "baseline",
+        "status": "GAP_TO_FILL"
+      },
+      {
+        "topic": "Audience Targeting and Segmentation",
+        "source": "baseline",
+        "status": "GAP_TO_FILL"
+      },
+      {
+        "topic": "Budget and Bidding Strategies",
+        "source": "baseline",
+        "status": "GAP_TO_FILL"
+      },
+      {
+        "topic": "Facebook Conversion API",
+        "source": "baseline",
+        "status": "GAP_TO_FILL"
+      },
+      {
+        "topic": "Marketing API Overview",
+        "source": "baseline",
+        "status": "GAP_TO_FILL"
+      },
+      {
+        "topic": "Ads Insights and Analytics",
+        "source": "baseline",
+        "status": "GAP_TO_FILL"
+      },
+      {
+        "topic": "A/B Testing",
+        "source": "baseline",
+        "status": "GAP_TO_FILL"
+      },
+      {
+        "topic": "Ad Quality and Policies",
+        "source": "baseline",
+        "status": "GAP_TO_FILL"
+      },
+      {
+        "topic": "Business Manager Setup",
+        "source": "baseline",
+        "status": "GAP_TO_FILL"
+      },
+      {
+        "topic": "Payment Methods and Billing",
+        "source": "baseline",
+        "status": "GAP_TO_FILL"
+      },
+      {
+        "topic": "Ad Formats and Placements",
+        "source": "baseline",
+        "status": "GAP_TO_FILL"
+      },
+      {
+        "topic": "Retargeting and Lookalike Audiences",
+        "source": "baseline",
+        "status": "GAP_TO_FILL"
+      },
+      {
+        "topic": "Lead Generation Forms",
+        "source": "baseline",
+        "status": "GAP_TO_FILL"
+      },
+      {
+        "topic": "Dynamic Ads and Product Catalog",
+        "source": "baseline",
+        "status": "GAP_TO_FILL"
+      },
+      {
+        "topic": "Mobile Advertising",
+        "source": "baseline",
+        "status": "GAP_TO_FILL"
+      },
+      {
+        "topic": "Instagram Ads Integration",
+        "source": "baseline",
+        "status": "GAP_TO_FILL"
+      },
+      {
+        "topic": "Messenger Ads",
+        "source": "baseline",
+        "status": "GAP_TO_FILL"
+      },
+      {
+        "topic": "Audience Network",
+        "source": "baseline",
+        "status": "GAP_TO_FILL"
+      },
+      {
+        "topic": "Custom Audiences",
+        "source": "baseline",
+        "status": "GAP_TO_FILL"
+      },
+      {
+        "topic": "Event Tracking",
+        "source": "baseline",
+        "status": "GAP_TO_FILL"
+      },
+      {
+        "topic": "Authentication and Permissions",
+        "source": "baseline",
+        "status": "GAP_TO_FILL"
+      }
+    ],
+    "summary": {
+      "overlap_count": 10,
+      "unique_expert_count": 10,
+      "gap_count": 23,
+      "total": 43,
+      "coverage_score": 46.5
+    }
+  }
+}

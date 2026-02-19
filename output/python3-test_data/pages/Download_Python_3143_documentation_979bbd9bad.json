@@ -1,0 +1,34 @@
+{
+  "url": "https://docs.python.org/3/download.html",
+  "title": "Download — Python 3.14.3 documentation",
+  "content": "Last updated on: Feb 14, 2026 (17:11 UTC).\n\nDownload an archive containing all the documentation for this version of Python:\n\nWe no longer provide pre-built PDFs of the documentation. To build a PDF archive, follow the instructions in the Developer's Guide and run make dist-pdf in the Doc/ directory of a copy of the CPython repository.\n\nSee the directory listing for file sizes.\n\nOpen an issue if you have comments or suggestions for the Python documentation.",
+  "headings": [
+    {
+      "level": "h1",
+      "text": "Download Python 3.14 documentation",
+      "id": ""
+    },
+    {
+      "level": "h2",
+      "text": "Problems",
+      "id": ""
+    }
+  ],
+  "code_samples": [],
+  "patterns": [],
+  "links": [
+    "https://docs.python.org/3/genindex.html",
+    "https://docs.python.org/3/py-modindex.html",
+    "https://docs.python.org/3/index.html",
+    "https://docs.python.org/3/download.html",
+    "https://docs.python.org/3/archives/python-3.14-docs-html.zip",
+    "https://docs.python.org/3/archives/python-3.14-docs-html.tar.bz2",
+    "https://docs.python.org/3/archives/python-3.14-docs-text.zip",
+    "https://docs.python.org/3/archives/python-3.14-docs-text.tar.bz2",
+    "https://docs.python.org/3/archives/python-3.14-docs-texinfo.zip",
+    "https://docs.python.org/3/archives/python-3.14-docs-texinfo.tar.bz2",
+    "https://docs.python.org/3/archives/python-3.14-docs.epub",
+    "https://docs.python.org/3/bugs.html",
+    "https://docs.python.org/3/copyright.html"
+  ]
+}

@@ -1,0 +1,471 @@
+{
+  "atoms": [
+    {
+      "id": "atom_0001",
+      "title": "Facebook Ads account structure: Campaign, Ad Set, and Ad hierarchy",
+      "content": "Facebook Ads account has three hierarchical levels: Campaign, Ad Set, and Ad. Campaign is where you select the objective (Awareness, Traffic, Engagement, Leads, App promotion, or Sales). For ecommerce, use the Sales objective with Conversions optimization. Understanding this three-tier structure is fundamental to organizing your advertising strategy.",
+      "category": "campaign_management",
+      "tags": [
+        "account structure",
+        "hierarchy",
+        "campaign setup"
+      ],
+      "confidence": 0.95,
+      "status": "deduplicated",
+      "merged_from": []
+    },
+    {
+      "id": "atom_0002",
+      "title": "Ad Set is the core of a campaign where targeting and budget are configured",
+      "content": "The Ad Set is the central element of a campaign where you configure targeting parameters, budget allocation, scheduling, and ad placements. A single campaign should contain 3-5 ad sets to test different audience segments effectively. This structure allows for systematic audience testing and optimization.",
+      "category": "campaign_management",
+      "tags": [
+        "ad set",
+        "targeting",
+        "budget allocation"
+      ],
+      "confidence": 0.95,
+      "status": "deduplicated",
+      "merged_from": []
+    },
+    {
+      "id": "atom_0028",
+      "title": "Understand Meta's advertising campaign structure before creating ads",
+      "content": "Before advertising on Facebook, Instagram, Messenger and WhatsApp, understand Meta's campaign structure comprising campaigns, ad sets, and ad creatives. This includes understanding the three hierarchical levels and how they relate to each other. Understanding which components you're working with and how they connect is essential for setting up campaigns, ad sets, and creatives effectively through both the interface and Marketing API.",
+      "category": "campaign_management",
+      "tags": [
+        "cấu trúc quảng cáo",
+        "thiết lập chiến dịch",
+        "Meta platforms",
+        "account structure",
+        "hierarchy"
+      ],
+      "confidence": 0.95,
+      "status": "deduplicated",
+      "merged_from": [
+        "atom_0025",
+        "atom_0028"
+      ]
+    },
+    {
+      "id": "atom_0027",
+      "title": "Basic steps to create ads: campaigns, ad sets, and ad creatives",
+      "content": "To create ads, you need to set up three main components: campaigns, ad sets (where you configure targeting and budget), and ad creatives. Marketing API provides detailed guidance and code samples demonstrating the implementation process to help you execute correctly. This applies both to direct setup and programmatic creation through APIs.",
+      "category": "campaign_management",
+      "tags": [
+        "tạo quảng cáo",
+        "ad sets",
+        "ad creatives",
+        "marketing api"
+      ],
+      "confidence": 0.93,
+      "status": "deduplicated",
+      "merged_from": [
+        "atom_0027",
+        "atom_0029"
+      ]
+    },
+    {
+      "id": "atom_0026",
+      "title": "Use Marketing API to create and manage advertising campaigns",
+      "content": "Marketing API provides a set of Graph API endpoints and other features to help you advertise on Meta technologies. This API allows you to perform key operations including modifying, pausing, and deleting advertising campaigns, as well as creating and managing all components of campaigns.",
+      "category": "campaign_management",
+      "tags": [
+        "Marketing API",
+        "Graph API",
+        "quản lý chiến dịch"
+      ],
+      "confidence": 0.93,
+      "status": "deduplicated",
+      "merged_from": []
+    },
+    {
+      "id": "atom_0012",
+      "title": "Campaign Budget Optimization automatically distributes budget across ad sets",
+      "content": "Campaign Budget Optimization (CBO), also called Advantage Campaign Budget, automatically allocates your daily budget across multiple ad sets based on performance. Use CBO when you have 3 or more ad sets, as it allows Facebook to shift budget to the best-performing audiences. This automated approach typically outperforms manual budget allocation across ad sets.",
+      "category": "campaign_management",
+      "tags": [
+        "CBO",
+        "budget optimization",
+        "automation"
+      ],
+      "confidence": 0.95,
+      "status": "deduplicated",
+      "merged_from": []
+    },
+    {
+      "id": "atom_0015",
+      "title": "Significant ad set edits reset learning phase progress",
+      "content": "Significant edits that reset learning phase include: changing targeting parameters, increasing budget more than 20%, updating creative assets, or modifying the optimization event. Minor edits like adjusting bid amounts or changing the ad name do not reset learning phase. Understanding which changes are significant helps you preserve learning phase progress.",
+      "category": "campaign_management",
+      "tags": [
+        "learning phase",
+        "edits",
+        "reset"
+      ],
+      "confidence": 0.95,
+      "status": "deduplicated",
+      "merged_from": []
+    },
+    {
+      "id": "atom_0003",
+      "title": "Each Ad Set should contain 3-5 ads for Dynamic Creative Optimization",
+      "content": "Each ad set should include 3-5 different ad creatives. Facebook will automatically optimize and deliver the best-performing ads through Dynamic Creative Optimization. This allows the platform to identify which creative elements resonate most with your audience.",
+      "category": "ad_creative",
+      "tags": [
+        "dynamic creative optimization",
+        "ad variations",
+        "testing"
+      ],
+      "confidence": 0.95,
+      "status": "deduplicated",
+      "merged_from": []
+    },
+    {
+      "id": "atom_0017",
+      "title": "Video ads outperform image ads with 2-3x better CPM efficiency",
+      "content": "Video creative consistently outperforms static images, delivering 2-3 times better CPM (cost per thousand impressions). The first 3 seconds of a video are critical for capturing attention, with optimal video length between 15-30 seconds. Always include subtitles since 85% of viewers watch without sound.",
+      "category": "ad_creative",
+      "tags": [
+        "video ads",
+        "CPM",
+        "creative performance"
+      ],
+      "confidence": 0.95,
+      "status": "deduplicated",
+      "merged_from": []
+    },
+    {
+      "id": "atom_0018",
+      "title": "User Generated Content converts better than professionally polished ads",
+      "content": "User Generated Content (UGC) typically converts better than highly polished, professionally produced ads on Facebook. Authentic, relatable content outperforms slick production value for this platform. Before/After format videos are particularly effective for ecommerce products as they demonstrate transformation and value.",
+      "category": "ad_creative",
+      "tags": [
+        "UGC",
+        "authenticity",
+        "conversion"
+      ],
+      "confidence": 0.95,
+      "status": "deduplicated",
+      "merged_from": []
+    },
+    {
+      "id": "atom_0019",
+      "title": "Carousel and Collection ad formats optimize for product catalogs and shopping",
+      "content": "Carousel ads display 2-10 cards in sequence, making them ideal for showcasing product catalogs with multiple items. Collection ads create an immersive shopping experience by allowing users to browse products without leaving Facebook. These formats are particularly effective for ecommerce where browsing multiple products drives conversions.",
+      "category": "ad_creative",
+      "tags": [
+        "carousel",
+        "collection",
+        "ad formats"
+      ],
+      "confidence": 0.95,
+      "status": "deduplicated",
+      "merged_from": []
+    },
+    {
+      "id": "atom_0004",
+      "title": "Core Audiences targeting uses demographics, location, interests, and behaviors",
+      "content": "Core Audiences represent the basic targeting approach using demographic data (age, gender), geographic location, user interests, and behavioral patterns. This is the starting point and foundation for most Facebook advertising campaigns. It provides broad audience reach for initial campaign setup.",
+      "category": "audience_targeting",
+      "tags": [
+        "core audiences",
+        "demographics",
+        "basic targeting"
+      ],
+      "confidence": 0.95,
+      "status": "deduplicated",
+      "merged_from": []
+    },
+    {
+      "id": "atom_0005",
+      "title": "Custom Audiences enable retargeting from website visitors, customer lists, and video viewers",
+      "content": "Custom Audiences are created from multiple sources: website visitors (requires Facebook Pixel), uploaded customer email/phone lists, app users, or video viewers. Custom Audiences are highly valuable for ecommerce as they target people already familiar with your brand. These audiences typically have higher conversion rates than cold audiences.",
+      "category": "audience_targeting",
+      "tags": [
+        "custom audiences",
+        "retargeting",
+        "pixel data"
+      ],
+      "confidence": 0.95,
+      "status": "deduplicated",
+      "merged_from": []
+    },
+    {
+      "id": "atom_0006",
+      "title": "Lookalike Audiences use AI to find users similar to your best customers",
+      "content": "Lookalike Audiences leverage Facebook's AI to identify new users similar to a source audience (such as your purchasers or high-value customers). Use 1% Lookalike for highest precision, 2-5% for scaling, and 5-10% for broader reach. This feature is powerful for acquiring new customers with similar characteristics to your best existing customers.",
+      "category": "audience_targeting",
+      "tags": [
+        "lookalike audiences",
+        "AI targeting",
+        "scaling"
+      ],
+      "confidence": 0.95,
+      "status": "deduplicated",
+      "merged_from": []
+    },
+    {
+      "id": "atom_0030",
+      "title": "Marketing API provides endpoints to manage and analyze audiences",
+      "content": "Marketing API provides essential endpoints helping developers manage audiences and analyze insights of advertising campaigns. These tools are part of the Marketing API and used to optimize advertising on Meta platforms like Facebook, Instagram, Messenger and WhatsApp.",
+      "category": "audience_targeting",
+      "tags": [
+        "Marketing API",
+        "quản lý đối tượng",
+        "optimization"
+      ],
+      "confidence": 0.85,
+      "status": "deduplicated",
+      "merged_from": []
+    },
+    {
+      "id": "atom_0007",
+      "title": "Facebook Pixel tracks key ecommerce events with proper parameters",
+      "content": "Facebook Pixel is a JavaScript code installed on your website that tracks user actions: PageView, ViewContent, AddToCart, InitiateCheckout, and Purchase. Each event must include correct parameters to ensure accurate tracking and optimization. Proper pixel implementation is essential for conversion tracking and audience building.",
+      "category": "pixel_tracking",
+      "tags": [
+        "facebook pixel",
+        "event tracking",
+        "conversion"
+      ],
+      "confidence": 0.95,
+      "status": "deduplicated",
+      "merged_from": []
+    },
+    {
+      "id": "atom_0008",
+      "title": "Conversions API provides server-side tracking to overcome iOS tracking limitations",
+      "content": "Conversions API (CAPI) is a server-side tracking solution that becomes critical because iOS 14.5 restricts browser-level tracking. Implement CAPI alongside Pixel in a Redundant Setup configuration and deduplicate events using event_id. This dual-tracking approach ensures you capture conversion data that browser tracking might miss.",
+      "category": "pixel_tracking",
+      "tags": [
+        "CAPI",
+        "server-side tracking",
+        "iOS compliance"
+      ],
+      "confidence": 0.95,
+      "status": "deduplicated",
+      "merged_from": []
+    },
+    {
+      "id": "atom_0033",
+      "title": "Conversions API is the primary tool for tracking conversions",
+      "content": "Conversions API is part of Meta's Marketing and Commerce suite, allowing developers to send conversion data from their servers directly to Meta. This is one of the key tools in optimizing advertising and tracking campaign performance. The API works alongside Meta Pixel to provide comprehensive conversion data. It enables server-side tracking of key ecommerce events with proper parameters for accurate tracking and optimization.",
+      "category": "pixel_tracking",
+      "tags": [
+        "Conversions API",
+        "tracking",
+        "conversion data",
+        "server-side",
+        "CAPI"
+      ],
+      "confidence": 0.9,
+      "status": "deduplicated",
+      "merged_from": [
+        "atom_0008",
+        "atom_0033"
+      ]
+    },
+    {
+      "id": "atom_0009",
+      "title": "Event Match Quality score above 6.0 improves conversion tracking accuracy",
+      "content": "Event Match Quality (EMQ) measures how well Facebook can match conversion events to user profiles. Aim for an EMQ score above 6.0. Improve EMQ by sending additional user data through CAPI: email, phone number, first name, last name, city, state, and zip code. Higher EMQ scores lead to better campaign optimization.",
+      "category": "pixel_tracking",
+      "tags": [
+        "event match quality",
+        "user data",
+        "optimization"
+      ],
+      "confidence": 0.95,
+      "status": "deduplicated",
+      "merged_from": []
+    },
+    {
+      "id": "atom_0034",
+      "title": "Conversions API Gateway enhances conversion data management capabilities",
+      "content": "Conversions API Gateway is an additional component in Meta's Conversions API system that helps manage and process conversion data more efficiently. It provides advanced features for sending and validating conversion data from multiple sources.",
+      "category": "pixel_tracking",
+      "tags": [
+        "Conversions API Gateway",
+        "data management",
+        "conversion tracking"
+      ],
+      "confidence": 0.8,
+      "status": "deduplicated",
+      "merged_from": []
+    },
+    {
+      "id": "atom_0022",
+      "title": "Attribution window default is 7-day click and 1-day view for conversion credit",
+      "content": "Facebook's default attribution window credits conversions if they occur within 7 days of a click or 1 day of a view. This window determines which interactions receive credit for conversions. Understanding your attribution window is essential for accurate ROI calculation and campaign evaluation.",
+      "category": "pixel_tracking",
+      "tags": [
+        "attribution",
+        "conversion window",
+        "measurement"
+      ],
+      "confidence": 0.95,
+      "status": "deduplicated",
+      "merged_from": []
+    },
+    {
+      "id": "atom_0010",
+      "title": "Lowest Cost bidding strategy is ideal for testing new campaigns",
+      "content": "Lowest Cost (automatic) bidding strategy allows Facebook to find the cheapest way to reach your conversion objective without manual bid constraints. This strategy is best suited for testing phases when you want to maximize reach and gather data. Use this approach when you're not yet focused on controlling individual cost metrics.",
+      "category": "optimization",
+      "tags": [
+        "bidding strategy",
+        "lowest cost",
+        "testing"
+      ],
+      "confidence": 0.95,
+      "status": "deduplicated",
+      "merged_from": []
+    },
+    {
+      "id": "atom_0011",
+      "title": "Cost Cap and Bid Cap strategies provide control over spending efficiency",
+      "content": "Cost Cap strategy sets a maximum average cost per conversion, giving you control while allowing Facebook optimization flexibility. Bid Cap strategy allows you to set maximum bids. Use Cost Cap for scaling campaigns and Bid Cap for advanced users with specific cost targets. These strategies balance control with optimization capability.",
+      "category": "optimization",
+      "tags": [
+        "cost cap",
+        "bid cap",
+        "bidding"
+      ],
+      "confidence": 0.95,
+      "status": "deduplicated",
+      "merged_from": []
+    },
+    {
+      "id": "atom_0013",
+      "title": "Avoid increasing daily budget more than 20% to preserve learning phase",
+      "content": "When scaling campaigns, do not increase daily budget by more than 20% in a single day, as larger increases reset the learning phase. If CPA increases unexpectedly, reduce budget by 50% rather than pausing the ad set entirely. This approach maintains campaign momentum while adjusting for performance issues.",
+      "category": "optimization",
+      "tags": [
+        "budget scaling",
+        "learning phase",
+        "best practices"
+      ],
+      "confidence": 0.95,
+      "status": "deduplicated",
+      "merged_from": []
+    },
+    {
+      "id": "atom_0014",
+      "title": "Learning phase requires 50 conversions within 7 days for optimization stability",
+      "content": "Facebook's learning phase requires an ad set to accumulate 50 conversion events within 7 days to stabilize optimization. During this period, CPA is typically higher than normal and delivery may be inconsistent. Avoid making edits to ad sets during learning phase, as changes can reset the progress toward completing it.",
+      "category": "optimization",
+      "tags": [
+        "learning phase",
+        "conversions",
+        "stability"
+      ],
+      "confidence": 0.95,
+      "status": "deduplicated",
+      "merged_from": []
+    },
+    {
+      "id": "atom_0016",
+      "title": "Limited learning occurs when ad set fails to exit learning phase after 7 days",
+      "content": "Limited learning happens when an ad set does not accumulate the required 50 conversions to exit learning phase within 7 days. Common causes include: audience too small, budget too low, or conversion events too rare. Address limited learning by expanding audience size, increasing budget, or reviewing your conversion tracking setup.",
+      "category": "optimization",
+      "tags": [
+        "limited learning",
+        "troubleshooting",
+        "audience size"
+      ],
+      "confidence": 0.95,
+      "status": "deduplicated",
+      "merged_from": []
+    },
+    {
+      "id": "atom_0020",
+      "title": "ROAS above 3x indicates profitable ecommerce advertising performance",
+      "content": "ROAS (Return on Ad Spend) is calculated as Revenue divided by Ad Spend. For ecommerce, a ROAS above 3x generally indicates profitable advertising. However, break-even ROAS varies by business based on profit margins and operational costs. Use ROAS as your primary metric for scaling decisions.",
+      "category": "optimization",
+      "tags": [
+        "ROAS",
+        "profitability",
+        "metrics"
+      ],
+      "confidence": 0.95,
+      "status": "deduplicated",
+      "merged_from": []
+    },
+    {
+      "id": "atom_0021",
+      "title": "Key performance metrics include CTR, CPC, CPM, Frequency, and Conversion Rate",
+      "content": "Important metrics to monitor are: CTR (Click-Through Rate, target > 1%), CPC (Cost Per Click), CPM (Cost Per Thousand Impressions), Frequency (target < 3), and Conversion Rate. These metrics help identify whether ads are resonating with audiences and whether budget is being spent efficiently. Track frequency especially to avoid ad fatigue.",
+      "category": "optimization",
+      "tags": [
+        "metrics",
+        "CTR",
+        "frequency"
+      ],
+      "confidence": 0.95,
+      "status": "deduplicated",
+      "merged_from": []
+    },
+    {
+      "id": "atom_0023",
+      "title": "Testing framework: vary one element at a time with 3-7 days minimum run time",
+      "content": "Effective testing isolates variables by changing only one element per test. Allocate $20-50 per ad set daily for testing purposes. Run tests for a minimum of 3-7 days to gather sufficient data. Select winners based on lowest CPA combined with adequate conversion volume to ensure statistical reliability.",
+      "category": "optimization",
+      "tags": [
+        "testing",
+        "A/B testing",
+        "methodology"
+      ],
+      "confidence": 0.95,
+      "status": "deduplicated",
+      "merged_from": []
+    },
+    {
+      "id": "atom_0024",
+      "title": "Scaling strategy combines horizontal expansion with vertical budget increases",
+      "content": "Horizontal scaling adds new ad sets targeting different audiences or new audiences entirely, expanding reach. Vertical scaling increases budget allocated to winning campaigns and ad sets. A hybrid approach combining both horizontal and vertical scaling typically delivers the best results for sustainable growth.",
+      "category": "optimization",
+      "tags": [
+        "scaling",
+        "horizontal",
+        "vertical"
+      ],
+      "confidence": 0.95,
+      "status": "deduplicated",
+      "merged_from": []
+    },
+    {
+      "id": "atom_0031",
+      "title": "Automatically adjust budget and bids with custom rules",
+      "content": "Meta Marketing API provides campaign management capabilities based on rules to automatically adjust budget and bids. You can set up custom rules and notifications to stop or start ads, adjust bids, and reallocate spending at different thresholds. Facebook's rule-based automation and triggers help optimize ad management more easily.",
+      "category": "optimization",
+      "tags": [
+        "bid_adjustment",
+        "budget_allocation",
+        "automated_rules",
+        "real_time_optimization"
+      ],
+      "confidence": 0.95,
+      "status": "deduplicated",
+      "merged_from": []
+    },
+    {
+      "id": "atom_0032",
+      "title": "Optimize ad performance in real-time using API",
+      "content": "Marketing API allows you to manage and optimize ads in real-time through rule-based management. By analyzing performance data from Ads Insights API, businesses can make data-driven decisions to optimize advertising strategy and use budget effectively.",
+      "category": "optimization",
+      "tags": [
+        "real_time_tracking",
+        "performance_data",
+        "budget_optimization",
+        "insights_api"
+      ],
+      "confidence": 0.93,
+      "status": "deduplicated",
+      "merged_from": []
+    }
+  ],
+  "total_atoms": 32,
+  "duplicates_merged": 5,
+  "score": 71.8
+}

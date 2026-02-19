@@ -1,0 +1,31 @@
+{
+  "url": "https://docs.python.org/3/using/index.html",
+  "title": "Python Setup and Usage — Python 3.14.3 documentation",
+  "content": "This part of the documentation is devoted to general information on the setup of the Python environment on different platforms, the invocation of the interpreter and things that make working with Python easier.",
+  "headings": [
+    {
+      "level": "h1",
+      "text": "Python Setup and Usage¶",
+      "id": ""
+    }
+  ],
+  "code_samples": [],
+  "patterns": [],
+  "links": [
+    "https://docs.python.org/3/tutorial/appendix.html",
+    "https://docs.python.org/3/using/cmdline.html",
+    "https://docs.python.org/3/bugs.html",
+    "https://docs.python.org/3/genindex.html",
+    "https://docs.python.org/3/py-modindex.html",
+    "https://docs.python.org/3/index.html",
+    "https://docs.python.org/3/using/index.html",
+    "https://docs.python.org/3/using/unix.html",
+    "https://docs.python.org/3/using/configure.html",
+    "https://docs.python.org/3/using/windows.html",
+    "https://docs.python.org/3/using/mac.html",
+    "https://docs.python.org/3/using/android.html",
+    "https://docs.python.org/3/using/ios.html",
+    "https://docs.python.org/3/using/editors.html",
+    "https://docs.python.org/3/copyright.html"
+  ]
+}

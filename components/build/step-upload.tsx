@@ -1,16 +1,15 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
-import { FileText, Link2, FileDown, Trash2, Upload, AlertCircle, Github } from "lucide-react";
+import { FileText, Link2, FileDown, Trash2, Upload, AlertCircle, Github, BookOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 const TRANSCRIPT_EXTENSIONS = [".txt", ".md"];
 const PDF_EXTENSIONS = [".pdf"];
 const MAX_TRANSCRIPT_SIZE = 10 * 1024 * 1024; // 10MB
-const MAX_PDF_SIZE = 50 * 1024 * 1024; // 50MB
+const MAX_PDF_SIZE = 200 * 1024 * 1024; // 200MB
 const MAX_URLS = 20;
-const MAX_PDF_FILES = 5;
 
 interface StepUploadProps {
   files: File[];
@@ -36,6 +35,10 @@ export function StepUpload({ files, urls, githubRepo, githubAnalyzeCode, onFiles
   });
   const pdfs = files.filter((f) => f.name.toLowerCase().endsWith(".pdf"));
 
+  // Detect chapter patterns (e.g., "01 Introduction.pdf", "02-Chapter 1.pdf")
+  const chapterPdfs = pdfs.filter((f) => /^\d{1,3}[\s._-]+/.test(f.name));
+  const hasChapters = chapterPdfs.length >= 2;
+
   const addTranscripts = useCallback(
     (newFiles: FileList | File[]) => {
       const valid = Array.from(newFiles).filter((f) => {
@@ -49,14 +52,12 @@ export function StepUpload({ files, urls, githubRepo, githubAnalyzeCode, onFiles
 
   const addPdfs = useCallback(
     (newFiles: FileList | File[]) => {
-      const currentPdfCount = pdfs.length;
       const valid = Array.from(newFiles).filter((f) => {
         return f.name.toLowerCase().endsWith(".pdf") && f.size <= MAX_PDF_SIZE;
       });
-      const allowed = valid.slice(0, MAX_PDF_FILES - currentPdfCount);
-      onFilesChange([...files, ...allowed]);
+      onFilesChange([...files, ...valid]);
     },
-    [files, pdfs.length, onFilesChange],
+    [files, onFilesChange],
   );
 
   const removeFile = (index: number) => {
@@ -155,7 +156,7 @@ export function StepUpload({ files, urls, githubRepo, githubAnalyzeCode, onFiles
           )}
         >
           <Upload className="w-6 h-6 text-muted-foreground" />
-          <p className="text-xs text-muted-foreground">Drop .pdf files — max 50MB/file, max {MAX_PDF_FILES} files</p>
+          <p className="text-xs text-muted-foreground">Drop .pdf files — max 200MB/file, unlimited files</p>
           <input ref={pdfRef} type="file" multiple accept=".pdf" className="hidden"
             onChange={(e) => e.target.files && addPdfs(e.target.files)} />
         </div>
@@ -174,6 +175,14 @@ export function StepUpload({ files, urls, githubRepo, githubAnalyzeCode, onFiles
                 </div>
               );
             })}
+          </div>
+        )}
+        {hasChapters && (
+          <div className="flex items-start gap-1.5 rounded-lg bg-blue-500/10 border border-blue-500/20 p-2.5">
+            <BookOpen className="w-3.5 h-3.5 text-blue-400 mt-0.5 shrink-0" />
+            <p className="text-xs text-blue-300">
+              {chapterPdfs.length} chapter PDFs detected — they will be auto-merged in order during build.
+            </p>
           </div>
         )}
         <div className="flex items-start gap-1.5">

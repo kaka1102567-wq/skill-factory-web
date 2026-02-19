@@ -4,7 +4,7 @@ import path from "path";
 import { v4 as uuidv4 } from "uuid";
 
 const ALLOWED_EXTENSIONS = [".txt", ".md", ".pdf", ".json", ".yaml", ".yml", ".csv"];
-const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+const MAX_FILE_SIZE = 200 * 1024 * 1024; // 200MB
 
 export async function POST(req: Request) {
   try {
@@ -30,7 +30,7 @@ export async function POST(req: Request) {
       }
       if (file.size > MAX_FILE_SIZE) {
         return NextResponse.json(
-          { error: `File too large: ${file.name} (${(file.size / 1024 / 1024).toFixed(1)}MB). Max: 50MB` },
+          { error: `File too large: ${file.name} (${(file.size / 1024 / 1024).toFixed(1)}MB). Max: 200MB` },
           { status: 400 },
         );
       }

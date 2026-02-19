@@ -1,0 +1,13 @@
+{
+  "name": "fb-ads-baseline",
+  "total_pages": 1,
+  "base_url": "https://www.wordstream.com/blog/how-to-advertise-on-facebook",
+  "llms_txt_detected": true,
+  "llms_txt_variant": null,
+  "pages": [
+    {
+      "title": "How to Advertise on Facebook in 8 Steps: The Visual Guide",
+      "url": "https://www.wordstream.com/blog/how-to-advertise-on-facebook"
+    }
+  ]
+}

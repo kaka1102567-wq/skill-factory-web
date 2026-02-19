@@ -1,0 +1,35 @@
+{"event": "log", "level": "info", "phase": "discovery", "message": "Step 1/5: Analyzing domain..."}
+{"event": "log", "level": "info", "phase": "discovery", "message": "Analyzing domain: facebook-ads"}
+{"event": "log", "level": "debug", "phase": null, "message": "API #1 [haiku]: 219+522 tok, $0.0023, 7.1s"}
+{"event": "cost", "api_cost_usd": 0.0023, "tokens_used": 741}
+{"event": "log", "level": "warn", "phase": "discovery", "message": "Domain analysis parse error: Expecting value: line 1 column 1 (char 0), using defaults"}
+{"event": "log", "level": "info", "phase": "discovery", "message": "Found 0 sites, 5 queries"}
+{"event": "log", "level": "info", "phase": "discovery", "message": "Step 2/5: Discovering URLs..."}
+{"event": "log", "level": "info", "phase": "discovery", "message": "DDG search 'facebook-ads official documentation': 10 results"}
+{"event": "log", "level": "info", "phase": "discovery", "message": "DDG search 'facebook-ads tutorial guide': 8 results"}
+{"event": "log", "level": "info", "phase": "discovery", "message": "DDG search 'facebook-ads API reference': 10 results"}
+{"event": "log", "level": "info", "phase": "discovery", "message": "DDG search 'facebook-ads best practices': 10 results"}
+{"event": "log", "level": "info", "phase": "discovery", "message": "DDG search 'facebook-ads getting started': 10 results"}
+{"event": "log", "level": "info", "phase": "discovery", "message": "Total unique candidates: 43"}
+{"event": "log", "level": "info", "phase": "discovery", "message": "Step 3/5: Evaluating URLs..."}
+{"event": "log", "level": "info", "phase": "discovery", "message": "Evaluating 43 URLs (pre-filtered from 43)"}
+{"event": "log", "level": "debug", "phase": null, "message": "API #2 [haiku]: 2032+3119 tok, $0.0141, 15.4s"}
+{"event": "cost", "api_cost_usd": 0.0164, "tokens_used": 5892}
+{"event": "log", "level": "warn", "phase": "discovery", "message": "Evaluation batch 0 parse error: Expecting value: line 1 column 1 (char 0)"}
+{"event": "log", "level": "info", "phase": "discovery", "message": "Selected 10 URLs (scores: 5.0 - 5.0)"}
+{"event": "log", "level": "info", "phase": "discovery", "message": "Step 4/5: Crawling..."}
+{"event": "log", "level": "info", "phase": "discovery", "message": "Crawling [1/10]: https://www.facebook.com/business/ads-guide/update/"}
+{"event": "log", "level": "info", "phase": "discovery", "message": "Crawling [2/10]: https://developers.facebook.com/docs/"}
+{"event": "log", "level": "info", "phase": "discovery", "message": "Crawling [3/10]: https://developers.facebook.com/docs/marketing-api/"}
+{"event": "log", "level": "info", "phase": "discovery", "message": "Crawling [4/10]: https://business.facebook.com/docs/app-ads/"}
+{"event": "log", "level": "info", "phase": "discovery", "message": "Crawling [5/10]: https://ads.facebook.com/"}
+{"event": "log", "level": "info", "phase": "discovery", "message": "Crawling [6/10]: https://developers.facebook.com/docs/marketing-api/reference/v24.0/"}
+{"event": "log", "level": "info", "phase": "discovery", "message": "Crawling [7/10]: https://www.facebook.com/business/tools/ads-manager/"}
+{"event": "log", "level": "info", "phase": "discovery", "message": "Crawling [8/10]: https://developers.facebook.com/docs/app-ads/guides/"}
+{"event": "log", "level": "info", "phase": "discovery", "message": "Crawling [9/10]: https://developers.facebook.com/docs/app-ads/"}
+{"event": "log", "level": "info", "phase": "discovery", "message": "Crawling [10/10]: https://www.facebook.com/business/tools/facebook-ads/"}
+{"event": "log", "level": "info", "phase": "discovery", "message": "Crawled 10/10 successfully"}
+{"event": "log", "level": "info", "phase": "discovery", "message": "Step 5/5: Building baseline..."}
+{"event": "log", "level": "info", "phase": "discovery", "message": "Discovery complete: 10 refs, 0 topics"}
+{"event": "cost", "api_cost_usd": 0.0164, "tokens_used": 5892}
+{"event": "log", "level": "info", "phase": null, "message": "Discovery succeeded: 10 refs, 0 topics, cost $0.0164"}

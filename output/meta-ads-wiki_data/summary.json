@@ -1,0 +1,13 @@
+{
+  "name": "meta-ads-wiki",
+  "total_pages": 1,
+  "base_url": "https://en.wikipedia.org/wiki/Facebook_Ads",
+  "llms_txt_detected": false,
+  "llms_txt_variant": null,
+  "pages": [
+    {
+      "title": "Meta Platforms - Wikipedia",
+      "url": "https://en.wikipedia.org/wiki/Facebook_Ads"
+    }
+  ]
+}

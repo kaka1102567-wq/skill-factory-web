@@ -1,0 +1,428 @@
+{
+  "atoms": [
+    {
+      "id": "atom_0001",
+      "title": "Three-tier structure of Facebook Ads account hierarchy",
+      "content": "Facebook Ads accounts are organized into three levels: Campaign, Ad Set, and Ad. Campaign level is where you select your advertising objective. Ad Set is where you configure targeting parameters, budget allocation, and schedule. Ad level is where you create the actual advertisement content.",
+      "category": "campaign_management",
+      "tags": [
+        "account structure",
+        "campaign hierarchy",
+        "setup"
+      ],
+      "confidence": 0.95,
+      "status": "deduplicated",
+      "merged_from": []
+    },
+    {
+      "id": "atom_0025",
+      "title": "Understand Meta ad structure before creating campaigns",
+      "content": "Before advertising on Facebook, Instagram, Messenger and WhatsApp, you should understand Meta's ad campaign structure to comprehend the objects you are working with and how they relate to each other. This understanding is essential for effectively setting up campaigns, ad sets, and ad creatives. Marketing API provides detailed guidance and code samples to implement this correctly.",
+      "category": "campaign_management",
+      "tags": [
+        "account structure",
+        "campaign hierarchy",
+        "setup",
+        "cấu trúc quảng cáo",
+        "Meta platforms"
+      ],
+      "confidence": 0.95,
+      "status": "deduplicated",
+      "merged_from": [
+        "atom_0025",
+        "atom_0027",
+        "atom_0028",
+        "atom_0029"
+      ]
+    },
+    {
+      "id": "atom_0026",
+      "title": "Use Marketing API to create and manage ad campaigns",
+      "content": "Marketing API provides a set of Graph API endpoints and features to help you advertise on Meta technologies. The API allows you to perform key operations including modifying, pausing, and deleting ad campaigns.",
+      "category": "campaign_management",
+      "tags": [
+        "Marketing API",
+        "Graph API",
+        "campaign management"
+      ],
+      "confidence": 0.93,
+      "status": "deduplicated",
+      "merged_from": []
+    },
+    {
+      "id": "atom_0009",
+      "title": "Start with daily budget of 200-500k VND for initial testing",
+      "content": "When beginning your Facebook Ads campaigns, allocate a daily budget between 200,000 and 500,000 VND for testing purposes. This budget level is sufficient to gather initial data and identify winning ad variations before scaling.",
+      "category": "campaign_management",
+      "tags": [
+        "budget allocation",
+        "testing budget",
+        "campaign setup"
+      ],
+      "confidence": 0.9,
+      "status": "deduplicated",
+      "merged_from": []
+    },
+    {
+      "id": "atom_0002",
+      "title": "Demographics targeting includes age, gender, and location",
+      "content": "Demographics targeting on Facebook allows you to filter audiences by age, gender, and geographic location. These are fundamental demographic parameters that help narrow your audience to specific population segments.",
+      "category": "audience_targeting",
+      "tags": [
+        "demographics",
+        "targeting parameters",
+        "audience segmentation"
+      ],
+      "confidence": 0.95,
+      "status": "deduplicated",
+      "merged_from": []
+    },
+    {
+      "id": "atom_0003",
+      "title": "Interest-based targeting reaches users by their preferences",
+      "content": "Facebook's interests targeting option allows you to reach users based on their stated preferences and interests. This helps you connect with audiences who have demonstrated interest in topics relevant to your product or service.",
+      "category": "audience_targeting",
+      "tags": [
+        "interests",
+        "audience targeting",
+        "preferences"
+      ],
+      "confidence": 0.95,
+      "status": "deduplicated",
+      "merged_from": []
+    },
+    {
+      "id": "atom_0004",
+      "title": "Behavior targeting uses user purchase and activity patterns",
+      "content": "Behavior targeting on Facebook focuses on user purchasing behaviors and shopping patterns. This allows you to reach audiences based on their demonstrated buying habits and online activities.",
+      "category": "audience_targeting",
+      "tags": [
+        "behavior targeting",
+        "purchase patterns",
+        "user activity"
+      ],
+      "confidence": 0.95,
+      "status": "deduplicated",
+      "merged_from": []
+    },
+    {
+      "id": "atom_0017",
+      "title": "Lookalike audiences find users similar to your customers",
+      "content": "Lookalike audience is a Facebook feature that identifies and targets new users similar to your existing customers. You can create lookalike audiences by uploading your customer list or using Pixel data from your website visitors.",
+      "category": "audience_targeting",
+      "tags": [
+        "lookalike audience",
+        "audience expansion",
+        "similarity matching"
+      ],
+      "confidence": 0.95,
+      "status": "deduplicated",
+      "merged_from": []
+    },
+    {
+      "id": "atom_0018",
+      "title": "Lookalike 1% provides most accurate audience matching",
+      "content": "When creating lookalike audiences, the 1% lookalike option provides the most accurate matching to your source audience. This setting targets users who are most similar to your existing customers.",
+      "category": "audience_targeting",
+      "tags": [
+        "lookalike 1%",
+        "accuracy",
+        "audience quality"
+      ],
+      "confidence": 0.9,
+      "status": "deduplicated",
+      "merged_from": []
+    },
+    {
+      "id": "atom_0019",
+      "title": "Lookalike 5-10% reaches broader audience with less precision",
+      "content": "A 5-10% lookalike audience reaches a much larger pool of potential customers compared to the 1% option. Use this broader lookalike range when you want to prioritize reach over targeting precision.",
+      "category": "audience_targeting",
+      "tags": [
+        "lookalike expansion",
+        "reach",
+        "audience size"
+      ],
+      "confidence": 0.9,
+      "status": "deduplicated",
+      "merged_from": []
+    },
+    {
+      "id": "atom_0030",
+      "title": "Marketing API provides endpoints to manage and analyze audiences",
+      "content": "Marketing API provides essential endpoints to help developers manage audiences and analyze ad campaign insights. These tools are part of the Marketing API and are used to optimize advertising across Meta platforms including Facebook, Instagram, Messenger, and WhatsApp.",
+      "category": "audience_targeting",
+      "tags": [
+        "Marketing API",
+        "audience management",
+        "optimization"
+      ],
+      "confidence": 0.85,
+      "status": "deduplicated",
+      "merged_from": []
+    },
+    {
+      "id": "atom_0005",
+      "title": "Facebook Pixel is a JavaScript code for tracking conversions",
+      "content": "Facebook Pixel is a JavaScript code snippet that you install on your website to track user conversions. It captures conversion events and provides data that helps you measure the effectiveness of your advertising campaigns.",
+      "category": "pixel_tracking",
+      "tags": [
+        "Facebook Pixel",
+        "conversion tracking",
+        "JavaScript"
+      ],
+      "confidence": 0.95,
+      "status": "deduplicated",
+      "merged_from": []
+    },
+    {
+      "id": "atom_0006",
+      "title": "Facebook Pixel enables retargeting of website visitors",
+      "content": "After installing Facebook Pixel on your website, you can use it to retarget visitors who have viewed your site but haven't converted. This allows you to show ads to people who have already demonstrated interest in your business.",
+      "category": "pixel_tracking",
+      "tags": [
+        "retargeting",
+        "pixel tracking",
+        "audience building"
+      ],
+      "confidence": 0.95,
+      "status": "deduplicated",
+      "merged_from": []
+    },
+    {
+      "id": "atom_0008",
+      "title": "Install Facebook Pixel early in your advertising setup",
+      "content": "You should install Facebook Pixel on your website from the beginning of your advertising efforts. This allows you to start collecting conversion data immediately, which improves campaign optimization from day one.",
+      "category": "pixel_tracking",
+      "tags": [
+        "implementation",
+        "early setup",
+        "best practice"
+      ],
+      "confidence": 0.9,
+      "status": "deduplicated",
+      "merged_from": []
+    },
+    {
+      "id": "atom_0033",
+      "title": "Conversions API is the primary tool for tracking conversions",
+      "content": "Conversions API is part of Meta's Marketing and Commerce suite, allowing developers to send conversion data from their servers directly to Meta. This is one of the most important tools in ad optimization and campaign performance tracking. The API works alongside Meta Pixel to provide comprehensive conversion data.",
+      "category": "pixel_tracking",
+      "tags": [
+        "Conversions API",
+        "tracking",
+        "conversion data",
+        "server-side"
+      ],
+      "confidence": 0.85,
+      "status": "deduplicated",
+      "merged_from": [
+        "atom_0033",
+        "atom_0034"
+      ]
+    },
+    {
+      "id": "atom_0007",
+      "title": "Facebook Pixel optimizes ad delivery using conversion data",
+      "content": "Facebook Pixel data helps optimize your ad delivery by providing conversion information to Facebook's algorithm. The platform uses this data to find and show ads to users most likely to convert.",
+      "category": "optimization",
+      "tags": [
+        "pixel optimization",
+        "ad delivery",
+        "algorithm"
+      ],
+      "confidence": 0.95,
+      "status": "deduplicated",
+      "merged_from": []
+    },
+    {
+      "id": "atom_0010",
+      "title": "Scale budget gradually by no more than 20% per day",
+      "content": "Once you identify a winning ad, increase your daily budget gradually, limiting increases to no more than 20% per day. This gradual scaling approach prevents disrupting Facebook's learning phase and maintains campaign stability.",
+      "category": "optimization",
+      "tags": [
+        "budget scaling",
+        "growth strategy",
+        "learning phase"
+      ],
+      "confidence": 0.9,
+      "status": "deduplicated",
+      "merged_from": []
+    },
+    {
+      "id": "atom_0011",
+      "title": "Learning phase requires 50 conversion events within 7 days",
+      "content": "Facebook's learning phase is when the platform analyzes data to optimize ad delivery. During this phase, you need to achieve at least 50 conversion events within a 7-day period for the system to optimize effectively.",
+      "category": "optimization",
+      "tags": [
+        "learning phase",
+        "conversion events",
+        "optimization period"
+      ],
+      "confidence": 0.95,
+      "status": "deduplicated",
+      "merged_from": []
+    },
+    {
+      "id": "atom_0012",
+      "title": "Learning phase causes high and unstable CPA initially",
+      "content": "During the learning phase, your cost per acquisition (CPA) may be higher than normal and can fluctuate significantly. This is expected behavior as Facebook gathers data to optimize your campaigns, and stability improves once the learning phase completes.",
+      "category": "optimization",
+      "tags": [
+        "CPA",
+        "learning phase",
+        "performance metrics"
+      ],
+      "confidence": 0.9,
+      "status": "deduplicated",
+      "merged_from": []
+    },
+    {
+      "id": "atom_0020",
+      "title": "A/B testing should focus on one variable at a time",
+      "content": "When conducting A/B tests on your Facebook Ads, test only one element per test cycle. This could be the headline, image, audience, or ad placement. Testing a single variable ensures you can accurately attribute performance differences to that specific change.",
+      "category": "optimization",
+      "tags": [
+        "A/B testing",
+        "experimentation",
+        "testing methodology"
+      ],
+      "confidence": 0.95,
+      "status": "deduplicated",
+      "merged_from": []
+    },
+    {
+      "id": "atom_0021",
+      "title": "Run A/B tests for minimum 3-5 days with sufficient data",
+      "content": "Each A/B test should run for at least 3-5 days to gather sufficient data for reliable conclusions. This timeframe allows you to collect enough impressions and conversions to identify statistically meaningful performance differences.",
+      "category": "optimization",
+      "tags": [
+        "A/B testing",
+        "test duration",
+        "data collection"
+      ],
+      "confidence": 0.9,
+      "status": "deduplicated",
+      "merged_from": []
+    },
+    {
+      "id": "atom_0022",
+      "title": "ROAS measures return on advertising spend in currency ratio",
+      "content": "Return on Ad Spend (ROAS) is a key metric that measures revenue generated for every currency unit spent on ads. It is calculated as total revenue divided by total ad spend, expressed as a ratio.",
+      "category": "optimization",
+      "tags": [
+        "ROAS",
+        "performance metrics",
+        "ROI"
+      ],
+      "confidence": 0.95,
+      "status": "deduplicated",
+      "merged_from": []
+    },
+    {
+      "id": "atom_0023",
+      "title": "ROAS above 3x indicates strong ecommerce campaign performance",
+      "content": "For ecommerce businesses, a ROAS of 3x or higher is considered excellent campaign performance. This means you are generating 3 or more currency units in revenue for every 1 unit spent on advertising.",
+      "category": "optimization",
+      "tags": [
+        "ROAS benchmark",
+        "ecommerce",
+        "performance target"
+      ],
+      "confidence": 0.9,
+      "status": "deduplicated",
+      "merged_from": []
+    },
+    {
+      "id": "atom_0024",
+      "title": "Monitor CPA, CTR, and frequency for continuous optimization",
+      "content": "Track multiple metrics beyond ROAS to continuously improve your campaigns: Cost Per Acquisition (CPA), Click-Through Rate (CTR), and frequency (how often your ad is shown to the same person). Analyzing these metrics together helps you identify optimization opportunities.",
+      "category": "optimization",
+      "tags": [
+        "metrics monitoring",
+        "performance analysis",
+        "optimization"
+      ],
+      "confidence": 0.9,
+      "status": "deduplicated",
+      "merged_from": []
+    },
+    {
+      "id": "atom_0031",
+      "title": "Automatically adjust budget and bidding with custom rules",
+      "content": "Meta Marketing API provides rule-based ad management capabilities to automatically adjust budget and bidding. You can set up custom rules and notifications to stop or start ads, adjust bids, and reallocate spending at different thresholds. Facebook's rule-based automation and triggers help optimize ad management more easily.",
+      "category": "optimization",
+      "tags": [
+        "bid adjustment",
+        "budget allocation",
+        "automated rules",
+        "real-time optimization"
+      ],
+      "confidence": 0.95,
+      "status": "deduplicated",
+      "merged_from": [
+        "atom_0031",
+        "atom_0032"
+      ]
+    },
+    {
+      "id": "atom_0013",
+      "title": "Video ads typically have lower CPM than image ads",
+      "content": "Video advertisements generally achieve lower cost-per-thousand-impressions (CPM) compared to static image ads on Facebook. This makes video content a more cost-efficient creative format for many campaigns.",
+      "category": "ad_creative",
+      "tags": [
+        "video ads",
+        "CPM",
+        "creative format"
+      ],
+      "confidence": 0.9,
+      "status": "deduplicated",
+      "merged_from": []
+    },
+    {
+      "id": "atom_0014",
+      "title": "Use 16:9 aspect ratio for Facebook feed ads",
+      "content": "When creating ads for the Facebook feed, format your video or image content in a 16:9 aspect ratio. This standard widescreen format displays optimally in the feed placement.",
+      "category": "ad_creative",
+      "tags": [
+        "aspect ratio",
+        "feed ads",
+        "video specifications"
+      ],
+      "confidence": 0.95,
+      "status": "deduplicated",
+      "merged_from": []
+    },
+    {
+      "id": "atom_0015",
+      "title": "Use 9:16 aspect ratio for Facebook Stories ads",
+      "content": "For advertisements shown in Facebook Stories, use a 9:16 aspect ratio (vertical format). This portrait-oriented format is optimized for mobile viewing in the Stories placement.",
+      "category": "ad_creative",
+      "tags": [
+        "aspect ratio",
+        "stories ads",
+        "vertical video"
+      ],
+      "confidence": 0.95,
+      "status": "deduplicated",
+      "merged_from": []
+    },
+    {
+      "id": "atom_0016",
+      "title": "First 3 seconds of video ad are critical for engagement",
+      "content": "The opening 3 seconds of your video advertisement are crucial for capturing viewer attention. You should include a compelling hook in the first 3 seconds to prevent viewers from scrolling past your ad.",
+      "category": "ad_creative",
+      "tags": [
+        "video creative",
+        "hook",
+        "engagement"
+      ],
+      "confidence": 0.95,
+      "status": "deduplicated",
+      "merged_from": []
+    }
+  ],
+  "total_atoms": 29,
+  "duplicates_merged": 4,
+  "score": 74.4
+}

@@ -1,0 +1,47 @@
+{
+  "url": "https://docs.python.org/3/whatsnew/index.html",
+  "title": "What’s New in Python — Python 3.14.3 documentation",
+  "content": "The “What’s New in Python” series of essays takes tours through the most important changes between major Python versions. They are a “must read” for anyone wishing to stay up-to-date after a new release.\n\nThe “Changelog” is an HTML version of the file built from the contents of the Misc/NEWS.d directory tree, which contains all nontrivial changes to Python for the current version.",
+  "headings": [
+    {
+      "level": "h1",
+      "text": "What’s New in Python¶",
+      "id": ""
+    }
+  ],
+  "code_samples": [],
+  "patterns": [],
+  "links": [
+    "https://docs.python.org/3/contents.html",
+    "https://docs.python.org/3/whatsnew/3.14.html",
+    "https://docs.python.org/3/bugs.html",
+    "https://docs.python.org/3/genindex.html",
+    "https://docs.python.org/3/py-modindex.html",
+    "https://docs.python.org/3/index.html",
+    "https://docs.python.org/3/whatsnew/index.html",
+    "https://docs.python.org/3/whatsnew/3.13.html",
+    "https://docs.python.org/3/whatsnew/3.12.html",
+    "https://docs.python.org/3/whatsnew/3.11.html",
+    "https://docs.python.org/3/whatsnew/3.10.html",
+    "https://docs.python.org/3/whatsnew/3.9.html",
+    "https://docs.python.org/3/whatsnew/3.8.html",
+    "https://docs.python.org/3/whatsnew/3.7.html",
+    "https://docs.python.org/3/whatsnew/3.6.html",
+    "https://docs.python.org/3/whatsnew/3.5.html",
+    "https://docs.python.org/3/whatsnew/3.4.html",
+    "https://docs.python.org/3/whatsnew/3.3.html",
+    "https://docs.python.org/3/whatsnew/3.2.html",
+    "https://docs.python.org/3/whatsnew/3.1.html",
+    "https://docs.python.org/3/whatsnew/3.0.html",
+    "https://docs.python.org/3/whatsnew/2.7.html",
+    "https://docs.python.org/3/whatsnew/2.6.html",
+    "https://docs.python.org/3/whatsnew/2.5.html",
+    "https://docs.python.org/3/whatsnew/2.4.html",
+    "https://docs.python.org/3/whatsnew/2.3.html",
+    "https://docs.python.org/3/whatsnew/2.2.html",
+    "https://docs.python.org/3/whatsnew/2.1.html",
+    "https://docs.python.org/3/whatsnew/2.0.html",
+    "https://docs.python.org/3/whatsnew/changelog.html",
+    "https://docs.python.org/3/copyright.html"
+  ]
+}
