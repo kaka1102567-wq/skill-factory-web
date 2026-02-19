@@ -7,9 +7,16 @@ Usage:
 
 import json
 import os
+import platform
 import re
 from datetime import datetime, timezone
 from pathlib import Path
+
+# Auto-add Tesseract to PATH on Windows
+if platform.system() == "Windows":
+    _tess_dir = r"C:\Program Files\Tesseract-OCR"
+    if os.path.isdir(_tess_dir) and _tess_dir not in os.environ.get("PATH", ""):
+        os.environ["PATH"] = os.environ.get("PATH", "") + os.pathsep + _tess_dir
 
 MAX_PAGES = 500
 MAX_FILE_SIZE = 200 * 1024 * 1024  # 200MB
