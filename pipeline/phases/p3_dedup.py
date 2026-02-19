@@ -130,10 +130,10 @@ def run_p3(config: BuildConfig, claude: ClaudeClient,
         # Separate unresolved conflicts
         unresolved = [c for c in all_conflicts if not c.auto_resolved]
 
-        # Calculate score
+        # Calculate score — higher kept ratio = cleaner extraction = better
         if raw_atoms:
-            reduction = 1.0 - (len(all_unique_atoms) / len(raw_atoms))
-            score = min(100.0, 70.0 + reduction * 30.0)
+            kept_ratio = len(all_unique_atoms) / len(raw_atoms)
+            score = min(100.0, 65.0 + kept_ratio * 35.0)
         else:
             score = 0.0
 
