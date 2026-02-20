@@ -71,6 +71,18 @@ def main():
     discover_parser.add_argument("--model-light", default="", help="Claude light model")
     discover_parser.add_argument("--base-url", default="", help="Custom API base URL")
 
+    # ── discover-from-content ──
+    dfc_parser = subparsers.add_parser(
+        "discover-from-content",
+        help="Analyze input content and auto-build baseline from web references",
+    )
+    dfc_parser.add_argument("--input-dir", required=True, help="Directory with .md input files")
+    dfc_parser.add_argument("--output-dir", required=True, help="Output directory for baseline")
+    dfc_parser.add_argument("--api-key", default="", help="Claude API key")
+    dfc_parser.add_argument("--model", default="", help="Claude model")
+    dfc_parser.add_argument("--model-light", default="", help="Claude light model")
+    dfc_parser.add_argument("--base-url", default="", help="Custom API base URL")
+
     args = parser.parse_args()
 
     if not args.command:
@@ -91,6 +103,8 @@ def main():
         sys.exit(cmd_analyze_repo(args))
     elif args.command == "discover-baseline":
         sys.exit(cmd_discover_baseline(args))
+    elif args.command == "discover-from-content":
+        sys.exit(cmd_discover_from_content(args))
 
 
 def cmd_build(args) -> int:
@@ -252,6 +266,25 @@ def cmd_discover_baseline(args) -> int:
     )
 
     return 0 if result.success else 1
+
+
+def cmd_discover_from_content(args) -> int:
+    """Analyze input content and auto-build baseline from web references."""
+    from pipeline.commands.discover_baseline import run_cmd
+
+    api_key = args.api_key or os.environ.get("CLAUDE_API_KEY", "")
+    if not api_key:
+        _error_json("CLAUDE_API_KEY is required for discover-from-content")
+        return 1
+
+    return run_cmd(
+        input_dir=args.input_dir,
+        output_dir=args.output_dir,
+        api_key=api_key,
+        model=args.model or os.environ.get("CLAUDE_MODEL", ""),
+        model_light=args.model_light or os.environ.get("CLAUDE_MODEL_LIGHT", ""),
+        base_url=args.base_url or os.environ.get("CLAUDE_BASE_URL", ""),
+    )
 
 
 def _find_config(output_dir: str) -> str | None:

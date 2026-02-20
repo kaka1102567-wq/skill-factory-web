@@ -57,13 +57,30 @@ class MockClaudeClient:
                 "notes": "",
             })
 
+        # Content Analysis (discover-from-content)
+        if "Content Analysis Expert" in system:
+            return json.dumps({
+                "domain": "Facebook Ads",
+                "language": "vi",
+                "topics": [
+                    "campaign management", "audience targeting",
+                    "ad creative", "budget optimization",
+                ],
+                "search_queries": [
+                    "Facebook Ads official documentation",
+                    "Meta Ads Manager guide",
+                    "Facebook advertising best practices",
+                ],
+                "official_sites": ["https://www.facebook.com/business/help"],
+                "content_type": "course",
+            })
+
         # URL Evaluator
         if "Documentation Quality Evaluator" in system:
             return json.dumps([
                 {
                     "url": "https://docs.example.com/guide",
-                    "relevance": 9, "quality": 8, "authority": 9,
-                    "reason": "Official documentation",
+                    "score": 85, "reason": "Official documentation",
                 },
             ])
 

@@ -368,6 +368,9 @@ function _continuePreProcessInputs(
       sseManager.broadcast(config.id, "pre-step", { id: "pre_github", label: "Analyzing GitHub repo", status: code === 0 ? "done" : "failed" });
     }
 
+    // ★ Content-based baseline discovery (fallback when no baseline exists)
+    await _maybeDiscoverFromContent(config, pythonPath, cliPath, inputDir, runStep);
+
     const doneMsg = "Pre-processing complete";
     insertBuildLog(config.id, { level: "info", message: doneMsg });
     sseManager.broadcast(config.id, "log", { level: "info", phase: "pre", message: doneMsg, timestamp: new Date().toISOString() });
@@ -380,6 +383,82 @@ function _continuePreProcessInputs(
   const placeholder = spawn(pythonPath, ["--version"], { stdio: "ignore" });
   runningProcesses.set(config.id, placeholder);
   return placeholder;
+}
+
+// ─── Content-Based Baseline Discovery ──────────────────
+
+async function _maybeDiscoverFromContent(
+  config: BuildConfig, pythonPath: string, cliPath: string, inputDir: string,
+  runStep: (stepName: string, args: string[], timeoutMs: number) => Promise<number>,
+): Promise<void> {
+  // Re-read config to check if domain-based discovery already set a baseline
+  const latestConfig = fs.readFileSync(config.configPath, "utf-8");
+  const seekersDir = parseYamlValue(latestConfig, "seekers_output_dir");
+  if (seekersDir) return; // baseline already configured
+
+  // Check if baseline_sources has a .json entry
+  if (latestConfig.includes("baseline_summary.json")) return;
+
+  // Check if input dir has .md files to analyze
+  if (!fs.existsSync(inputDir)) return;
+  const mdFiles = fs.readdirSync(inputDir).filter(f => f.endsWith(".md"));
+  if (mdFiles.length === 0) return;
+
+  // Need API key for content analysis
+  const claudeApiKey = getSetting("claude_api_key") || process.env.CLAUDE_API_KEY || "";
+  if (!claudeApiKey) return;
+
+  const claudeModel = getSetting("claude_model") || process.env.CLAUDE_MODEL || "";
+  const claudeModelLight = getSetting("claude_model_light") || process.env.CLAUDE_MODEL_LIGHT || "";
+  const claudeBaseUrl = getSetting("claude_base_url") || process.env.CLAUDE_BASE_URL || "";
+
+  const buildDir = path.dirname(config.outputDir);
+  const baselineDir = path.join(buildDir, "baseline");
+
+  const discoverMsg = `Auto-discovering baseline from ${mdFiles.length} input files...`;
+  insertBuildLog(config.id, { level: "info", message: discoverMsg });
+  sseManager.broadcast(config.id, "log", { level: "info", phase: "discovery", message: discoverMsg, timestamp: new Date().toISOString() });
+  sseManager.broadcast(config.id, "pre-step", { id: "pre_content_discover", label: "Analyzing content for baseline", status: "running" });
+
+  const discoverArgs = [
+    "discover-from-content",
+    "--input-dir", inputDir,
+    "--output-dir", baselineDir,
+    "--api-key", claudeApiKey,
+  ];
+  if (claudeModel) discoverArgs.push("--model", claudeModel);
+  if (claudeModelLight) discoverArgs.push("--model-light", claudeModelLight);
+  if (claudeBaseUrl) discoverArgs.push("--base-url", claudeBaseUrl);
+
+  // runStep spawns: pythonPath realCliPath ...args
+  const code = await runStep("analyzing content for baseline", discoverArgs, 180_000);
+  const summaryPath = path.join(baselineDir, "baseline_summary.json");
+  const ok = code === 0 && fs.existsSync(summaryPath);
+
+  const lvl = ok ? "info" : "warn";
+  const msg = ok
+    ? "Content-based baseline discovery complete"
+    : "Content-based discovery did not produce baseline — continuing without";
+  insertBuildLog(config.id, { level: lvl, message: msg });
+  sseManager.broadcast(config.id, "log", { level: lvl, phase: "discovery", message: msg, timestamp: new Date().toISOString() });
+  sseManager.broadcast(config.id, "pre-step", { id: "pre_content_discover", label: "Analyzing content for baseline", status: ok ? "done" : "failed" });
+
+  // Update config so P0 uses the discovered baseline
+  if (ok) {
+    try {
+      let updated = latestConfig;
+      // Add baseline_sources with path to baseline_summary.json
+      if (updated.includes("baseline_sources: []")) {
+        updated = updated.replace(
+          "baseline_sources: []",
+          `baseline_sources:\n  - ${yamlStr(summaryPath)}`,
+        );
+      } else if (!updated.includes("baseline_sources:")) {
+        updated += `\nbaseline_sources:\n  - ${yamlStr(summaryPath)}\n`;
+      }
+      fs.writeFileSync(config.configPath, updated, "utf-8");
+    } catch { /* config update failed, pipeline still runs */ }
+  }
 }
 
 // ─── Chapter Detection & Merge ─────────────────────────
