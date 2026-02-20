@@ -92,6 +92,23 @@ def _check_tesseract() -> bool:
     return shutil.which("tesseract") is not None
 
 
+def _clean_ocr_text(text: str) -> str:
+    """Clean OCR output for API compatibility."""
+    # Remove null bytes
+    text = text.replace('\x00', '')
+    # Remove control characters (keep newlines, tabs)
+    text = re.sub(r'[\x01-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]', '', text)
+    # Remove BOM
+    text = text.replace('\ufeff', '')
+    # Normalize whitespace (multiple spaces → single)
+    text = re.sub(r'[^\S\n]+', ' ', text)
+    # Remove excessive blank lines (3+ → 2)
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    # Strip each line
+    text = '\n'.join(line.rstrip() for line in text.split('\n'))
+    return text.strip()
+
+
 def _ocr_page(page, language: str = "vie+eng", dpi: int = 300) -> str:
     """OCR a single PDF page using PyMuPDF pixmap + pytesseract."""
     try:
@@ -105,7 +122,7 @@ def _ocr_page(page, language: str = "vie+eng", dpi: int = 300) -> str:
         pix = page.get_pixmap(dpi=dpi)
         img = Image.open(io.BytesIO(pix.tobytes("png")))
         text = pytesseract.image_to_string(img, lang=language)
-        return text.strip()
+        return _clean_ocr_text(text)
     except Exception as e:
         _log("debug", f"OCR failed for page: {e}")
         return ""
