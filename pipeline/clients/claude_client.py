@@ -165,8 +165,8 @@ class ClaudeClient:
         return text, inp_tok, out_tok
 
     @retry(
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=2, min=4, max=60),
+        stop=stop_after_attempt(5),
+        wait=wait_exponential(multiplier=2, min=4, max=120),
         retry=retry_if_exception_type(_RETRYABLE_EXCEPTIONS),
     )
     def call(self, system: str, user: str, max_tokens: int = 4096,
