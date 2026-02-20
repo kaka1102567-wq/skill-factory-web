@@ -283,14 +283,82 @@ class ClaudeClient:
         try:
             return json.loads(text)
         except json.JSONDecodeError:
-            # Fallback: extract JSON from mixed content
+            # Fallback 1: extract JSON from mixed content
             match = re.search(r'[\[{].*[\]}]', text, re.DOTALL)
             if match:
                 try:
                     return json.loads(match.group())
                 except json.JSONDecodeError:
                     pass
+
+            # Fallback 2: repair truncated JSON (missing closing brackets)
+            repaired = self._repair_truncated_json(text)
+            if repaired is not None:
+                self.logger.warn("Repaired truncated JSON response", phase=phase)
+                return repaired
+
             raise ClaudeAPIError(f"Non-JSON response: {text[:200]}...", retryable=True)
+
+    @staticmethod
+    def _repair_truncated_json(text: str) -> dict | list | None:
+        """Attempt to repair JSON truncated by max_tokens limit.
+
+        Handles cases like: {"topics": [{"topic": "A"}, {"topic": "B"
+        by closing open strings, arrays, and objects.
+        """
+        # Find the JSON start
+        start = -1
+        for i, ch in enumerate(text):
+            if ch in ('{', '['):
+                start = i
+                break
+        if start < 0:
+            return None
+
+        fragment = text[start:]
+
+        # Track bracket depth to know what's missing
+        in_string = False
+        escape_next = False
+        stack = []
+
+        for ch in fragment:
+            if escape_next:
+                escape_next = False
+                continue
+            if ch == '\\' and in_string:
+                escape_next = True
+                continue
+            if ch == '"':
+                in_string = not in_string
+                continue
+            if in_string:
+                continue
+            if ch in ('{', '['):
+                stack.append('}' if ch == '{' else ']')
+            elif ch in ('}', ']'):
+                if stack and stack[-1] == ch:
+                    stack.pop()
+
+        if not stack:
+            return None  # Not truncated or not repairable
+
+        # Trim trailing incomplete key/value (e.g. `"topic": "incompl`)
+        trimmed = fragment.rstrip()
+        if in_string:
+            trimmed += '"'
+
+        # Remove trailing comma or colon for valid JSON
+        trimmed = re.sub(r'[,:\s]+$', '', trimmed)
+
+        # Close all open brackets
+        closing = ''.join(reversed(stack))
+        candidate = trimmed + closing
+
+        try:
+            return json.loads(candidate)
+        except json.JSONDecodeError:
+            return None
 
     def get_cost_summary(self) -> dict:
         return {

@@ -77,7 +77,7 @@ def run_p1(config: BuildConfig, claude: ClaudeClient,
                 try:
                     result = claude.call_json(
                         system=P1_SYSTEM, user=user_prompt,
-                        max_tokens=4096, phase=phase_id,
+                        max_tokens=16384, phase=phase_id,
                     )
                     topics = result.get("topics", [])
                     for topic in topics:

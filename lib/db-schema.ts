@@ -98,6 +98,7 @@ export function initializeSchema(db: Database.Database) {
       insertSetting.run("default_quality_tier", "standard", "Default quality: draft|standard|premium");
       insertSetting.run("notification_telegram_token", "", "Telegram bot token");
       insertSetting.run("notification_telegram_chat_id", "", "Telegram chat ID");
+      insertSetting.run("claude_api_key", "", "Claude/Anthropic API key");
       insertSetting.run("claude_base_url", "", "Custom API base URL (e.g. https://claudible.io)");
       insertSetting.run("claude_model_light", "claude-haiku-4-5-20251001", "Light model for P3/P4 (cost saving)");
     });
@@ -105,6 +106,7 @@ export function initializeSchema(db: Database.Database) {
   }
 
   // Ensure new settings exist (for DB upgrades)
+  db.prepare(`INSERT OR IGNORE INTO settings (key, value, description) VALUES ('claude_api_key', '', 'Claude/Anthropic API key')`).run();
   db.prepare(`INSERT OR IGNORE INTO settings (key, value, description) VALUES ('claude_base_url', '', 'Custom API base URL')`).run();
   db.prepare(`INSERT OR IGNORE INTO settings (key, value, description) VALUES ('claude_model_light', 'claude-haiku-4-5-20251001', 'Light model for P3/P4')`).run();
 

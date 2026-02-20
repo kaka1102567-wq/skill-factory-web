@@ -9,6 +9,34 @@ import { getBaselineForDomain } from "./baseline-registry";
 import { yamlStr } from "./config-generator";
 import type { PhaseId } from "@/types/build";
 
+// ─── Shared API credentials resolver ────────────────────
+// Reads from: DB settings → config.yaml → env vars → defaults
+interface ApiCredentials {
+  apiKey: string;
+  model: string;
+  modelLight: string;
+  baseUrl: string;
+  apiKeySource: string;
+}
+
+function _resolveApiCredentials(configContent?: string): ApiCredentials {
+  // API key: DB → env (NEVER in config.yaml for security)
+  const dbKey = getSetting("claude_api_key");
+  const envKey = process.env.CLAUDE_API_KEY || "";
+  const apiKey = dbKey || envKey;
+  const apiKeySource = dbKey ? "db" : envKey ? "env" : "none";
+
+  // Model: DB → env → default
+  const model = getSetting("claude_model") || process.env.CLAUDE_MODEL || "claude-sonnet-4-5-20250929";
+  const modelLight = getSetting("claude_model_light") || process.env.CLAUDE_MODEL_LIGHT || "claude-haiku-4-5-20251001";
+
+  // Base URL: config.yaml → DB → env (config.yaml preserves value from build creation time)
+  const configBaseUrl = configContent ? parseYamlValue(configContent, "claude_base_url") : "";
+  const baseUrl = configBaseUrl || getSetting("claude_base_url") || process.env.CLAUDE_BASE_URL || "";
+
+  return { apiKey, model, modelLight, baseUrl, apiKeySource };
+}
+
 // Chapter detection pattern: "01 ...", "01-...", "01_...", "01. ..."
 const CHAPTER_PATTERN = /^(\d{1,3})[\s._-]+(.+)\.pdf$/i;
 
@@ -129,102 +157,111 @@ function _preProcessInputs(config: BuildConfig, pythonPath: string, cliPath: str
   const domain = parseYamlValue(configContent, "domain");
   const language = parseYamlValue(configContent, "language") || "en";
 
-  if (!hasBaseline && autoDiscover && domain) {
+  const creds = _resolveApiCredentials(configContent);
+
+  console.log("[BUILD] discover check:", {
+    hasBaseline, autoDiscover, domain,
+    hasApiKey: !!creds.apiKey, apiKeySource: creds.apiKeySource,
+    baseUrl: creds.baseUrl || "(direct)",
+    seekersDir: seekersDir || "(empty)",
+  });
+
+  if (!hasBaseline && autoDiscover && domain && !creds.apiKey) {
+    const msg = "Auto-discovery skipped: no API key configured (set in Settings or CLAUDE_API_KEY env var)";
+    console.warn(`[BUILD] ${msg}`);
+    insertBuildLog(config.id, { level: "warn", phase: null, message: msg });
+    sseManager.broadcast(config.id, "log", { level: "warn", phase: "discovery", message: msg, timestamp: new Date().toISOString() });
+  }
+
+  if (!hasBaseline && autoDiscover && domain && creds.apiKey) {
     const discoveryDir = path.join(buildDir, "baseline");
     const pipelinePath = path.dirname(cliPath);
     const realCliPath = path.join(pipelinePath, "cli.py");
 
-    const claudeApiKey = getSetting("claude_api_key") || process.env.CLAUDE_API_KEY || "";
-    const claudeModel = getSetting("claude_model") || process.env.CLAUDE_MODEL || "claude-sonnet-4-5-20250929";
-    const claudeModelLight = getSetting("claude_model_light") || process.env.CLAUDE_MODEL_LIGHT || "claude-haiku-4-5-20251001";
-    const claudeBaseUrl = getSetting("claude_base_url") || process.env.CLAUDE_BASE_URL || "";
+    const discoverMsg = `Auto-discovering baseline for: ${domain} (key: ${creds.apiKeySource}, url: ${creds.baseUrl || "direct"})`;
+    insertBuildLog(config.id, { level: "info", phase: null, message: discoverMsg });
+    sseManager.broadcast(config.id, "log", { level: "info", phase: "discovery", message: discoverMsg, timestamp: new Date().toISOString() });
 
-    if (claudeApiKey) {
-      const discoverMsg = `Auto-discovering baseline for: ${domain}`;
-      insertBuildLog(config.id, { level: "info", phase: null, message: discoverMsg });
-      sseManager.broadcast(config.id, "log", { level: "info", phase: "discovery", message: discoverMsg, timestamp: new Date().toISOString() });
+    const discoverArgs = [
+      realCliPath, "discover-baseline",
+      "--domain", domain,
+      "--language", language,
+      "--output", discoveryDir,
+      "--max-refs", "15",
+      "--api-key", creds.apiKey,
+      "--model", creds.model,
+      "--model-light", creds.modelLight,
+    ];
+    if (creds.baseUrl) discoverArgs.push("--base-url", creds.baseUrl);
 
-      const discoverArgs = [
-        realCliPath, "discover-baseline",
-        "--domain", domain,
-        "--language", language,
-        "--output", discoveryDir,
-        "--max-refs", "15",
-        "--api-key", claudeApiKey,
-        "--model", claudeModel,
-        "--model-light", claudeModelLight,
-      ];
-      if (claudeBaseUrl) discoverArgs.push("--base-url", claudeBaseUrl);
+    const discoverProc = spawn(pythonPath, discoverArgs, {
+      cwd: process.cwd(),
+      env: { ...process.env, PYTHONUNBUFFERED: "1", PYTHONIOENCODING: "utf-8" },
+    });
 
-      const discoverProc = spawn(pythonPath, discoverArgs, {
-        cwd: process.cwd(),
-        env: { ...process.env, PYTHONUNBUFFERED: "1", PYTHONIOENCODING: "utf-8" },
-      });
+    runningProcesses.set(config.id, discoverProc);
 
-      runningProcesses.set(config.id, discoverProc);
-
-      discoverProc.stdout?.on("data", (chunk: Buffer) => {
-        const text = chunk.toString().trim();
-        if (text) {
-          for (const line of text.split("\n")) {
-            const trimmed = line.trim();
-            if (!trimmed) continue;
-            try {
-              const parsed = JSON.parse(trimmed);
-              handleParsedLog(config.id, parsed);
-              _emitDiscoveryStep(config.id, (parsed.message as string) || "");
-            } catch {
-              handlePlainLog(config.id, trimmed, "debug");
-              _emitDiscoveryStep(config.id, trimmed);
-            }
+    discoverProc.stdout?.on("data", (chunk: Buffer) => {
+      const text = chunk.toString().trim();
+      if (text) {
+        for (const line of text.split("\n")) {
+          const trimmed = line.trim();
+          if (!trimmed) continue;
+          try {
+            const parsed = JSON.parse(trimmed);
+            handleParsedLog(config.id, parsed);
+            _emitDiscoveryStep(config.id, (parsed.message as string) || "");
+          } catch {
+            handlePlainLog(config.id, trimmed, "debug");
+            _emitDiscoveryStep(config.id, trimmed);
           }
         }
-      });
-      discoverProc.stderr?.on("data", (chunk: Buffer) => {
-        const text = chunk.toString().trim();
-        if (text) handlePlainLog(config.id, text, "debug");
-      });
+      }
+    });
+    discoverProc.stderr?.on("data", (chunk: Buffer) => {
+      const text = chunk.toString().trim();
+      if (text) handlePlainLog(config.id, text, "debug");
+    });
 
-      discoverProc.on("exit", (code) => {
-        const summaryPath = path.join(discoveryDir, "baseline_summary.json");
-        const ok = code === 0 && fs.existsSync(summaryPath);
-        const msg = ok
-          ? "Auto-discovery complete — baseline ready"
-          : "Auto-discovery did not find baseline — continuing without";
-        insertBuildLog(config.id, { level: ok ? "info" : "warn", message: msg });
-        sseManager.broadcast(config.id, "log", { level: ok ? "info" : "warn", phase: "discovery", message: msg, timestamp: new Date().toISOString() });
+    discoverProc.on("exit", (code) => {
+      const summaryPath = path.join(discoveryDir, "baseline_summary.json");
+      const ok = code === 0 && fs.existsSync(summaryPath);
+      const msg = ok
+        ? "Auto-discovery complete — baseline ready"
+        : "Auto-discovery did not find baseline — continuing without";
+      insertBuildLog(config.id, { level: ok ? "info" : "warn", message: msg });
+      sseManager.broadcast(config.id, "log", { level: ok ? "info" : "warn", phase: "discovery", message: msg, timestamp: new Date().toISOString() });
 
-        // Mark all discovery steps done/failed
-        for (let i = 1; i <= 5; i++) {
-          sseManager.broadcast(config.id, "pre-step", {
-            id: `discovery_${i}`, label: DISCOVERY_STEP_LABELS[i], status: ok ? "done" : "failed",
-          });
-        }
+      // Mark all discovery steps done/failed
+      for (let i = 1; i <= 5; i++) {
+        sseManager.broadcast(config.id, "pre-step", {
+          id: `discovery_${i}`, label: DISCOVERY_STEP_LABELS[i], status: ok ? "done" : "failed",
+        });
+      }
 
-        // If discovery succeeded, update config so pipeline uses it
-        if (ok) {
-          try {
-            const updated = configContent.replace(
-              /^seekers_output_dir:.*$/m,
-              `seekers_output_dir: ${yamlStr(discoveryDir)}`,
-            );
-            fs.writeFileSync(config.configPath, updated, "utf-8");
-          } catch { /* config update failed, pipeline still runs */ }
-        }
+      // If discovery succeeded, update config so pipeline uses it
+      if (ok) {
+        try {
+          const updated = configContent.replace(
+            /^seekers_output_dir:.*$/m,
+            `seekers_output_dir: ${yamlStr(discoveryDir)}`,
+          );
+          fs.writeFileSync(config.configPath, updated, "utf-8");
+        } catch { /* config update failed, pipeline still runs */ }
+      }
 
-        _continuePreProcessInputs(config, pythonPath, cliPath, inputDir);
-      });
+      _continuePreProcessInputs(config, pythonPath, cliPath, inputDir);
+    });
 
-      discoverProc.on("error", (err) => {
-        const msg = `Auto-discovery error: ${err.message} — continuing without baseline`;
-        insertBuildLog(config.id, { level: "warn", message: msg });
-        sseManager.broadcast(config.id, "log", { level: "warn", phase: "discovery", message: msg, timestamp: new Date().toISOString() });
-        _continuePreProcessInputs(config, pythonPath, cliPath, inputDir);
-      });
+    discoverProc.on("error", (err) => {
+      const msg = `Auto-discovery error: ${err.message} — continuing without baseline`;
+      insertBuildLog(config.id, { level: "warn", message: msg });
+      sseManager.broadcast(config.id, "log", { level: "warn", phase: "discovery", message: msg, timestamp: new Date().toISOString() });
+      _continuePreProcessInputs(config, pythonPath, cliPath, inputDir);
+    });
 
-      const placeholder = spawn(pythonPath, ["--version"], { stdio: "ignore" });
-      return placeholder;
-    }
+    const placeholder = spawn(pythonPath, ["--version"], { stdio: "ignore" });
+    return placeholder;
   }
 
   return _continuePreProcessInputs(config, pythonPath, cliPath, inputDir);
@@ -405,17 +442,16 @@ async function _maybeDiscoverFromContent(
   if (mdFiles.length === 0) return;
 
   // Need API key for content analysis
-  const claudeApiKey = getSetting("claude_api_key") || process.env.CLAUDE_API_KEY || "";
-  if (!claudeApiKey) return;
-
-  const claudeModel = getSetting("claude_model") || process.env.CLAUDE_MODEL || "";
-  const claudeModelLight = getSetting("claude_model_light") || process.env.CLAUDE_MODEL_LIGHT || "";
-  const claudeBaseUrl = getSetting("claude_base_url") || process.env.CLAUDE_BASE_URL || "";
+  const creds = _resolveApiCredentials(latestConfig);
+  if (!creds.apiKey) {
+    console.warn("[BUILD] content-discovery skipped: no API key (source: none)");
+    return;
+  }
 
   const buildDir = path.dirname(config.outputDir);
   const baselineDir = path.join(buildDir, "baseline");
 
-  const discoverMsg = `Auto-discovering baseline from ${mdFiles.length} input files...`;
+  const discoverMsg = `Auto-discovering baseline from ${mdFiles.length} input files... (key: ${creds.apiKeySource})`;
   insertBuildLog(config.id, { level: "info", message: discoverMsg });
   sseManager.broadcast(config.id, "log", { level: "info", phase: "discovery", message: discoverMsg, timestamp: new Date().toISOString() });
   sseManager.broadcast(config.id, "pre-step", { id: "pre_content_discover", label: "Analyzing content for baseline", status: "running" });
@@ -424,11 +460,11 @@ async function _maybeDiscoverFromContent(
     "discover-from-content",
     "--input-dir", inputDir,
     "--output-dir", baselineDir,
-    "--api-key", claudeApiKey,
+    "--api-key", creds.apiKey,
   ];
-  if (claudeModel) discoverArgs.push("--model", claudeModel);
-  if (claudeModelLight) discoverArgs.push("--model-light", claudeModelLight);
-  if (claudeBaseUrl) discoverArgs.push("--base-url", claudeBaseUrl);
+  if (creds.model) discoverArgs.push("--model", creds.model);
+  if (creds.modelLight) discoverArgs.push("--model-light", creds.modelLight);
+  if (creds.baseUrl) discoverArgs.push("--base-url", creds.baseUrl);
 
   // runStep spawns: pythonPath realCliPath ...args
   const code = await runStep("analyzing content for baseline", discoverArgs, 180_000);
@@ -506,11 +542,11 @@ function _detectAndMergeChapters(
 // ─── Pipeline Spawn (extracted for pre-scrape chaining) ─
 
 function _spawnPipeline(config: BuildConfig, pythonPath: string, cliPath: string): ChildProcess {
-  const claudeApiKey = getSetting("claude_api_key") || process.env.CLAUDE_API_KEY || "";
-  const claudeModel = getSetting("claude_model") || process.env.CLAUDE_MODEL || "claude-sonnet-4-5-20250929";
+  const configContent = fs.readFileSync(config.configPath, "utf-8");
+  const creds = _resolveApiCredentials(configContent);
   const seekersCacheDir = getSetting("seekers_cache_dir") || process.env.SEEKERS_CACHE_DIR || "./data/cache";
-  const claudeBaseUrl = getSetting("claude_base_url") || process.env.CLAUDE_BASE_URL || "";
-  const claudeModelLight = getSetting("claude_model_light") || process.env.CLAUDE_MODEL_LIGHT || "claude-haiku-4-5-20251001";
+
+  console.log("[BUILD] pipeline spawn:", { hasApiKey: !!creds.apiKey, apiKeySource: creds.apiKeySource, baseUrl: creds.baseUrl || "(direct)" });
 
   const proc = spawn(pythonPath, [
     cliPath, "build",
@@ -523,11 +559,11 @@ function _spawnPipeline(config: BuildConfig, pythonPath: string, cliPath: string
       ...process.env,
       PYTHONUNBUFFERED: "1",
       PYTHONIOENCODING: "utf-8",
-      CLAUDE_API_KEY: claudeApiKey,
-      CLAUDE_MODEL: claudeModel,
+      CLAUDE_API_KEY: creds.apiKey,
+      CLAUDE_MODEL: creds.model,
       SEEKERS_CACHE_DIR: seekersCacheDir,
-      CLAUDE_BASE_URL: claudeBaseUrl,
-      CLAUDE_MODEL_LIGHT: claudeModelLight,
+      CLAUDE_BASE_URL: creds.baseUrl,
+      CLAUDE_MODEL_LIGHT: creds.modelLight,
     },
   });
 
@@ -732,13 +768,10 @@ export function resumeAfterResolve(config: ResolveConfig): ChildProcess {
   const useReal = (process.env.USE_REAL_PIPELINE ?? "true").toLowerCase() !== "false";
   const cliPath = path.join(pipelinePath, useReal ? "cli.py" : "mock_cli.py");
 
-  const claudeApiKey = getSetting("claude_api_key") || process.env.CLAUDE_API_KEY || "";
-  const claudeModel = getSetting("claude_model") || process.env.CLAUDE_MODEL || "claude-sonnet-4-5-20250929";
+  const creds = _resolveApiCredentials();
   const seekersCacheDir = getSetting("seekers_cache_dir") || process.env.SEEKERS_CACHE_DIR || "./data/cache";
-  const claudeBaseUrl = getSetting("claude_base_url") || process.env.CLAUDE_BASE_URL || "";
-  const claudeModelLight = getSetting("claude_model_light") || process.env.CLAUDE_MODEL_LIGHT || "claude-haiku-4-5-20251001";
 
-  console.log(`[BUILD] Resuming build ${config.id} after conflict resolution`);
+  console.log(`[BUILD] Resuming build ${config.id} after conflict resolution (key: ${creds.apiKeySource})`);
 
   const proc = spawn(pythonPath, [
     cliPath,
@@ -752,11 +785,11 @@ export function resumeAfterResolve(config: ResolveConfig): ChildProcess {
       ...process.env,
       PYTHONUNBUFFERED: "1",
       PYTHONIOENCODING: "utf-8",
-      CLAUDE_API_KEY: claudeApiKey,
-      CLAUDE_MODEL: claudeModel,
+      CLAUDE_API_KEY: creds.apiKey,
+      CLAUDE_MODEL: creds.model,
       SEEKERS_CACHE_DIR: seekersCacheDir,
-      CLAUDE_BASE_URL: claudeBaseUrl,
-      CLAUDE_MODEL_LIGHT: claudeModelLight,
+      CLAUDE_BASE_URL: creds.baseUrl,
+      CLAUDE_MODEL_LIGHT: creds.modelLight,
     },
   });
 
