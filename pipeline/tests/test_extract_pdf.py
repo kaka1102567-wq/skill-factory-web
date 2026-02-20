@@ -5,6 +5,7 @@ import pytest
 
 from pipeline.commands.extract_pdf import (
     _clean_text,
+    _clean_ocr_text,
     _detect_heading,
     _detect_repeated_header_footer,
     extract_single_pdf,
@@ -126,3 +127,47 @@ def test_run_extract_pdf_with_dir(sample_pdf, tmp_path):
 def test_run_extract_pdf_no_files(tmp_path):
     code = run_extract_pdf(input_path=None, input_dir=str(tmp_path), output_dir=str(tmp_path / "out"))
     assert code == 1
+
+
+# ── OCR text sanitization tests ──
+
+class TestCleanOcrText:
+    def test_removes_null_bytes(self):
+        result = _clean_ocr_text("hello\x00world")
+        assert "\x00" not in result
+        assert "hello" in result and "world" in result
+
+    def test_removes_control_chars(self):
+        result = _clean_ocr_text("hello\x01\x02\x03world")
+        assert result == "helloworld"
+
+    def test_preserves_newlines_and_tabs(self):
+        result = _clean_ocr_text("line1\nline2\ttab")
+        assert "\n" in result
+
+    def test_removes_bom(self):
+        result = _clean_ocr_text("\ufeffHello")
+        assert result == "Hello"
+
+    def test_normalizes_whitespace(self):
+        result = _clean_ocr_text("hello    world")
+        assert result == "hello world"
+
+    def test_reduces_blank_lines(self):
+        result = _clean_ocr_text("a\n\n\n\n\nb")
+        assert result == "a\n\nb"
+
+    def test_handles_vietnamese_text(self):
+        text = "Ung dung\x00 AI Agent trong\x01 ban le va thuong mai dien tu"
+        result = _clean_ocr_text(text)
+        assert "Ung dung" in result
+        assert "AI Agent" in result
+        assert "\x00" not in result
+        assert "\x01" not in result
+
+    def test_empty_string(self):
+        assert _clean_ocr_text("") == ""
+
+    def test_strips_trailing_whitespace(self):
+        result = _clean_ocr_text("hello   \nworld   ")
+        assert result == "hello\nworld"
