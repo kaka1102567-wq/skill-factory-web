@@ -9,6 +9,7 @@ import re
 import time
 import hashlib
 import os
+import unicodedata
 from typing import Optional
 
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
@@ -90,6 +91,34 @@ class ClaudeClient:
         self.call_count = 0
         self._consecutive_credit_errors = 0
         self._MAX_CREDIT_ERRORS = 3
+
+    def _sanitize_api_text(self, text: str) -> str:
+        """Last-resort text cleaning before sending to API.
+
+        Removes characters known to cause 500 errors on proxies
+        (null, BOM, control chars, surrogates, PUA, non-BMP).
+        """
+        if not text:
+            return ""
+
+        # UTF-8 roundtrip
+        text = text.encode("utf-8", errors="replace").decode("utf-8", errors="replace")
+
+        # NFC normalize (Vietnamese combining diacritics)
+        text = unicodedata.normalize("NFC", text)
+
+        # Remove dangerous chars
+        text = text.replace("\x00", "")
+        text = text.replace("\ufeff", "")
+        text = re.sub(r"[\x01-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]", "", text)
+        text = re.sub(r"[\ud800-\udfff]", "", text)
+        text = re.sub(r"[\ue000-\uf8ff]", "", text)
+        text = re.sub(r"[\ufffd-\uffff]", "", text)
+
+        # Remove non-BMP
+        text = re.sub(r"[\U00010000-\U0010FFFF]", "", text)
+
+        return text
 
     def _cache_key(self, system: str, user: str) -> str:
         return hashlib.sha256((system + user).encode()).hexdigest()[:16]
@@ -176,6 +205,10 @@ class ClaudeClient:
 
         use_light_model=True uses self.model_light (e.g. Haiku — cheaper).
         """
+        # Sanitize text before cache key and API call
+        system = self._sanitize_api_text(system)
+        user = self._sanitize_api_text(user)
+
         # Check cache
         cache_key = self._cache_key(system, user)
         cached = self._get_cached(cache_key)

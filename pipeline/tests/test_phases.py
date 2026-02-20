@@ -549,3 +549,80 @@ class TestCreditExhausted:
         from pipeline.clients.claude_client import CreditExhaustedError
         with pytest.raises(CreditExhaustedError):
             raise CreditExhaustedError("Test credits depleted")
+
+
+class TestSanitizeApiText:
+    """Tests for ClaudeClient._sanitize_api_text() pre-API safety net."""
+
+    @pytest.fixture
+    def client(self):
+        try:
+            from pipeline.clients.claude_client import ClaudeClient
+            return ClaudeClient(api_key="test", model="test",
+                                base_url="https://example.com")
+        except Exception:
+            pytest.skip("Cannot create ClaudeClient in test env")
+
+    def test_removes_null_bytes(self, client):
+        assert "\x00" not in client._sanitize_api_text("hello\x00world")
+
+    def test_removes_bom(self, client):
+        assert "\ufeff" not in client._sanitize_api_text("\ufeffhello")
+
+    def test_removes_control_chars(self, client):
+        result = client._sanitize_api_text("hello\x01\x02\x7f\x80world")
+        assert "\x01" not in result
+        assert "\x02" not in result
+        assert "\x7f" not in result
+        assert "\x80" not in result
+        assert "hello" in result and "world" in result
+
+    def test_preserves_vietnamese(self, client):
+        text = "Ung dung AI Agent trong ban le va thuong mai dien tu"
+        result = client._sanitize_api_text(text)
+        assert result == text
+
+    def test_nfc_normalizes_vietnamese(self, client):
+        import unicodedata
+        decomposed = "a\u0306"  # NFD: a + combining breve
+        result = client._sanitize_api_text(decomposed)
+        assert result == unicodedata.normalize("NFC", decomposed)
+
+    def test_removes_pua_chars(self, client):
+        result = client._sanitize_api_text("hello\ue000\uf8ffworld")
+        assert "\ue000" not in result
+        assert "\uf8ff" not in result
+
+    def test_removes_surrogates(self, client):
+        result = client._sanitize_api_text("hello world")
+        assert "hello" in result
+
+    def test_empty_string(self, client):
+        assert client._sanitize_api_text("") == ""
+
+    def test_preserves_newlines_tabs(self, client):
+        result = client._sanitize_api_text("line1\nline2\ttab")
+        assert "\n" in result
+        assert "\t" in result
+
+    def test_realistic_ocr_garbage(self, client):
+        dirty = (
+            "\ufeff"
+            "CHUONG 8\x00: UNG DUNG CUA AI AGENT\n"
+            "\x01\x02Trong ban le\x03 va thuong mai\n"
+            "Chatbot\x7f thong\x80 minh\x9f tu van\n"
+            "\ue001Dialogflow\uf000, Amazon Lex\n"
+        )
+        result = client._sanitize_api_text(dirty)
+        assert "CHUONG 8" in result
+        assert "AI AGENT" in result
+        assert "Chatbot" in result
+        assert "Dialogflow" in result
+        assert "\x00" not in result
+        assert "\ufeff" not in result
+        assert "\ue001" not in result
+
+    def test_removes_non_bmp(self, client):
+        result = client._sanitize_api_text("hello\U0001F600world")
+        assert "\U0001F600" not in result
+        assert "hello" in result and "world" in result

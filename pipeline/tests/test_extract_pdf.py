@@ -8,6 +8,7 @@ from pipeline.commands.extract_pdf import (
     _clean_ocr_text,
     _detect_heading,
     _detect_repeated_header_footer,
+    _diagnose_text,
     extract_single_pdf,
     run_extract_pdf,
 )
@@ -171,3 +172,80 @@ class TestCleanOcrText:
     def test_strips_trailing_whitespace(self):
         result = _clean_ocr_text("hello   \nworld   ")
         assert result == "hello\nworld"
+
+    def test_nfc_normalizes_vietnamese(self):
+        import unicodedata
+        decomposed = "a\u0306"  # NFD: a + combining breve = a breve
+        result = _clean_ocr_text(decomposed)
+        assert result == unicodedata.normalize("NFC", decomposed)
+
+    def test_removes_pua_chars(self):
+        result = _clean_ocr_text("hello\ue000\uf8ffworld")
+        assert "\ue000" not in result
+        assert "\uf8ff" not in result
+        assert "helloworld" == result
+
+    def test_removes_non_bmp(self):
+        result = _clean_ocr_text("hello\U0001F600world")
+        assert "\U0001F600" not in result
+        assert "helloworld" == result
+
+    def test_removes_replacement_char(self):
+        result = _clean_ocr_text("hello\ufffdworld")
+        assert "\ufffd" not in result
+
+    def test_removes_reverse_bom(self):
+        result = _clean_ocr_text("\ufffeHello")
+        assert "\ufffe" not in result
+        assert "Hello" in result
+
+    def test_removes_c1_control_chars(self):
+        result = _clean_ocr_text("hello\x7f\x80\x9fworld")
+        assert "\x7f" not in result
+        assert "\x80" not in result
+        assert "\x9f" not in result
+
+    def test_realistic_ocr_garbage(self):
+        dirty = (
+            "\ufeff"
+            "CHUONG 8\x00: UNG DUNG CUA AI AGENT\n"
+            "\x01\x02Trong ban le\x03 va thuong mai\n"
+            "Chatbot\x7f thong\x80 minh\x9f tu van\n"
+            "\ue001Dialogflow\uf000, Amazon Lex\n"
+        )
+        result = _clean_ocr_text(dirty)
+        assert "CHUONG 8" in result
+        assert "AI AGENT" in result
+        assert "Chatbot" in result
+        assert "Dialogflow" in result
+        assert "\x00" not in result
+        assert "\ufeff" not in result
+        assert "\ue001" not in result
+
+
+# ── Diagnostic tests ──
+
+class TestDiagnoseText:
+    def test_detects_null_bytes(self):
+        diag = _diagnose_text("hello\x00world")
+        assert diag["has_null"] is True
+
+    def test_detects_bom(self):
+        diag = _diagnose_text("\ufeffhello")
+        assert diag["has_bom"] is True
+
+    def test_detects_control_chars(self):
+        diag = _diagnose_text("hello\x01\x02world")
+        assert len(diag["control_chars"]) >= 2
+
+    def test_detects_pua_chars(self):
+        diag = _diagnose_text("hello\ue000world")
+        assert diag["pua_count"] >= 1
+
+    def test_clean_text_has_no_problems(self):
+        diag = _diagnose_text("Hello, clean text here.")
+        assert diag["has_null"] is False
+        assert diag["has_bom"] is False
+        assert len(diag["control_chars"]) == 0
+        assert diag["non_bmp_count"] == 0
+        assert diag["pua_count"] == 0

@@ -92,20 +92,94 @@ def _check_tesseract() -> bool:
     return shutil.which("tesseract") is not None
 
 
+def _diagnose_text(text: str, label: str = "") -> dict:
+    """Analyze text for dangerous characters. Used for OCR debug logging."""
+    import unicodedata
+
+    result = {
+        "label": label, "length": len(text),
+        "has_null": "\x00" in text, "has_bom": "\ufeff" in text,
+        "control_chars": {}, "non_bmp_count": 0,
+        "surrogate_count": 0, "replacement_char_count": 0,
+        "pua_count": 0, "sample_problems": [],
+    }
+
+    for i, ch in enumerate(text):
+        cp = ord(ch)
+        if cp > 0xFFFF:
+            result["non_bmp_count"] += 1
+            if len(result["sample_problems"]) < 10:
+                name = unicodedata.name(ch, "?")
+                result["sample_problems"].append(f"Non-BMP U+{cp:04X} ({name}) at pos {i}")
+        if 0xD800 <= cp <= 0xDFFF:
+            result["surrogate_count"] += 1
+            if len(result["sample_problems"]) < 10:
+                result["sample_problems"].append(f"Surrogate U+{cp:04X} at pos {i}")
+        if cp == 0xFFFD:
+            result["replacement_char_count"] += 1
+        if cp < 32 and ch not in "\n\t\r":
+            key = f"\\x{cp:02x}"
+            result["control_chars"][key] = result["control_chars"].get(key, 0) + 1
+            if len(result["sample_problems"]) < 10:
+                result["sample_problems"].append(f"Control \\x{cp:02x} at pos {i}")
+        if 0x7F <= cp <= 0x9F:
+            key = f"\\x{cp:02x}"
+            result["control_chars"][key] = result["control_chars"].get(key, 0) + 1
+            if len(result["sample_problems"]) < 10:
+                result["sample_problems"].append(f"C1 control \\x{cp:02x} at pos {i}")
+        if 0xE000 <= cp <= 0xF8FF:
+            result["pua_count"] += 1
+
+    return result
+
+
 def _clean_ocr_text(text: str) -> str:
-    """Clean OCR output for API compatibility."""
-    # Remove null bytes
-    text = text.replace('\x00', '')
-    # Remove control characters (keep newlines, tabs)
-    text = re.sub(r'[\x01-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]', '', text)
-    # Remove BOM
-    text = text.replace('\ufeff', '')
-    # Normalize whitespace (multiple spaces → single)
-    text = re.sub(r'[^\S\n]+', ' ', text)
-    # Remove excessive blank lines (3+ → 2)
-    text = re.sub(r'\n{3,}', '\n\n', text)
-    # Strip each line
-    text = '\n'.join(line.rstrip() for line in text.split('\n'))
+    """Nuclear-grade OCR text cleaning for API safety.
+
+    Pipeline: UTF-8 roundtrip -> NFC normalize -> remove BOM/null ->
+    remove C0/C1 control chars -> remove surrogates/PUA/non-BMP ->
+    normalize whitespace -> strip.
+    """
+    import unicodedata
+
+    if not text:
+        return ""
+
+    # Step 1: UTF-8 roundtrip — force valid UTF-8
+    text = text.encode("utf-8", errors="replace").decode("utf-8", errors="replace")
+
+    # Step 2: Unicode NFC normalization (combining Vietnamese diacritics)
+    text = unicodedata.normalize("NFC", text)
+
+    # Step 3: Remove BOM + null bytes
+    text = text.replace("\ufeff", "")
+    text = text.replace("\ufffe", "")
+    text = text.replace("\x00", "")
+
+    # Step 4: Remove C0 control chars (keep \n \t \r)
+    text = re.sub(r"[\x01-\x08\x0b\x0c\x0e-\x1f]", "", text)
+
+    # Step 5: Remove C1 control chars (0x7F-0x9F)
+    text = re.sub(r"[\x7f-\x9f]", "", text)
+
+    # Step 6: Remove surrogates + replacement char + specials
+    text = re.sub(r"[\ud800-\udfff\ufffd\ufff0-\uffff]", "", text)
+
+    # Step 7: Remove Private Use Area chars (PDF font glyphs)
+    text = re.sub(r"[\ue000-\uf8ff]", "", text)
+
+    # Step 8: Remove non-BMP characters (emoji, rare symbols)
+    text = re.sub(r"[\U00010000-\U0010FFFF]", "", text)
+
+    # Step 9: Normalize whitespace (preserve newlines)
+    text = re.sub(r"[^\S\n]+", " ", text)
+
+    # Step 10: Remove excessive blank lines (3+ -> 2)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+
+    # Step 11: Strip trailing whitespace per line
+    text = "\n".join(line.rstrip() for line in text.split("\n"))
+
     return text.strip()
 
 
@@ -121,8 +195,33 @@ def _ocr_page(page, language: str = "vie+eng", dpi: int = 300) -> str:
     try:
         pix = page.get_pixmap(dpi=dpi)
         img = Image.open(io.BytesIO(pix.tobytes("png")))
-        text = pytesseract.image_to_string(img, lang=language)
-        return _clean_ocr_text(text)
+        raw_text = pytesseract.image_to_string(img, lang=language)
+
+        # Diagnostic logging before clean
+        diag_before = _diagnose_text(raw_text, "BEFORE_CLEAN")
+        if diag_before["sample_problems"]:
+            _log("info", (
+                f"OCR diagnostic BEFORE clean: "
+                f"len={diag_before['length']}, "
+                f"null={diag_before['has_null']}, "
+                f"bom={diag_before['has_bom']}, "
+                f"control={len(diag_before['control_chars'])}, "
+                f"non_bmp={diag_before['non_bmp_count']}, "
+                f"pua={diag_before['pua_count']}, "
+                f"problems={diag_before['sample_problems'][:5]}"
+            ))
+
+        clean_text = _clean_ocr_text(raw_text)
+
+        # Diagnostic logging after clean
+        diag_after = _diagnose_text(clean_text, "AFTER_CLEAN")
+        if diag_after["sample_problems"]:
+            _log("warn", (
+                f"OCR diagnostic AFTER clean still has problems: "
+                f"{diag_after['sample_problems'][:5]}"
+            ))
+
+        return clean_text
     except Exception as e:
         _log("debug", f"OCR failed for page: {e}")
         return ""
