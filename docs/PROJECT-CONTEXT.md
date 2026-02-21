@@ -1,7 +1,7 @@
 # Skill Factory Web — Project Context
 
 > Tài liệu cung cấp toàn bộ ngữ cảnh dự án cho agent/developer mới.
-> Cập nhật: 2026-02-15 | Branch: main | Commit: e275a07
+> Cập nhật: 2026-02-21 | Branch: main | Commit: 0952cd9
 
 ---
 
@@ -166,10 +166,10 @@ skill-factory-web/
 | P1 | Audit | Claude | Yes | transcripts → `inventory.json` (+ coverage matrix) |
 | P2 | Extract | Claude | Yes | transcripts + baseline → `atoms_raw.json` |
 | P3 | Dedup | Claude | Yes | atoms_raw → `atoms_deduplicated.json`, `conflicts.json` |
-| P4 | Verify | Seekers | No* | atoms_dedup → `atoms_verified.json` |
+| P4 | Verify | Seekers+Claude | Yes* | atoms_dedup → `atoms_verified.json` |
 | P5 | Build | Claude | Yes | atoms_verified → SKILL.md + knowledge/ + package.zip |
 
-*P4 dùng keyword-based verification, không gọi Claude API.
+*P4 dùng keyword-based verification khi có baseline ($0). Fallback Claude batch verify khi không có baseline.
 
 ### Phase function signature (tất cả giống nhau)
 ```python
@@ -183,8 +183,14 @@ def run_pN(config: BuildConfig, claude: ClaudeClient, cache: SeekersCache,
 
 **Logic:**
 1. Nếu `seekers_output_dir` set → load `SKILL.md` + `references/*.md` trực tiếp
-2. Nếu `baseline_sources` set → web scrape URLs, parse HTML, cache
-3. Tạo `baseline_summary.json`: `{source, skill_md, references: [{path, content}], topics, total_tokens, score}`
+2. Nếu `baseline_sources` có `.json` → load pre-built baseline (auto-discovery output)
+3. Nếu `baseline_sources` có URLs → web scrape, parse HTML, cache
+4. Tạo `baseline_summary.json`: `{source, skill_md, references: [{path, content}], topics, total_tokens, score}`
+
+**Score:** `_score_baseline_quality()` — heuristic, không gọi Claude:
+- Content depth (40%) — refs có đủ nội dung (200-5000 words = tốt)
+- Content diversity (30%) — refs cover nhiều aspects khác nhau (low pairwise overlap)
+- Relevance signal (30%) — refs chứa domain keywords
 
 **Chi phí:** $0 (không gọi Claude)
 
@@ -200,7 +206,14 @@ def run_pN(config: BuildConfig, claude: ClaudeClient, cache: SeekersCache,
    - `OVERLAP` — topic có trong cả transcript và baseline
    - `UNIQUE_EXPERT` — chỉ có trong transcript (expert insight)
    - `GAP_TO_FILL` — có trong baseline nhưng transcript chưa cover
-5. Score = quality * 0.7 + coverage * 0.3
+5. Nhận baseline từ `source`: "skill_seekers", "auto-discovery", "auto-discovery-content"
+
+**Score:** Measurable metrics, KHÔNG dùng Claude `quality_score`:
+- Topic density (30%) — 8-25 topics/transcript = ideal
+- Depth distribution (25%) — tỷ lệ deep/moderate/surface/mention_only
+- Category coverage (20%) — ≥5 categories = 100 điểm
+- Coverage balance (25%) — overlap/unique/gap ratios
+- ⚠️ Warning: gap_ratio > 50% → halve balance score + log warning
 
 **Output:** `inventory.json` với `topics[]`, `coverage_matrix`, `score`
 
@@ -239,12 +252,18 @@ def run_pN(config: BuildConfig, claude: ClaudeClient, cache: SeekersCache,
 
 **Logic (skill-seekers mode):**
 - Sample atoms (draft=30%, standard=70%, premium=100%)
+- Nhận baseline từ `source`: "skill_seekers", "auto-discovery", "auto-discovery-content"
 - Cho mỗi atom, search baseline references bằng keyword matching
-- Nếu ≥ 3 keywords match → `status="verified"` + evidence snippet
-- Else → `status="verified"` + "Expert insight — not found in official docs"
-- Confidence boost: +0.05 nếu baseline-verified
+- Nếu match_score ≥ 40% → `status="verified"` + evidence snippet + match details
+- Else → `status="unverified"` + "Expert insight — not found in official docs"
+- Non-sampled atoms → `status="passthrough"`
 
-**Chi phí:** $0 (keyword-based, không gọi Claude)
+**Score:** Evidence-based:
+- Evidence rate (50%) — % atoms có baseline match
+- Average match strength (30%) — trung bình match_score
+- Sampling coverage (20%) — % atoms được sample
+
+**Chi phí:** $0 khi có baseline (keyword-based). Fallback Claude batch verify nếu không có baseline.
 
 ### P5 — Build ★ Multi-Platform
 
@@ -439,17 +458,23 @@ Pre-seeded templates (FB Ads, Google Ads, Blockchain, Custom) và settings (max_
 
 ## 11. Testing
 
-### Test suite: 48 tests (all passing)
+### Test suite: 289 tests (all passing)
 ```
-pipeline/tests/test_phases.py     — 18 tests (P0-P5 + 6 multi-platform tests)
-pipeline/tests/test_e2e_dry.py    — 11 tests (full pipeline dry-run)
-pipeline/tests/test_logger.py     — 10 tests (JSON event format)
-pipeline/tests/test_adapter.py    —  9 tests (skill-seekers adapter)
+pipeline/tests/test_phases.py            — 85 tests (P0-P5 + quality scores + multi-platform)
+pipeline/tests/test_e2e_dry.py           — 11 tests (full pipeline dry-run)
+pipeline/tests/test_logger.py            — 10 tests (JSON event format)
+pipeline/tests/test_adapter.py           —  9 tests (skill-seekers adapter)
+pipeline/tests/test_discover_baseline.py — content-based discovery + scoring
+pipeline/tests/test_auto_discovery.py    — auto-discovery pipeline
+pipeline/tests/test_integration_features.py — integration + cross-feature tests
+pipeline/tests/test_fetch_urls.py        — URL fetching
+pipeline/tests/test_analyze_repo.py      — repo analysis
+pipeline/tests/test_extract_pdf.py       — PDF extraction
 ```
 
 ### Chạy tests
 ```bash
-python -m pytest pipeline/tests/ -v     # 48 tests
+python -m pytest pipeline/tests/ -v     # 289 tests
 ```
 
 ### MockClaudeClient
@@ -461,8 +486,24 @@ python -m pytest pipeline/tests/ -v     # 48 tests
 - **Baseline:** 12 WordStream FB Ads articles
 - **Results:** 21 transcript + 10 gap-fill = 31 atoms → 28-29 after dedup → verified → 5 pillars
 - **Coverage:** 15 overlap, 10 unique expert, 10 gaps
-- **Score:** 95.9%, Cost: $0.57-0.78
+- **Score:** ~78% (with matched baseline), Cost: $0.13-0.31 (draft cached/fresh)
 - **Output:** 3 platform directories (claude, openclaw, antigravity) + package.zip
+
+### Quality Score Architecture (Sprint 1 + 2)
+Mỗi phase có score riêng (0-100), P5 tính **weighted final score**:
+
+| Phase | Weight | Score Method |
+|-------|--------|-------------|
+| P0 | 15% | Content depth + diversity + domain relevance (heuristic) |
+| P1 | 10% | Topic density + depth distribution + category coverage + balance |
+| P2 | 25% | Structural completeness (content length, tags, category) |
+| P3 | 15% | Bidirectional kept ratio (over-dedup + under-dedup penalties) |
+| P4 | 20% | Evidence rate + match strength + sampling coverage |
+| P5 | 15% | Compression ratio + output completeness |
+
+**Hard penalties:**
+- P0 < 50 → final score cap ≤ 60 (bad baseline)
+- P4 < 30 → final score × 0.8 (no evidence)
 
 ---
 
@@ -566,13 +607,41 @@ a06f2cf feat(pipeline): upgrade P4 — verify against skill-seekers baseline
 e961ede feat(pipeline): upgrade P5 — production SKILL.md with routing logic
 ```
 
-### Phase 5: Pipeline Enhancement ★ (current)
+### Phase 5: Pipeline Enhancement
 ```
 c8156fd feat(pipeline): upgrade P1 coverage matrix + P2 dual-stream extraction
 835a2c6 feat(pipeline): upgrade P3 cross-source dedup
 8f41e2c fix(pipeline): increase P2 max_tokens to 8192
 39d3e65 feat(baseline): add FB Ads baseline from WordStream (12 refs)
 e275a07 feat(pipeline): add multi-platform packaging (claude/openclaw/antigravity)
+```
+
+### Phase 6: Quality Score Overhaul ★ (current)
+
+**Sprint 1 — P2/P3/P4/P5 scoring:**
+```
+ba96bf0 fix(pipeline): overhaul quality scores to use measurable metrics
+f1c884e fix(pipeline): correct batch verify fallback status and simplify compression
+```
+
+**Sprint 2 — P0/P1/Discovery scoring + baseline source fix:**
+```
+77692f9 fix(pipeline): accept auto-discovery-content baseline source in P1 and P4
+12e898c fix(pipeline): replace count-based P0 score with relevance heuristic
+707751a fix(pipeline): replace count-based discovery score with relevance heuristic
+0952cd9 test(pipeline): add Sprint 2 quality score tests and update expectations
+```
+
+**Supporting fixes:**
+```
+eaf29a5 fix(pipeline): normalize backslash in ref paths for cross-platform
+b2c7670 fix(pipeline): add safeguard for empty Claude dedup response
+bc0192b fix(pipeline): use basename for SKILL.md reference paths
+6613479 fix(pipeline): preserve original atom data during dedup
+24cc46b fix(pipeline): abort discovery when generic domain inference fails
+e2f4391 fix(pipeline): copy baseline references to output package
+88749aa fix(pipeline): default category fallback — empty category → "general"
+de3fe66 feat(pipeline): adaptive dedup threshold — preserve atoms in small sets
 ```
 
 ---
@@ -595,7 +664,12 @@ e275a07 feat(pipeline): add multi-platform packaging (claude/openclaw/antigravit
 - [x] Conflict detection + manual resolution UI
 - [x] Auth, settings, Telegram notifications
 - [x] Docker deployment
-- [x] 48 tests passing
+- [x] Quality score overhaul — all phases use measurable metrics (no Claude self-assessment)
+- [x] Auto-discovery content baseline support (P1, P4 accept "auto-discovery-content" source)
+- [x] Adaptive dedup threshold for small atom sets
+- [x] Baseline reference copying to output package
+- [x] Cross-platform path normalization (backslash → forward slash)
+- [x] 289 tests passing
 
 ### Có thể làm tiếp
 - [ ] Scrape thêm baselines cho domains khác (Google Ads, SEO, etc.)
@@ -611,7 +685,7 @@ e275a07 feat(pipeline): add multi-platform packaging (claude/openclaw/antigravit
 
 ## 16. Lưu ý quan trọng cho agent
 
-1. **Tests phải pass trước khi commit:** `python -m pytest pipeline/tests/ -v` (48 tests)
+1. **Tests phải pass trước khi commit:** `python -m pytest pipeline/tests/ -v` (289 tests)
 2. **Python stdout phải tuân thủ JSON event format** — build-runner.ts parse cứng
 3. **Config.py auto-discovers transcripts** trong `input/` dir — không hardcode paths
 4. **skill-seekers baseline** qua `seekers_output_dir` config — phải có `SKILL.md` + `baseline_summary.json` + `references/`
