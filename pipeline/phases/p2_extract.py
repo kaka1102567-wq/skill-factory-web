@@ -308,7 +308,9 @@ def _load_baseline(output_dir: str) -> dict | None:
     """Load baseline from P0 output (skill_seekers or auto-discovery)."""
     try:
         summary = read_json(f"{output_dir}/baseline_summary.json")
-        if summary.get("source") in ("skill_seekers", "auto-discovery"):
+        if summary.get("source") in (
+            "skill_seekers", "auto-discovery", "auto-discovery-content",
+        ):
             return summary
     except (FileNotFoundError, json.JSONDecodeError):
         return None
