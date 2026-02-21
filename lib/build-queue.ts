@@ -1,7 +1,7 @@
 import { v4 as uuidv4 } from "uuid";
 import path from "path";
 import fs from "fs";
-import { createBuild, updateBuild, getSetting, incrementTemplateUsage } from "./db";
+import { createBuild, updateBuild, getBuilds, getSetting, incrementTemplateUsage } from "./db";
 import { startBuild, getRunningCount, type BuildConfig } from "./build-runner";
 
 export interface BuildRequest {
@@ -103,6 +103,34 @@ export function removeFromQueue(buildId: string): boolean {
 
 export function getQueueLength(): number {
   return pendingQueue.length;
+}
+
+/**
+ * Recover orphaned builds after server restart.
+ * Builds stuck as 'running' or 'queued' in DB but not in memory
+ * are marked as 'failed' so they don't block the queue.
+ */
+export function recoverOrphanedBuilds(): number {
+  let recovered = 0;
+  for (const status of ["running", "queued"] as const) {
+    const orphaned = getBuilds(status);
+    for (const build of orphaned) {
+      console.log(`[QUEUE] Recovering orphaned build ${build.id} (was: ${status})`);
+      updateBuild(build.id, { status: "failed" });
+      recovered++;
+    }
+  }
+  if (recovered > 0) {
+    console.log(`[QUEUE] Recovered ${recovered} orphaned build(s) from previous session`);
+  }
+  return recovered;
+}
+
+// Run recovery on module load (server start / hot reload)
+const globalForRecovery = globalThis as unknown as { __queueRecovered?: boolean };
+if (!globalForRecovery.__queueRecovered) {
+  globalForRecovery.__queueRecovered = true;
+  recoverOrphanedBuilds();
 }
 
 // Register processQueue callback for build-runner to call on exit

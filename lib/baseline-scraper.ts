@@ -17,7 +17,8 @@ const DOMAIN_CONFIGS: Record<string, string> = {
 
 /** Extract a simple scalar value from YAML content (no full parser needed). */
 export function parseYamlValue(content: string, key: string): string {
-  const regex = new RegExp(`^${key}:\\s*["']?(.+?)["']?\\s*$`, "m");
+  // Match key: value on a single line — [^\r\n] prevents matching across lines
+  const regex = new RegExp(`^${key}:[ \\t]*["']?([^\\r\\n]*?)["']?[ \\t]*$`, "m");
   const match = content.match(regex);
   return match?.[1]?.trim().replace(/^["']|["']$/g, "") || "";
 }
