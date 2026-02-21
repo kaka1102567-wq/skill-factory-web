@@ -519,6 +519,64 @@ class TestP5Build:
         assert "code_patterns.md" in content
 
 
+class TestP5CopiesReferences:
+
+    def _setup_p4_with_baseline(self, output_dir, baseline_source="auto-discovery"):
+        """Create P4 output + baseline_summary.json with refs."""
+        atoms = [
+            {"id": "atom_0001", "title": "A", "content": "Content A.",
+             "category": "general", "tags": [], "confidence": 0.9,
+             "status": "verified", "verification_note": "OK"},
+        ]
+        write_json({"atoms": atoms, "total_atoms": 1, "score": 85.0},
+                    os.path.join(output_dir, "atoms_verified.json"))
+        write_json({
+            "source": baseline_source,
+            "domain": "test",
+            "skill_md": "",
+            "references": [
+                {"path": "ref_001_docs.md", "content": "# Reference Doc\nContent here."},
+                {"path": "ref_002_guide.md", "content": "# Guide\nMore content."},
+            ],
+            "topics": ["topic1"],
+            "total_tokens": 500,
+            "score": 75.0,
+        }, os.path.join(output_dir, "baseline_summary.json"))
+
+    def test_auto_discovery_refs_copied(self, build_config, mock_claude, logger, seekers_cache, seekers_lookup):
+        """P5 copies auto-discovery baseline references into output/references/."""
+        self._setup_p4_with_baseline(build_config.output_dir, "auto-discovery")
+        result = run_p5(build_config, mock_claude, seekers_cache, seekers_lookup, logger)
+        assert result.status == "done"
+
+        refs_dir = os.path.join(build_config.output_dir, "references")
+        assert os.path.isdir(refs_dir)
+        ref_files = [f for f in os.listdir(refs_dir) if f.endswith(".md")]
+        assert len(ref_files) == 2
+
+    def test_auto_discovery_content_refs_copied(self, build_config, mock_claude, logger, seekers_cache, seekers_lookup):
+        """P5 copies auto-discovery-content baseline references."""
+        self._setup_p4_with_baseline(build_config.output_dir, "auto-discovery-content")
+        result = run_p5(build_config, mock_claude, seekers_cache, seekers_lookup, logger)
+        assert result.status == "done"
+
+        refs_dir = os.path.join(build_config.output_dir, "references")
+        assert os.path.isdir(refs_dir)
+        ref_files = [f for f in os.listdir(refs_dir) if f.endswith(".md")]
+        assert len(ref_files) == 2
+
+    def test_readme_shows_ref_count(self, build_config, mock_claude, logger, seekers_cache, seekers_lookup):
+        """README.md reflects the correct number of references."""
+        self._setup_p4_with_baseline(build_config.output_dir, "auto-discovery")
+        result = run_p5(build_config, mock_claude, seekers_cache, seekers_lookup, logger)
+        assert result.status == "done"
+
+        readme_path = os.path.join(build_config.output_dir, "README.md")
+        with open(readme_path) as f:
+            content = f.read()
+        assert "2 reference" in content
+
+
 class TestCustomBaseUrl:
 
     def test_base_url_passed_to_client(self):

@@ -34,11 +34,14 @@ PATTERN_TYPES = {
 }
 
 
+BASELINE_SOURCES = {"skill_seekers", "auto-discovery", "auto-discovery-content"}
+
+
 def _load_skill_seekers_baseline(output_dir: str) -> dict | None:
-    """Load skill_seekers baseline from P0 output if available."""
+    """Load baseline from P0 output if available (any source type)."""
     try:
         summary = read_json(f"{output_dir}/baseline_summary.json")
-        if summary.get("source") == "skill_seekers":
+        if summary.get("source") in BASELINE_SOURCES:
             return summary
     except (FileNotFoundError, KeyError, json.JSONDecodeError):
         pass
@@ -46,19 +49,37 @@ def _load_skill_seekers_baseline(output_dir: str) -> dict | None:
 
 
 def _copy_seekers_references(baseline: dict, output_dir: str,
-                             logger: PipelineLogger) -> None:
-    """Copy skill-seekers references into build output."""
+                             logger: PipelineLogger) -> int:
+    """Copy baseline references into build output.
+
+    Handles both inline content refs and file-path refs.
+    Returns the number of references successfully copied.
+    """
     refs_dir = os.path.join(output_dir, "references")
     os.makedirs(refs_dir, exist_ok=True)
+    refs_copied = 0
 
     for ref in baseline.get("references", []):
-        ref_path = os.path.join(refs_dir, ref["path"])
-        write_file(ref_path, ref["content"])
+        ref_path = ref.get("path", "")
+        ref_content = ref.get("content", "")
+
+        if ref_content:
+            # Inline content (skill_seekers style) — write by relative path
+            dest_name = os.path.basename(ref_path) if ref_path else f"ref_{refs_copied + 1:03d}.md"
+            dest_path = os.path.join(refs_dir, dest_name)
+            write_file(dest_path, ref_content)
+            refs_copied += 1
+        elif ref_path and os.path.exists(ref_path):
+            # File path (auto-discovery style) — copy file
+            dest = os.path.join(refs_dir, os.path.basename(ref_path))
+            shutil.copy2(ref_path, dest)
+            refs_copied += 1
 
     logger.info(
-        f"Copied {len(baseline.get('references', []))} reference files",
+        f"Copied {refs_copied} reference files to output",
         phase="p5",
     )
+    return refs_copied
 
 
 def _classify_atoms(atoms: list) -> dict:
@@ -662,12 +683,14 @@ def run_p5(config: BuildConfig, claude: ClaudeClient,
         baseline = _load_skill_seekers_baseline(config.output_dir)
         use_seekers = baseline is not None
 
+        refs_copied = 0
         if use_seekers:
+            baseline_type = baseline.get("source", "unknown")
             logger.info(
-                "Using Skill Seekers baseline for production build",
+                f"Using baseline ({baseline_type}) for production build",
                 phase=phase_id,
             )
-            _copy_seekers_references(baseline, config.output_dir, logger)
+            refs_copied = _copy_seekers_references(baseline, config.output_dir, logger)
 
         # ── Step 1: Generate knowledge files per pillar ──
         for pillar_name, atoms in pillars.items():
