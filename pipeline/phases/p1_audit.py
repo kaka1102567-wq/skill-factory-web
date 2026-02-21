@@ -140,19 +140,113 @@ def run_p1(config: BuildConfig, claude: ClaudeClient,
                 "source_files": item.get("source_files", []),
             })
 
-        # Calculate score
+        # ── Calculate score from MEASURABLE metrics ──
         if inventory:
-            avg_quality = sum(i["quality_score"] for i in inventory) / len(inventory)
-            score = min(100.0, avg_quality)
+            # Component 1: Topic density (30%)
+            topics_per_transcript = len(inventory) / max(
+                len(valid_transcripts), 1,
+            )
+            if 8 <= topics_per_transcript <= 25:
+                density_score = 100.0
+            elif topics_per_transcript < 8:
+                density_score = max(
+                    40.0, (topics_per_transcript / 8) * 100,
+                )
+            else:
+                density_score = max(
+                    70.0, 100.0 - (topics_per_transcript - 25) * 2,
+                )
+
+            # Component 2: Depth distribution (25%)
+            depth_counts = {
+                "deep": 0, "moderate": 0,
+                "surface": 0, "mention_only": 0,
+            }
+            for item in inventory:
+                d = item.get("depth", "surface")
+                if d in depth_counts:
+                    depth_counts[d] += 1
+                else:
+                    depth_counts["surface"] += 1
+
+            total_items = len(inventory)
+            deep_ratio = depth_counts["deep"] / total_items
+            moderate_ratio = depth_counts["moderate"] / total_items
+            mention_ratio = depth_counts["mention_only"] / total_items
+
+            depth_score = min(100.0,
+                min(deep_ratio, 0.4) / 0.4 * 40
+                + min(moderate_ratio, 0.4) / 0.4 * 35
+                + (1.0 - min(mention_ratio, 0.3)) / 0.7 * 25,
+            )
+
+            # Component 3: Category coverage (20%)
+            unique_categories = set(
+                item.get("category", "") for item in inventory
+                if item.get("category", "").strip()
+            )
+            if len(unique_categories) >= 5:
+                category_score = 100.0
+            elif len(unique_categories) >= 3:
+                category_score = 80.0
+            elif len(unique_categories) >= 2:
+                category_score = 60.0
+            elif len(unique_categories) == 1:
+                category_score = 40.0
+            else:
+                category_score = 20.0
+
+            # Component 4: Coverage balance (25%)
+            if coverage_matrix:
+                s = coverage_matrix["summary"]
+                total_cm = s["total"]
+                gap_ratio = s["gap_count"] / max(total_cm, 1)
+                overlap_ratio = s["overlap_count"] / max(total_cm, 1)
+                unique_ratio = (
+                    s["unique_expert_count"] / max(total_cm, 1)
+                )
+
+                balance_score = 0.0
+                if 0.15 <= overlap_ratio <= 0.50:
+                    balance_score += 35.0
+                else:
+                    balance_score += max(
+                        0, 35 - abs(overlap_ratio - 0.30) * 80,
+                    )
+                if 0.25 <= unique_ratio <= 0.60:
+                    balance_score += 35.0
+                else:
+                    balance_score += max(
+                        0, 35 - abs(unique_ratio - 0.40) * 70,
+                    )
+                if 0.05 <= gap_ratio <= 0.35:
+                    balance_score += 30.0
+                else:
+                    balance_score += max(
+                        0, 30 - abs(gap_ratio - 0.20) * 60,
+                    )
+
+                # High gap warning: >50% gaps = baseline likely mismatched
+                if gap_ratio > 0.50:
+                    balance_score *= 0.5
+                    logger.warn(
+                        f"High gap ratio ({gap_ratio:.0%}) — baseline may "
+                        f"not match transcript content. Consider re-running "
+                        f"with better baseline.",
+                        phase=phase_id,
+                    )
+            else:
+                balance_score = 50.0
+
+            score = (
+                density_score * 0.30
+                + depth_score * 0.25
+                + category_score * 0.20
+                + balance_score * 0.25
+            )
+            score = min(100.0, max(0.0, score))
         else:
             score = 0.0
-
-        # Boost score for corroborated topics (overlap with baseline)
-        if coverage_matrix and inventory:
-            overlap_count = coverage_matrix["summary"]["overlap_count"]
-            overlap_ratio = overlap_count / max(len(inventory), 1)
-            # Boost up to +15 points for topics confirmed by baseline
-            score = min(100.0, score + overlap_ratio * 15)
 
         # Save output
         output_path = f"{config.output_dir}/inventory.json"
@@ -237,7 +331,9 @@ def _load_skill_seekers_baseline(output_dir: str) -> dict | None:
     """Load baseline from P0 output (skill_seekers or auto-discovery)."""
     try:
         summary = read_json(f"{output_dir}/baseline_summary.json")
-        if summary.get("source") in ("skill_seekers", "auto-discovery"):
+        if summary.get("source") in (
+            "skill_seekers", "auto-discovery", "auto-discovery-content",
+        ):
             return summary
     except (FileNotFoundError, KeyError, json.JSONDecodeError):
         pass

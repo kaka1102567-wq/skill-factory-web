@@ -118,7 +118,9 @@ def _load_skill_seekers_baseline(output_dir: str) -> list[dict] | None:
     """Try to load skill_seekers references from P0 baseline_summary."""
     try:
         summary = read_json(f"{output_dir}/baseline_summary.json")
-        if (summary.get("source") == "skill_seekers"
+        if (summary.get("source") in (
+                "skill_seekers", "auto-discovery", "auto-discovery-content",
+            )
                 and summary.get("references")):
             return summary["references"]
     except (FileNotFoundError, KeyError, json.JSONDecodeError):
