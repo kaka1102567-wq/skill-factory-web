@@ -16,6 +16,28 @@ from ..seekers.lookup import SeekersLookup
 from ..prompts.p3_dedup_prompts import P3_SYSTEM, P3_USER_TEMPLATE
 
 
+def _get_adaptive_threshold(base_threshold: float, atom_count: int) -> float:
+    """Lower the overlap threshold when atom count is small to avoid over-dedup.
+
+    With few atoms, aggressive dedup removes too much unique content.
+    - < 30 atoms: threshold -= 0.15
+    - 30-50 atoms: threshold -= 0.10
+    - 50-100 atoms: threshold -= 0.05
+    - > 100 atoms: keep base threshold
+
+    Minimum threshold: 0.5 (never below 50% overlap to merge).
+    """
+    if atom_count < 30:
+        adjusted = base_threshold - 0.15
+    elif atom_count < 50:
+        adjusted = base_threshold - 0.10
+    elif atom_count < 100:
+        adjusted = base_threshold - 0.05
+    else:
+        adjusted = base_threshold
+    return max(adjusted, 0.5)
+
+
 def run_p3(config: BuildConfig, claude: ClaudeClient,
            cache: SeekersCache = None, lookup: SeekersLookup = None,
            logger: PipelineLogger = None) -> PhaseResult:
@@ -53,7 +75,14 @@ def run_p3(config: BuildConfig, claude: ClaudeClient,
         logger.info(f"Deduplicating {len(raw_atoms)} raw atoms", phase=phase_id)
 
         # ── Cross-source dedup (transcript vs baseline) ──
-        cross_result = _cross_source_dedup(raw_atoms, logger)
+        # Use adaptive threshold based on atom count
+        adaptive = _get_adaptive_threshold(0.6, len(raw_atoms))
+        logger.info(
+            f"Cross-source threshold: 0.6 -> {adaptive} "
+            f"(adaptive, {len(raw_atoms)} atoms)",
+            phase=phase_id,
+        )
+        cross_result = _cross_source_dedup(raw_atoms, logger, dup_threshold=adaptive)
         raw_atoms = cross_result["atoms"]
         cross_conflicts = cross_result["conflicts"]
         cross_stats = cross_result["stats"]
@@ -355,23 +384,26 @@ def _has_negation(text: str) -> bool:
 
 def _detect_issue_type(
     atom_t: dict, atom_b: dict, overlap: float,
+    dup_threshold: float = 0.6,
 ) -> str | None:
     """Detect issue type between a transcript and baseline atom pair.
 
     Returns: "duplicate", "contradiction", "outdated", or None.
     """
-    if overlap < 0.4:
+    # Contradiction detection starts at 2/3 of dup threshold
+    contra_threshold = dup_threshold * 2 / 3
+    if overlap < contra_threshold:
         return None
 
     text_t = atom_t.get("content", "")
     text_b = atom_b.get("content", "")
 
-    # DUPLICATE: >= 60% keyword overlap
-    if overlap >= 0.6:
+    # DUPLICATE: >= dup_threshold keyword overlap
+    if overlap >= dup_threshold:
         return "duplicate"
 
-    # CONTRADICTION: 40-60% overlap + negation or number mismatch
-    if 0.4 <= overlap < 0.6:
+    # CONTRADICTION: between contra_threshold and dup_threshold + negation/number mismatch
+    if contra_threshold <= overlap < dup_threshold:
         neg_t = _has_negation(text_t)
         neg_b = _has_negation(text_b)
         if neg_t != neg_b:
@@ -390,6 +422,7 @@ def _detect_issue_type(
 
 def _cross_source_dedup(
     atoms: list[dict], logger,
+    dup_threshold: float = 0.6,
 ) -> dict:
     """Compare transcript vs baseline atoms, detect issues.
 
@@ -440,7 +473,7 @@ def _cross_source_dedup(
             kw_b = kw_map.get(ab_id, set())
             overlap = _keyword_overlap(kw_a, kw_b)
 
-            issue = _detect_issue_type(at, ab, overlap)
+            issue = _detect_issue_type(at, ab, overlap, dup_threshold)
             if not issue:
                 continue
 

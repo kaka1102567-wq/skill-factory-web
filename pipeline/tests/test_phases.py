@@ -168,6 +168,29 @@ class TestP3Dedup:
         assert result.status == "failed"
 
 
+class TestAdaptiveThreshold:
+
+    def test_small_set_reduces_threshold(self):
+        from pipeline.phases.p3_dedup import _get_adaptive_threshold
+        assert _get_adaptive_threshold(0.8, 25) == 0.65  # < 30 atoms
+
+    def test_medium_set_reduces_threshold(self):
+        from pipeline.phases.p3_dedup import _get_adaptive_threshold
+        assert abs(_get_adaptive_threshold(0.8, 45) - 0.70) < 1e-9  # 30-50 atoms
+
+    def test_large_set_no_change(self):
+        from pipeline.phases.p3_dedup import _get_adaptive_threshold
+        assert _get_adaptive_threshold(0.8, 150) == 0.80  # > 100 atoms
+
+    def test_minimum_floor(self):
+        from pipeline.phases.p3_dedup import _get_adaptive_threshold
+        assert _get_adaptive_threshold(0.5, 10) == 0.50  # never below 0.5
+
+    def test_near_100_reduces_slightly(self):
+        from pipeline.phases.p3_dedup import _get_adaptive_threshold
+        assert _get_adaptive_threshold(0.8, 80) == 0.75  # 50-100 atoms
+
+
 class TestP4Verify:
 
     def _setup_p3_output(self, output_dir):
