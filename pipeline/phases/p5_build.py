@@ -107,10 +107,14 @@ def _build_routing_section(pillars: dict, references: list) -> str:
     if references:
         lines.append("### Reference Docs")
         for ref in references:
-            name = ref["path"].replace(".md", "").replace("_", " ").title()
+            ref_path = ref.get("path", "")
+            ref_basename = os.path.basename(ref_path) if ref_path else ""
+            if not ref_basename:
+                continue
+            name = ref_basename.replace(".md", "").replace("_", " ").replace("-", " ").title()
             lines.append(
                 f"- If user asks about **{name}** "
-                f"-> see `references/{ref['path']}`"
+                f"-> see `references/{ref_basename}`"
             )
         lines.append("")
 
@@ -226,7 +230,10 @@ def _build_skill_seekers_skill_md(config, baseline, pillars,
         lines.append("## References")
         lines.append("")
         for ref in references:
-            lines.append(f"- `references/{ref['path']}`")
+            ref_path = ref.get("path", "")
+            ref_basename = os.path.basename(ref_path) if ref_path else ""
+            if ref_basename:
+                lines.append(f"- `references/{ref_basename}`")
         lines.append("")
 
     return "\n".join(lines)
