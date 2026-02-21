@@ -193,6 +193,59 @@ class TestCategoryFallback:
             assert atom.get("category", "").strip() != ""
 
 
+class TestP3PreservesOriginal:
+
+    def _setup_p2_with_rich_atoms(self, output_dir):
+        """Create atoms_raw.json with atoms that have all fields."""
+        atoms = [
+            {"id": "atom_0001", "title": "Atom A", "content": "Full content A here with details.",
+             "category": "campaign_management", "tags": ["a", "b"], "confidence": 0.9,
+             "status": "raw", "source": "transcript", "source_video": "video1.mp4"},
+            {"id": "atom_0002", "title": "Atom B", "content": "Full content B here with details.",
+             "category": "campaign_management", "tags": ["c", "d"], "confidence": 0.85,
+             "status": "raw", "source": "transcript", "source_video": "video2.mp4"},
+            {"id": "atom_0003", "title": "Atom C", "content": "Full content C here with details.",
+             "category": "pixel_tracking", "tags": ["e"], "confidence": 0.8,
+             "status": "raw", "source": "baseline"},
+        ]
+        write_json({"atoms": atoms, "total_atoms": 3, "score": 85.0},
+                    os.path.join(output_dir, "atoms_raw.json"))
+        return atoms
+
+    def test_p3_preserves_original_fields(self, build_config, mock_claude, logger, seekers_cache, seekers_lookup):
+        """Atoms after dedup still have category, tags, source_video, full content."""
+        original_atoms = self._setup_p2_with_rich_atoms(build_config.output_dir)
+        result = run_p3(build_config, mock_claude, seekers_cache, seekers_lookup, logger)
+        assert result.status == "done"
+
+        dedup_path = os.path.join(build_config.output_dir, "atoms_deduplicated.json")
+        with open(dedup_path) as f:
+            data = json.load(f)
+
+        for atom in data["atoms"]:
+            assert atom.get("category"), f"Atom {atom['id']} missing category"
+            assert isinstance(atom.get("tags"), list), f"Atom {atom['id']} missing tags"
+            assert atom.get("content"), f"Atom {atom['id']} missing content"
+
+    def test_p3_no_content_truncation(self, build_config, mock_claude, logger, seekers_cache, seekers_lookup):
+        """Raw atom content must be preserved after dedup (no truncation)."""
+        original_atoms = self._setup_p2_with_rich_atoms(build_config.output_dir)
+        result = run_p3(build_config, mock_claude, seekers_cache, seekers_lookup, logger)
+        assert result.status == "done"
+
+        dedup_path = os.path.join(build_config.output_dir, "atoms_deduplicated.json")
+        with open(dedup_path) as f:
+            data = json.load(f)
+
+        orig_by_id = {a["id"]: a for a in original_atoms}
+        for atom in data["atoms"]:
+            orig = orig_by_id.get(atom["id"])
+            if orig:
+                # Content should be at least as long as original
+                assert len(atom["content"]) >= len(orig["content"]), \
+                    f"Atom {atom['id']} content truncated"
+
+
 class TestAdaptiveThreshold:
 
     def test_small_set_reduces_threshold(self):
@@ -517,6 +570,54 @@ class TestP5Build:
             content = f.read()
         assert "Code Examples" in content
         assert "code_patterns.md" in content
+
+
+class TestP5ReferencePathBasename:
+
+    def _setup_p4_with_full_path_refs(self, output_dir):
+        """Create P4 output + baseline with full-path references."""
+        atoms = [
+            {"id": "atom_0001", "title": "A", "content": "Content A.",
+             "category": "general", "tags": [], "confidence": 0.9,
+             "status": "verified", "verification_note": "OK"},
+        ]
+        write_json({"atoms": atoms, "total_atoms": 1, "score": 85.0},
+                    os.path.join(output_dir, "atoms_verified.json"))
+        write_json({
+            "source": "auto-discovery",
+            "domain": "test",
+            "skill_md": "",
+            "references": [
+                {"path": "data\\builds\\295dd413\\references\\api-reference-overview.md",
+                 "content": "# API Reference\nContent."},
+                {"path": "/home/user/builds/abc/refs/getting-started.md",
+                 "content": "# Getting Started\nContent."},
+            ],
+            "topics": ["api"],
+            "total_tokens": 500,
+            "score": 75.0,
+        }, os.path.join(output_dir, "baseline_summary.json"))
+
+    def test_p5_reference_paths_use_basename(self, build_config, mock_claude, logger, seekers_cache, seekers_lookup):
+        """SKILL.md output uses basename only, no absolute paths or backslashes."""
+        import re
+        self._setup_p4_with_full_path_refs(build_config.output_dir)
+        result = run_p5(build_config, mock_claude, seekers_cache, seekers_lookup, logger)
+        assert result.status == "done"
+
+        skill_path = os.path.join(build_config.output_dir, "SKILL.md")
+        with open(skill_path) as f:
+            content = f.read()
+
+        # Should contain basename references
+        assert "references/api-reference-overview.md" in content
+        assert "references/getting-started.md" in content
+        # Should NOT contain full paths or backslashes
+        assert "295dd413" not in content
+        assert "data\\builds" not in content
+        assert "/home/user" not in content
+        # No nested path pattern in references
+        assert not re.search(r'references/.*[/\\].*[/\\]', content)
 
 
 class TestP5CopiesReferences:

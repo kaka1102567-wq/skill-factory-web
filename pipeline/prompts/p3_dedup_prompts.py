@@ -14,7 +14,15 @@ RULES for deduplication:
 - Two atoms "conflict" if they state contradictory information about the same topic
 - When merging, keep the higher confidence score and combine unique details
 - Preserve the atom ID of the higher-quality original
-- Respond ONLY with valid JSON, no markdown formatting, no code fences\
+
+CRITICAL — CONSERVATIVE DEDUP:
+- When in doubt, KEEP the atom. It is better to have minor overlap than to lose unique knowledge.
+- Case studies, real-world examples, and specific company/product mentions are ALWAYS unique — never merge them with general concepts.
+- Atoms about different aspects of the same topic are NOT duplicates (e.g., "benefits of X" vs "how to implement X").
+- For small batches (< 30 atoms), be EXTRA conservative — only remove atoms with >90% content overlap.
+- PRESERVE the COMPLETE content of each atom. Do NOT truncate or shorten content.
+
+Respond ONLY with valid JSON, no markdown formatting, no code fences\
 """
 
 P3_USER_TEMPLATE = """\

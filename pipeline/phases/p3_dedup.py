@@ -289,12 +289,38 @@ def _dedup_group(category, atoms, raw_atoms, config, claude, lookup,
             use_light_model=True,
         )
 
-        unique = result.get("unique_atoms", [])
+        unique_from_claude = result.get("unique_atoms", [])
         conflicts = result.get("conflicts", [])
         stats = result.get("stats", {})
 
         total_duplicates += stats.get("duplicates_found", 0)
-        all_unique_atoms.extend(unique)
+
+        # ★ Merge Claude's decisions with ORIGINAL atom data.
+        # Claude Haiku may truncate content or drop fields — use original
+        # atoms as source of truth, only take dedup decisions from Claude.
+        original_by_id = {a.get("id"): a for a in atoms}
+
+        for claude_atom in unique_from_claude:
+            aid = claude_atom.get("id", "")
+            original = original_by_id.get(aid)
+
+            if original:
+                merged = dict(original)
+                merged["status"] = "deduplicated"
+                if claude_atom.get("merged_from"):
+                    merged["merged_from"] = claude_atom["merged_from"]
+                    # If Claude merged content is longer, it combined info
+                    claude_content = claude_atom.get("content", "")
+                    if len(claude_content) > len(original.get("content", "")):
+                        merged["content"] = claude_content
+                all_unique_atoms.append(merged)
+            else:
+                # New atom created by Claude (rare) — use as-is
+                claude_atom.setdefault("status", "deduplicated")
+                claude_atom.setdefault("category", "general")
+                claude_atom.setdefault("tags", [])
+                claude_atom.setdefault("source", "transcript")
+                all_unique_atoms.append(claude_atom)
 
         for c in conflicts:
             conflict = Conflict(
@@ -319,7 +345,7 @@ def _dedup_group(category, atoms, raw_atoms, config, claude, lookup,
             all_conflicts.append(conflict)
 
         logger.debug(
-            f"Group '{category}': {len(atoms)}->{len(unique)} atoms, "
+            f"Group '{category}': {len(atoms)}->{len(unique_from_claude)} atoms, "
             f"{len(conflicts)} conflicts",
             phase=phase_id,
         )
