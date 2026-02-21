@@ -74,6 +74,15 @@ def run_p3(config: BuildConfig, claude: ClaudeClient,
 
         logger.info(f"Deduplicating {len(raw_atoms)} raw atoms", phase=phase_id)
 
+        # Normalize empty categories
+        for atom in raw_atoms:
+            if not atom.get("category", "").strip():
+                atom["category"] = "general"
+                logger.debug(
+                    f"Atom {atom.get('id', '?')} missing category — assigned 'general'",
+                    phase=phase_id,
+                )
+
         # ── Cross-source dedup (transcript vs baseline) ──
         # Use adaptive threshold based on atom count
         adaptive = _get_adaptive_threshold(0.6, len(raw_atoms))

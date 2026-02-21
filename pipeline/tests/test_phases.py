@@ -168,6 +168,31 @@ class TestP3Dedup:
         assert result.status == "failed"
 
 
+class TestCategoryFallback:
+
+    def test_empty_category_defaults_to_general_in_p3(self, build_config, mock_claude, logger, seekers_cache, seekers_lookup):
+        """Atoms with empty category get assigned 'general' at P3 start."""
+        atoms = [
+            {"id": "atom_0001", "title": "A", "content": "Content A",
+             "category": "", "tags": [], "confidence": 0.9, "status": "raw"},
+            {"id": "atom_0002", "title": "B", "content": "Content B",
+             "category": "   ", "tags": [], "confidence": 0.8, "status": "raw"},
+            {"id": "atom_0003", "title": "C", "content": "Content C",
+             "category": "valid_cat", "tags": [], "confidence": 0.85, "status": "raw"},
+        ]
+        write_json({"atoms": atoms, "total_atoms": 3, "score": 85.0},
+                    os.path.join(build_config.output_dir, "atoms_raw.json"))
+        result = run_p3(build_config, mock_claude, seekers_cache, seekers_lookup, logger)
+        assert result.status == "done"
+
+        dedup_path = os.path.join(build_config.output_dir, "atoms_deduplicated.json")
+        with open(dedup_path) as f:
+            data = json.load(f)
+        # No atom should have empty category
+        for atom in data["atoms"]:
+            assert atom.get("category", "").strip() != ""
+
+
 class TestAdaptiveThreshold:
 
     def test_small_set_reduces_threshold(self):

@@ -96,11 +96,14 @@ def run_p2(config: BuildConfig, claude: ClaudeClient,
                 raw_atoms = result.get("atoms", [])
                 for raw in raw_atoms:
                     atom_counter += 1
+                    category = raw.get("category", "")
+                    if not category or not category.strip():
+                        category = "general"
                     atom = KnowledgeAtom(
                         id=f"atom_{atom_counter:04d}",
                         title=raw.get("title", "Untitled"),
                         content=raw.get("content", ""),
-                        category=raw.get("category", ""),
+                        category=category,
                         tags=raw.get("tags", []),
                         source_video=chunk_info["filename"],
                         source_timestamp=raw.get("source_timestamp"),
@@ -478,11 +481,14 @@ def _extract_gap_atoms(
             raw_atoms = result.get("atoms", [])[:remaining]
             for raw in raw_atoms:
                 atom_counter += 1
+                gap_category = raw.get("category", "")
+                if not gap_category or not gap_category.strip():
+                    gap_category = "general"
                 atom = KnowledgeAtom(
                     id=f"atom_{atom_counter:04d}",
                     title=raw.get("title", "Untitled"),
                     content=raw.get("content", ""),
-                    category=raw.get("category", ""),
+                    category=gap_category,
                     tags=raw.get("tags", []),
                     source_video=ref_file,
                     confidence=float(raw.get("confidence", 0.85)),
