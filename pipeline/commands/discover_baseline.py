@@ -327,6 +327,48 @@ def fetch_references(
 
 # ── Step 5: Build baseline_summary.json ────────────────
 
+def _score_refs_quality(
+    references: list[dict], expected_topics: list[str],
+) -> float:
+    """Score reference quality by content depth and relevance (no Claude API)."""
+    if not references:
+        return 30.0
+
+    good_depth = sum(
+        1 for r in references
+        if len(r.get("content", "").split()) >= 200
+    )
+    depth_score = (good_depth / len(references)) * 100
+
+    if expected_topics:
+        topic_kw = set()
+        for t in expected_topics[:10]:
+            topic_kw.update(
+                w.lower() for w in re.findall(r'\b\w{4,}\b', t)
+            )
+        topic_kw -= {
+            'the', 'and', 'for', 'with', 'this', 'that', 'from',
+            'các', 'của', 'cho', 'với', 'trong', 'được', 'không',
+        }
+
+        if topic_kw:
+            refs_relevant = 0
+            for r in references:
+                content_lower = r.get("content", "").lower()
+                hits = sum(1 for kw in topic_kw if kw in content_lower)
+                if hits >= 2:
+                    refs_relevant += 1
+            relevance_score = (refs_relevant / len(references)) * 100
+        else:
+            relevance_score = 50.0
+    else:
+        relevance_score = 50.0
+
+    count_bonus = min(15.0, len(references) * 1.5)
+    score = depth_score * 0.45 + relevance_score * 0.45 + count_bonus
+    return min(95.0, max(20.0, score))
+
+
 def build_baseline_summary(
     domain: str, topics: list[str], references: list[dict],
     output_dir: str, metadata: dict | None = None,
@@ -336,7 +378,7 @@ def build_baseline_summary(
     Returns path to the created file.
     """
     total_tokens = sum(r.get("tokens", 0) for r in references)
-    score = min(95.0, 60.0 + len(references) * 3.0)
+    score = _score_refs_quality(references, topics)
 
     summary = {
         "source": "auto-discovery-content",

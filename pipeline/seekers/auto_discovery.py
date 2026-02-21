@@ -269,6 +269,52 @@ def _run_steps(domain, language, output_dir, claude_client, web_client,
     )
 
 
+def _score_refs_quality(
+    references: list[dict], expected_topics: list[str],
+) -> float:
+    """Score reference quality by content depth and relevance (no Claude API)."""
+    if not references:
+        return 30.0
+
+    # Content depth: refs with 200+ words of content
+    good_depth = sum(
+        1 for r in references
+        if len(r.get("content", "").split()) >= 200
+    )
+    depth_score = (good_depth / len(references)) * 100
+
+    # Relevance: refs contain expected topic keywords
+    if expected_topics:
+        topic_kw = set()
+        for t in expected_topics[:10]:
+            topic_kw.update(
+                w.lower() for w in re.findall(r'\b\w{4,}\b', t)
+            )
+        topic_kw -= {
+            'the', 'and', 'for', 'with', 'this', 'that', 'from',
+            'các', 'của', 'cho', 'với', 'trong', 'được', 'không',
+        }
+
+        if topic_kw:
+            refs_relevant = 0
+            for r in references:
+                content_lower = r.get("content", "").lower()
+                hits = sum(1 for kw in topic_kw if kw in content_lower)
+                if hits >= 2:
+                    refs_relevant += 1
+            relevance_score = (refs_relevant / len(references)) * 100
+        else:
+            relevance_score = 50.0
+    else:
+        relevance_score = 50.0
+
+    # Refs count bonus (mild): having more refs is slightly better
+    count_bonus = min(15.0, len(references) * 1.5)
+
+    score = depth_score * 0.45 + relevance_score * 0.45 + count_bonus
+    return min(95.0, max(20.0, score))
+
+
 def _build_summary(analysis, output_dir, ok_refs, crawled, candidates,
                    ranked, claude_client, logger) -> DiscoveryResult:
     """Build baseline_summary.json from crawled references."""
@@ -281,7 +327,7 @@ def _build_summary(analysis, output_dir, ok_refs, crawled, candidates,
             pass
 
     total_tokens = int(sum(r.get("word_count", 0) * 1.3 for r in ok_refs))
-    score = min(95.0, 60.0 + len(ok_refs) * 2.5)
+    score = _score_refs_quality(references, analysis.expected_topics)
 
     metadata = {
         "method": "auto-discovery",
