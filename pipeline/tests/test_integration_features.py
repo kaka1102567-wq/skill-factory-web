@@ -192,7 +192,7 @@ class TestAutoBaselineDiscoveryIntegration:
         assert "topics" in data
         assert "score" in data
         assert "total_tokens" in data
-        assert data["score"] >= 60.0
+        assert data["score"] >= 20.0  # Relevance-based; short content → low score
 
         # Verify reference format matches P0 expectation
         for ref in data["references"]:

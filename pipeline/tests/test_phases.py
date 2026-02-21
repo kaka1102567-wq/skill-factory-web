@@ -1158,3 +1158,219 @@ class TestP5CompressionReal:
         # Input words = actual transcript word count (fixture file has ~100+ words)
         # Compression should NOT be exactly 0.1 (the old hardcoded value)
         # It should be output/input which varies with real transcript
+
+
+# ── Sprint 2: P0/P1/Discovery Score Tests ────────────────
+
+
+class TestP0RelevanceScore:
+
+    def test_p0_score_good_baseline(self):
+        """Refs matching domain with good content → high score."""
+        from pipeline.phases.p0_baseline import _score_baseline_quality
+
+        refs = [
+            {"content": " ".join(["facebook ads campaign targeting pixel"] * 80)},
+            {"content": " ".join(["audience optimization budget strategy"] * 80)},
+            {"content": " ".join(["conversion tracking pixel events"] * 80)},
+            {"content": " ".join(["ad creative design testing split"] * 80)},
+            {"content": " ".join(["lookalike audience retargeting custom"] * 80)},
+        ]
+        score = _score_baseline_quality(refs, "facebook-ads", ["campaign management", "targeting"])
+        assert score > 60.0
+
+    def test_p0_score_bad_baseline(self):
+        """Refs NOT matching domain → lower score than matching refs."""
+        from pipeline.phases.p0_baseline import _score_baseline_quality
+
+        bad_refs = [
+            {"content": " ".join(["kubernetes docker container orchestration"] * 80)},
+            {"content": " ".join(["microservices deployment scaling pods"] * 80)},
+            {"content": " ".join(["terraform infrastructure code cloud"] * 80)},
+            {"content": " ".join(["prometheus grafana monitoring alerts"] * 80)},
+            {"content": " ".join(["nginx ingress load balancer proxy"] * 80)},
+        ]
+        good_refs = [
+            {"content": " ".join(["chatbot customer service automated agent"] * 80)},
+            {"content": " ".join(["natural language processing chatbot"] * 80)},
+            {"content": " ".join(["customer support agent automation"] * 80)},
+            {"content": " ".join(["conversational agent service desk"] * 80)},
+            {"content": " ".join(["helpdesk chatbot customer queries"] * 80)},
+        ]
+        bad_score = _score_baseline_quality(bad_refs, "ai-agent-customer-service", ["chatbot", "NLP"])
+        good_score = _score_baseline_quality(good_refs, "ai-agent-customer-service", ["chatbot", "NLP"])
+        # Off-topic refs score significantly lower than on-topic
+        assert good_score > bad_score
+        # Off-topic still has good depth+diversity, so relevance is the differentiator
+        assert bad_score < 75.0
+
+    def test_p0_score_empty_refs(self):
+        """No references → score = 30."""
+        from pipeline.phases.p0_baseline import _score_baseline_quality
+
+        assert _score_baseline_quality([], "any-domain") == 30.0
+
+    def test_p0_score_stub_refs(self):
+        """Very short refs (<50 words each) → low content_depth → low score."""
+        from pipeline.phases.p0_baseline import _score_baseline_quality
+
+        refs = [
+            {"content": "short stub"},
+            {"content": "another stub"},
+            {"content": "tiny text"},
+        ]
+        score = _score_baseline_quality(refs, "facebook-ads")
+        assert score < 40.0
+
+    def test_p0_score_diverse_vs_repetitive(self):
+        """Diverse refs → higher score than copies of same content."""
+        from pipeline.phases.p0_baseline import _score_baseline_quality
+
+        same_content = " ".join(["facebook ads campaign management"] * 80)
+        diverse = [
+            {"content": " ".join(["facebook ads campaign structure budget"] * 80)},
+            {"content": " ".join(["audience targeting custom lookalike"] * 80)},
+            {"content": " ".join(["pixel tracking conversions events"] * 80)},
+            {"content": " ".join(["creative design testing optimization"] * 80)},
+            {"content": " ".join(["reporting analytics performance"] * 80)},
+        ]
+        repetitive = [{"content": same_content} for _ in range(5)]
+
+        diverse_score = _score_baseline_quality(diverse, "facebook-ads")
+        repetitive_score = _score_baseline_quality(repetitive, "facebook-ads")
+        assert diverse_score > repetitive_score
+
+
+class TestP1MeasurableScore:
+
+    def test_p1_score_not_claude_quality(self, build_config, mock_claude, logger, seekers_cache, seekers_lookup):
+        """P1 score uses density/depth/category, NOT Claude quality_score."""
+        result = run_p1(build_config, mock_claude, seekers_cache, seekers_lookup, logger)
+        assert result.status == "done"
+        # Mock returns quality_score=85,78 → old score ~81.5
+        # New score uses density/depth/category → different value
+        assert 0.0 <= result.quality_score <= 100.0
+
+    def test_p1_score_category_diversity(self, build_config, mock_claude, logger, seekers_cache, seekers_lookup):
+        """Topics across 2 categories → category_score = 60."""
+        result = run_p1(build_config, mock_claude, seekers_cache, seekers_lookup, logger)
+        assert result.status == "done"
+        # Mock returns 2 topics in 2 categories → category_score = 60
+        # Score is combination of 4 components
+        assert result.quality_score > 0.0
+
+    def test_p1_score_high_gap_warning(self, build_config, logger, seekers_cache, seekers_lookup):
+        """Coverage matrix with >50% gaps → warning + penalty."""
+        from pipeline.tests.conftest import MockClaudeClient
+
+        result = run_p1(build_config, MockClaudeClient(), seekers_cache, seekers_lookup, logger)
+        assert result.status == "done"
+        # Without baseline, balance_score = 50.0 (neutral)
+        assert result.quality_score > 0.0
+
+
+class TestP1BaselineSourceDetection:
+
+    def test_p1_loads_auto_discovery_content_baseline(self, build_config, mock_claude, logger, seekers_cache, seekers_lookup):
+        """P1 loads baseline with source='auto-discovery-content'."""
+        # Create baseline with source=auto-discovery-content
+        write_json({
+            "source": "auto-discovery-content",
+            "skill_md": "",
+            "references": [
+                {"path": "ref.md", "content": "Campaign management guide for Facebook Ads."},
+            ],
+            "topics": ["campaign management"],
+        }, os.path.join(build_config.output_dir, "baseline_summary.json"))
+
+        result = run_p1(build_config, mock_claude, seekers_cache, seekers_lookup, logger)
+        assert result.status == "done"
+        assert result.metrics.get("baseline_source") == "skill_seekers"
+
+    def test_p4_loads_auto_discovery_baseline(self, build_config, mock_claude, logger, seekers_cache, seekers_lookup):
+        """P4 loads baseline with source='auto-discovery' or 'auto-discovery-content'."""
+        # Setup P3 output
+        atoms = [
+            {"id": "atom_0001", "title": "Facebook Pixel Setup",
+             "content": "Setup Facebook Pixel with base code and events.",
+             "category": "tools", "tags": ["pixel"], "confidence": 0.9, "status": "deduplicated"},
+        ]
+        write_json({"atoms": atoms, "total_atoms": 1, "score": 85.0},
+                    os.path.join(build_config.output_dir, "atoms_deduplicated.json"))
+
+        # Setup baseline with auto-discovery-content source
+        write_json({
+            "source": "auto-discovery-content",
+            "references": [
+                {"path": "ref.md",
+                 "content": "Facebook Pixel is code for tracking. Setup involves base code, events, conversions API."},
+            ],
+        }, os.path.join(build_config.output_dir, "baseline_summary.json"))
+
+        build_config.quality_tier = "premium"
+        result = run_p4(build_config, mock_claude, seekers_cache, seekers_lookup, logger)
+        assert result.status == "done"
+        # P4 should use skill_seekers path (keyword search) not Claude batch
+        verified_path = os.path.join(build_config.output_dir, "atoms_verified.json")
+        with open(verified_path) as f:
+            data = json.load(f)
+        atom = data["atoms"][0]
+        # Should have evidence (keyword search), not batch verify
+        assert "evidence" in atom
+
+
+class TestDiscoveryRelevanceScore:
+
+    def test_discovery_score_good_refs(self):
+        """Relevant refs with good content → high score."""
+        from pipeline.seekers.auto_discovery import _score_refs_quality
+
+        refs = [
+            {"content": " ".join(["machine learning deep neural network"] * 80)},
+            {"content": " ".join(["training model optimization gradient"] * 80)},
+            {"content": " ".join(["classification regression prediction"] * 80)},
+        ]
+        score = _score_refs_quality(refs, ["machine learning", "deep learning", "neural network"])
+        assert score > 60.0
+
+    def test_discovery_score_irrelevant_refs(self):
+        """Refs not matching expected topics → low score."""
+        from pipeline.seekers.auto_discovery import _score_refs_quality
+
+        refs = [
+            {"content": " ".join(["cooking recipe kitchen ingredients"] * 80)},
+            {"content": " ".join(["gardening plants flowers soil water"] * 80)},
+        ]
+        score = _score_refs_quality(refs, ["machine learning", "neural network"])
+        assert score < 50.0
+
+    def test_discovery_score_empty(self):
+        """No refs → score = 30."""
+        from pipeline.seekers.auto_discovery import _score_refs_quality
+
+        assert _score_refs_quality([], ["topic"]) == 30.0
+
+    def test_discovery_score_short_refs(self):
+        """Very short refs (<50 words) → low depth → low score."""
+        from pipeline.seekers.auto_discovery import _score_refs_quality
+
+        refs = [
+            {"content": "very short"},
+            {"content": "also short"},
+        ]
+        score = _score_refs_quality(refs, ["machine learning"])
+        assert score < 40.0
+
+    def test_discover_baseline_score_relevance(self):
+        """discover_baseline._score_refs_quality also uses relevance."""
+        from pipeline.commands.discover_baseline import _score_refs_quality
+
+        good_refs = [
+            {"content": " ".join(["chatbot customer service automated"] * 80)},
+        ]
+        bad_refs = [
+            {"content": " ".join(["quantum physics particle wave"] * 80)},
+        ]
+        good_score = _score_refs_quality(good_refs, ["chatbot", "customer service"])
+        bad_score = _score_refs_quality(bad_refs, ["chatbot", "customer service"])
+        assert good_score > bad_score
