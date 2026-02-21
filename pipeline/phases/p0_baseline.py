@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 import time
 from datetime import datetime, timezone
 
@@ -20,6 +21,97 @@ from ..seekers.adapter import SkillSeekersAdapter
 def _estimate_tokens(text: str) -> int:
     """Rough token estimate: ~4 chars per token for mixed content."""
     return len(text) // 4
+
+
+def _score_baseline_quality(
+    references: list[dict], domain: str, topics: list[str] = None,
+) -> float:
+    """Score baseline quality using measurable heuristics (no Claude API).
+
+    Components:
+      1. Content depth  (40%) — refs have sufficient content
+      2. Content diversity (30%) — refs cover different aspects
+      3. Relevance signal (30%) — refs contain domain keywords
+
+    Returns score 0-100.
+    """
+    if not references:
+        return 30.0
+
+    # ── 1. Content depth (40%) ──
+    depth_scores = []
+    for ref in references:
+        content = ref.get("content", "")
+        word_count = len(content.split())
+        if 200 <= word_count <= 5000:
+            depth_scores.append(1.0)
+        elif 50 <= word_count < 200:
+            depth_scores.append(0.5)
+        elif word_count > 5000:
+            depth_scores.append(0.7)
+        else:
+            depth_scores.append(0.1)
+    content_depth = (sum(depth_scores) / len(depth_scores)) * 100
+
+    # ── 2. Content diversity (30%) ──
+    per_ref_keywords = []
+    for ref in references:
+        content = ref.get("content", "")
+        words = re.findall(r'\b\w{4,}\b', content.lower())
+        freq = {}
+        for w in words:
+            if not w.isdigit() and len(w) <= 30:
+                freq[w] = freq.get(w, 0) + 1
+        top_kw = sorted(freq, key=freq.get, reverse=True)[:20]
+        per_ref_keywords.append(set(top_kw))
+
+    if len(per_ref_keywords) >= 2:
+        total_overlap = 0
+        pairs = 0
+        for i in range(len(per_ref_keywords)):
+            for j in range(i + 1, len(per_ref_keywords)):
+                if per_ref_keywords[i] and per_ref_keywords[j]:
+                    overlap = len(per_ref_keywords[i] & per_ref_keywords[j])
+                    max_possible = min(
+                        len(per_ref_keywords[i]), len(per_ref_keywords[j]),
+                    )
+                    total_overlap += overlap / max(max_possible, 1)
+                    pairs += 1
+        avg_overlap = total_overlap / max(pairs, 1)
+        content_diversity = (1.0 - avg_overlap) * 100
+    else:
+        content_diversity = 0.0
+
+    # ── 3. Relevance signal (30%) ──
+    domain_keywords = set(
+        re.findall(r'\b\w{3,}\b', domain.lower().replace('-', ' ')),
+    )
+    if topics:
+        for t in topics[:10]:
+            domain_keywords.update(re.findall(r'\b\w{3,}\b', t.lower()))
+    generic = {
+        'the', 'and', 'for', 'this', 'with', 'that', 'from', 'your',
+        'các', 'của', 'cho', 'với', 'trong', 'được', 'không', 'một',
+    }
+    domain_keywords -= generic
+
+    if domain_keywords:
+        refs_with_match = 0
+        for ref in references:
+            content_lower = ref.get("content", "").lower()
+            matches = sum(1 for kw in domain_keywords if kw in content_lower)
+            if matches >= 2:
+                refs_with_match += 1
+        relevance_signal = (refs_with_match / len(references)) * 100
+    else:
+        relevance_signal = 50.0
+
+    score = (
+        content_depth * 0.40
+        + content_diversity * 0.30
+        + relevance_signal * 0.30
+    )
+    return min(100.0, max(0.0, score))
 
 
 def _run_p0_skill_seekers(config, logger):
@@ -42,9 +134,10 @@ def _run_p0_skill_seekers(config, logger):
             "tokens": tokens,
         })
 
-    # Score: 85 base + up to 10 based on reference count (cap at 10 refs)
-    ref_bonus = min(len(references), 10)
-    score = 85.0 + ref_bonus
+    # Score: relevance-based quality assessment
+    score = _score_baseline_quality(
+        references, config.domain, data.get("topics", []),
+    )
 
     baseline = {
         "source": "skill_seekers",
@@ -77,10 +170,18 @@ def _run_p0_prebuilt(config, logger):
 
             write_json(data, f"{config.output_dir}/baseline_summary.json")
 
-            refs_count = len(data.get("references", []))
+            refs = data.get("references", [])
+            refs_count = len(refs)
             topics_count = len(data.get("topics", []))
-            score = data.get("score", 85.0)
             total_tokens = data.get("total_tokens", 0)
+            # Re-score instead of trusting discovery's count-based score
+            domain = data.get(
+                "domain",
+                config.domain if hasattr(config, 'domain') else "",
+            )
+            score = _score_baseline_quality(
+                refs, domain, data.get("topics", []),
+            )
 
             logger.info(
                 f"Pre-built baseline loaded: {refs_count} refs, "
@@ -183,11 +284,17 @@ def _run_p0_legacy(config, cache, logger):
     except Exception:
         pass
 
-    if len(sources) > 0:
-        success_rate = successful_sources / len(sources)
-        score = max(50.0, success_rate * 100)
+    # Score based on content quality, not just success rate
+    refs_as_dicts = []
+    if cache:
+        for entry in cache.get_all_entries():
+            refs_as_dicts.append({"content": entry.get("content", "")})
+    if refs_as_dicts:
+        score = _score_baseline_quality(refs_as_dicts, config.domain)
+    elif len(sources) > 0:
+        score = max(40.0, (successful_sources / len(sources)) * 80)
     else:
-        score = 50.0
+        score = 30.0
 
     summary = {
         "total_entries": total_entries,
