@@ -85,18 +85,18 @@ export function LogViewer({ logs }: { logs: LogEntry[] }) {
           </div>
         ) : (
           filteredLogs.map((log, i) => (
-            <div key={i} className="flex gap-2 py-0.5 hover:bg-white/5">
-              <span className="text-muted-foreground flex-shrink-0 w-16">
+            <div key={i} className="flex items-start gap-2 py-0.5 hover:bg-white/5">
+              <span className="text-muted-foreground shrink-0 w-16">
                 {formatTime(log.timestamp)}
               </span>
               {log.phase && (
-                <span className="text-indigo-400 flex-shrink-0 w-6 text-right">
+                <span className="text-indigo-400 shrink-0 px-1 rounded bg-white/5">
                   [{log.phase.toUpperCase()}]
                 </span>
               )}
               <span
                 className={cn(
-                  "flex-1",
+                  "min-w-0 break-words",
                   LEVEL_COLORS[log.level] || "text-gray-300"
                 )}
               >
