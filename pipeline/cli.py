@@ -70,6 +70,7 @@ def main():
     discover_parser.add_argument("--model", default="", help="Claude model")
     discover_parser.add_argument("--model-light", default="", help="Claude light model")
     discover_parser.add_argument("--base-url", default="", help="Custom API base URL")
+    discover_parser.add_argument("--input-dir", default="", help="Input dir for content-based domain inference")
 
     # ── discover-from-content ──
     dfc_parser = subparsers.add_parser(
@@ -252,6 +253,7 @@ def cmd_discover_baseline(args) -> int:
             web_client=web,
             logger=logger,
             max_refs=args.max_refs,
+            input_dir=getattr(args, "input_dir", ""),
         )
     except Exception as e:
         _error_json(f"Discovery error: {e}")

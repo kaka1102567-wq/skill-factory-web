@@ -1,5 +1,40 @@
 """Prompt templates for Auto-Baseline Discovery from input content."""
 
+# ── Domain inference from input content (used by auto_discovery) ──
+
+INFER_DOMAIN_SYSTEM = """You are a content analyst. Given text samples from uploaded documents,
+determine the actual domain/topic. Return ONLY valid JSON."""
+
+INFER_DOMAIN_USER_TEMPLATE = """Analyze these content samples and determine the real domain/topic.
+
+Content samples:
+{content_samples}
+
+Return JSON:
+{{
+  "inferred_domain": "short-kebab-case-domain",
+  "display_name": "Human readable name",
+  "key_topics": ["topic1", "topic2", "topic3", "topic4", "topic5"],
+  "search_terms": [
+    "specific search query 1",
+    "specific search query 2",
+    "specific search query 3",
+    "specific search query 4",
+    "specific search query 5",
+    "specific search query 6"
+  ]
+}}
+
+Rules:
+- search_terms should be Google-friendly queries (3-6 words each)
+- Include 6-8 search_terms covering different aspects
+- key_topics should be 5-8 specific topics from the content
+- inferred_domain should be a short identifier like "ai-agent-retail" or "machine-learning-nlp"
+"""
+
+
+# ── Content Analysis prompts (used by discover-from-content command) ──
+
 SYSTEM_ANALYZE_CONTENT = """You are a Content Analysis Expert. Given sample text from educational/training materials, identify:
 1. The main domain/topic
 2. Key subtopics covered

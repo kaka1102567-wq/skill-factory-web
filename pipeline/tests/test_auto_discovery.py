@@ -13,6 +13,7 @@ from pipeline.seekers.url_evaluator import evaluate_urls, RankedURL, _prefilter
 from pipeline.seekers.scraper import smart_crawl, _url_to_safe_filename, _fetch_and_parse
 from pipeline.seekers.auto_discovery import (
     run_auto_discovery, DiscoveryResult, DiscoveryTimeoutError,
+    _is_generic_domain, _infer_domain_from_content,
 )
 from pipeline.core.logger import PipelineLogger
 from pipeline.core.types import BuildConfig
@@ -226,6 +227,95 @@ class TestAutoDiscoveryOrchestrator:
         assert min(95.0, 60.0 + 14 * 2.5) == 95.0
         # 5 refs => 60 + 12.5 = 72.5
         assert min(95.0, 60.0 + 5 * 2.5) == 72.5
+
+
+# ===== Content Inference Tests =====
+
+
+class TestContentInference:
+    def test_is_generic_domain_custom(self):
+        assert _is_generic_domain("custom") is True
+
+    def test_is_generic_domain_unknown(self):
+        assert _is_generic_domain("unknown") is True
+
+    def test_is_generic_domain_short(self):
+        assert _is_generic_domain("ab") is True
+
+    def test_is_generic_domain_specific(self):
+        assert _is_generic_domain("facebook-ads") is False
+
+    def test_is_generic_domain_case_insensitive(self):
+        assert _is_generic_domain("Custom") is True
+        assert _is_generic_domain("CUSTOM") is True
+
+    def test_infer_domain_from_content(self, mock_claude, tmp_path):
+        """Content inference returns domain info when input has files."""
+        (tmp_path / "doc.md").write_text(
+            "# AI Agent trong ban le\nUng dung AI agent de tu van "
+            "khach hang trong nganh ban le va thuong mai dien tu.",
+            encoding="utf-8",
+        )
+        logger = PipelineLogger("test")
+        result = _infer_domain_from_content(str(tmp_path), mock_claude, logger)
+        assert result is not None
+        assert "inferred_domain" in result
+        assert len(result["search_terms"]) >= 1
+        assert "custom" not in result["inferred_domain"].lower()
+
+    def test_infer_domain_empty_dir(self, mock_claude, tmp_path):
+        """Content inference returns None for empty directory."""
+        logger = PipelineLogger("test")
+        result = _infer_domain_from_content(str(tmp_path), mock_claude, logger)
+        assert result is None
+
+    def test_infer_domain_nonexistent_dir(self, mock_claude):
+        """Content inference returns None for nonexistent directory."""
+        logger = PipelineLogger("test")
+        result = _infer_domain_from_content("/nonexistent/path", mock_claude, logger)
+        assert result is None
+
+    def test_discovery_uses_content_inference_for_custom(self, mock_claude, tmp_path):
+        """discover-baseline with domain=custom uses content inference."""
+        input_dir = tmp_path / "input"
+        input_dir.mkdir()
+        (input_dir / "content.md").write_text(
+            "# AI Agent\nContent about AI agent in retail with chatbot "
+            "and automation for customer service in ecommerce.",
+            encoding="utf-8",
+        )
+        logger = PipelineLogger("test")
+        from pipeline.clients.web_client import WebClient
+        web = WebClient(rpm=60, timeout=5)
+        try:
+            # Will fail at DDG search but should infer domain first
+            result = run_auto_discovery(
+                domain="custom", language="vi",
+                output_dir=str(tmp_path / "out"),
+                claude_client=mock_claude, web_client=web, logger=logger,
+                input_dir=str(input_dir),
+            )
+        finally:
+            web.close()
+        # Inference should have been called (light model)
+        assert mock_claude.model_usage["light"] >= 1
+
+    def test_discovery_skips_inference_for_specific_domain(self, mock_claude, tmp_path):
+        """discover-baseline with specific domain skips content inference."""
+        logger = PipelineLogger("test")
+        from pipeline.clients.web_client import WebClient
+        web = WebClient(rpm=60, timeout=5)
+        try:
+            result = run_auto_discovery(
+                domain="facebook-ads", language="en",
+                output_dir=str(tmp_path / "out"),
+                claude_client=mock_claude, web_client=web, logger=logger,
+                input_dir=str(tmp_path),  # even with input_dir, should skip
+            )
+        finally:
+            web.close()
+        # Should NOT have called inference — goes straight to domain analysis
+        # The first light model call should be domain_analyzer, not inference
 
 
 # ===== CLI Integration Tests =====

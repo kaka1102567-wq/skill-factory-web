@@ -57,6 +57,25 @@ class MockClaudeClient:
                 "notes": "",
             })
 
+        # Domain inference from content (auto_discovery)
+        if "content analyst" in system.lower():
+            return json.dumps({
+                "inferred_domain": "ai-agent-retail",
+                "display_name": "AI Agent trong Ban le",
+                "key_topics": [
+                    "AI agent", "retail", "ecommerce", "chatbot",
+                    "sales automation",
+                ],
+                "search_terms": [
+                    "AI agent retail ecommerce",
+                    "AI chatbot customer service",
+                    "sales automation AI",
+                    "LLM agent business applications",
+                    "conversational AI retail",
+                    "AI agent ban le thuong mai",
+                ],
+            })
+
         # Content Analysis (discover-from-content)
         if "Content Analysis Expert" in system:
             return json.dumps({

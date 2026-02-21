@@ -205,6 +205,7 @@ function _preProcessInputs(config: BuildConfig, pythonPath: string, cliPath: str
       "--api-key", creds.apiKey,
       "--model", creds.model,
       "--model-light", creds.modelLight,
+      "--input-dir", inputDir,
     ];
     if (creds.baseUrl) discoverArgs.push("--base-url", creds.baseUrl);
 

@@ -2,16 +2,25 @@
 
 import json
 import os
+import re
 import signal
 import time
 from dataclasses import dataclass, field
+from pathlib import Path
 
-from .domain_analyzer import analyze_domain
+from .domain_analyzer import analyze_domain, DomainAnalysis
 from .url_discoverer import discover_urls
 from .url_evaluator import evaluate_urls
 from .scraper import smart_crawl
 
 DISCOVERY_TIMEOUT_SECONDS = 300  # 5 minutes
+
+# Domains that are too generic to search directly
+GENERIC_DOMAINS = frozenset({
+    "custom", "unknown", "general", "other", "misc", "test", "default",
+})
+MAX_INFER_FILES = 3
+MAX_INFER_CHARS = 2000
 
 
 class DiscoveryTimeoutError(Exception):
@@ -29,12 +38,107 @@ class DiscoveryResult:
     discovery_metadata: dict = field(default_factory=dict)
 
 
+def _is_generic_domain(domain: str) -> bool:
+    """Check if domain name is too generic to produce useful search queries."""
+    return domain.lower().strip() in GENERIC_DOMAINS or len(domain.strip()) <= 3
+
+
+def _infer_domain_from_content(input_dir: str, claude_client, logger) -> dict | None:
+    """Read input files and use Claude to infer the real domain/topic.
+
+    Returns dict with inferred_domain, display_name, key_topics, search_terms
+    or None if inference fails.
+    """
+    from ..prompts.p0_discover_prompts import (
+        INFER_DOMAIN_SYSTEM, INFER_DOMAIN_USER_TEMPLATE,
+    )
+
+    input_path = Path(input_dir)
+    if not input_path.is_dir():
+        return None
+
+    text_files = sorted(
+        f for f in input_path.iterdir()
+        if f.suffix in (".md", ".txt") and f.is_file()
+    )
+    if not text_files:
+        return None
+
+    # Read up to MAX_INFER_FILES, each truncated to MAX_INFER_CHARS
+    content_samples = ""
+    for f in text_files[:MAX_INFER_FILES]:
+        try:
+            text = f.read_text(encoding="utf-8")
+            # Strip YAML frontmatter
+            if text.startswith("---"):
+                end = text.find("---", 3)
+                if end > 0:
+                    text = text[end + 3:].strip()
+            if len(text) > MAX_INFER_CHARS:
+                text = text[:MAX_INFER_CHARS] + "\n...[truncated]"
+            if len(text.strip()) > 50:
+                content_samples += f"\n### {f.name}\n{text.strip()}\n"
+        except Exception:
+            pass
+
+    if not content_samples:
+        return None
+
+    logger.info("Inferring domain from input content...", phase="discovery")
+
+    try:
+        user_msg = INFER_DOMAIN_USER_TEMPLATE.format(
+            content_samples=content_samples,
+        )
+        raw = claude_client.call(
+            system=INFER_DOMAIN_SYSTEM,
+            user=user_msg,
+            max_tokens=1000,
+            use_light_model=True,
+        )
+        data = _parse_json(raw)
+        inferred = {
+            "inferred_domain": data.get("inferred_domain", "unknown"),
+            "display_name": data.get("display_name", "Unknown"),
+            "key_topics": data.get("key_topics", []),
+            "search_terms": data.get("search_terms", []),
+        }
+        logger.info(
+            f"Inferred domain: '{inferred['display_name']}' "
+            f"({len(inferred['search_terms'])} search terms)",
+            phase="discovery",
+        )
+        return inferred
+    except Exception as e:
+        logger.warn(f"Content inference failed: {e}", phase="discovery")
+        return None
+
+
+def _parse_json(text: str):
+    """Parse JSON from Claude response, stripping markdown code fences."""
+    text = text.strip()
+    if text.startswith("```"):
+        text = text.split("\n", 1)[1] if "\n" in text else text[3:]
+    if text.endswith("```"):
+        text = text[:-3]
+    text = text.strip()
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        match = re.search(r'[\[{].*[\]}]', text, re.DOTALL)
+        if match:
+            return json.loads(match.group())
+        raise
+
+
 def run_auto_discovery(domain, language, output_dir, claude_client, web_client,
                        logger, max_refs=15,
-                       timeout=DISCOVERY_TIMEOUT_SECONDS) -> DiscoveryResult:
+                       timeout=DISCOVERY_TIMEOUT_SECONDS,
+                       input_dir="") -> DiscoveryResult:
     """Run the full auto-discovery pipeline (synchronous).
 
     Steps:
+      0. (If domain is generic) Infer domain from input content
       1. Analyze domain with Claude Haiku
       2. Discover candidate URLs (DDG + sitemap + crawl)
       3. Evaluate and rank URLs with Claude Haiku
@@ -57,6 +161,7 @@ def run_auto_discovery(domain, language, output_dir, claude_client, web_client,
         return _run_steps(
             domain, language, output_dir, claude_client,
             web_client, logger, max_refs, _check_timeout,
+            input_dir=input_dir,
         )
     except DiscoveryTimeoutError as e:
         logger.warn(str(e), phase="discovery")
@@ -73,12 +178,38 @@ def run_auto_discovery(domain, language, output_dir, claude_client, web_client,
 
 
 def _run_steps(domain, language, output_dir, claude_client, web_client,
-               logger, max_refs, check_timeout) -> DiscoveryResult:
+               logger, max_refs, check_timeout,
+               input_dir="") -> DiscoveryResult:
     """Internal: execute the 5 discovery steps."""
+
+    # Step 0: If domain is generic, infer from content
+    inferred = None
+    if _is_generic_domain(domain) and input_dir:
+        logger.info(
+            f"Domain '{domain}' is generic — inferring from input content",
+            phase="discovery",
+        )
+        inferred = _infer_domain_from_content(input_dir, claude_client, logger)
 
     # Step 1: Analyze domain
     logger.info("Step 1/5: Analyzing domain...", phase="discovery")
-    analysis = analyze_domain(domain, language, claude_client, logger)
+
+    if inferred and inferred.get("search_terms"):
+        # Use inferred domain instead of generic name
+        effective_domain = inferred["display_name"]
+        analysis = DomainAnalysis(
+            domain=effective_domain,
+            search_queries=inferred["search_terms"],
+            expected_topics=inferred.get("key_topics", []),
+        )
+        logger.info(
+            f"Using inferred domain '{effective_domain}' with "
+            f"{len(analysis.search_queries)} content-based queries",
+            phase="discovery",
+        )
+    else:
+        analysis = analyze_domain(domain, language, claude_client, logger)
+
     logger.info(
         f"Found {len(analysis.official_sites)} sites, "
         f"{len(analysis.search_queries)} queries",
