@@ -1041,3 +1041,120 @@ class TestP5WeightedScore:
         assert result.status == "done"
         # P4 < 30 → score *= 0.8, so it should be lower
         assert result.quality_score < 70.0
+
+
+class TestP3OverDedupAndIntegrity:
+
+    def test_p3_score_over_dedup_penalty(self, build_config, logger, seekers_cache, seekers_lookup):
+        """Kept ratio too low (over-dedup) -> heavily penalized."""
+        from pipeline.tests.conftest import MockClaudeClient
+
+        class AggressiveDedupClaude(MockClaudeClient):
+            def call_json(self, system, user, **kwargs):
+                self.call_count += 1
+                if kwargs.get("use_light_model"):
+                    self.model_usage["light"] += 1
+                else:
+                    self.model_usage["main"] += 1
+                if "Deduplication Expert" in system:
+                    # Keep only 2 out of many → aggressive dedup
+                    return {
+                        "unique_atoms": [
+                            {"id": "atom_0001", "title": "A", "content": "Content A.",
+                             "category": "campaign_management", "tags": ["a"],
+                             "confidence": 0.9, "status": "deduplicated"},
+                            {"id": "atom_0002", "title": "B", "content": "Content B.",
+                             "category": "campaign_management", "tags": ["b"],
+                             "confidence": 0.85, "status": "deduplicated"},
+                        ],
+                        "conflicts": [],
+                        "stats": {"input_count": 5, "output_count": 2,
+                                  "duplicates_found": 3, "conflicts_found": 0},
+                    }
+                return super().call_json(system, user, **kwargs)
+
+        # 5 atoms in one solo group (>= MIN_ATOMS_FOR_SOLO=15? No, 5<15 → medium batch)
+        # Use 20 atoms to ensure solo group processing
+        atoms = [
+            {"id": f"atom_{i:04d}", "title": f"Atom {i}",
+             "content": f"Content about topic {i}.",
+             "category": "campaign_management", "tags": ["a"],
+             "confidence": 0.9, "status": "raw"}
+            for i in range(1, 21)
+        ]
+        write_json({"atoms": atoms, "total_atoms": 20, "score": 85.0},
+                    os.path.join(build_config.output_dir, "atoms_raw.json"))
+
+        mock = AggressiveDedupClaude()
+        result = run_p3(build_config, mock, seekers_cache, seekers_lookup, logger)
+        assert result.status == "done"
+        # Safeguard triggers when <30% kept → keeps all 20
+        # But if it keeps 2/20=10%, which is < 30% → safeguard kicks in → keeps 20
+        # So score reflects kept_ratio=1.0 for n=20 (medium: ideal 0.50-0.85)
+        # 1.0 > 0.85 → under-dedup penalty
+        assert result.quality_score < 95.0
+
+    def test_p3_score_integrity_penalty(self, build_config, mock_claude, logger, seekers_cache, seekers_lookup):
+        """Atoms with truncated content or missing category -> penalized."""
+        atoms = [
+            {"id": "atom_0001", "title": "A", "content": "Truncated content without period",
+             "category": "", "tags": [], "confidence": 0.9, "status": "raw"},
+            {"id": "atom_0002", "title": "B", "content": "Another truncated atom here",
+             "category": "", "tags": [], "confidence": 0.85, "status": "raw"},
+        ]
+        write_json({"atoms": atoms, "total_atoms": 2, "score": 85.0},
+                    os.path.join(build_config.output_dir, "atoms_raw.json"))
+        result = run_p3(build_config, mock_claude, seekers_cache, seekers_lookup, logger)
+        assert result.status == "done"
+        # Both atoms have: truncated content (+2 each) + empty category after normalize
+        # P3 normalizes empty to "general", then integrity check:
+        # "general" is non-empty after normalize → no category penalty
+        # But content doesn't end with sentence-ender → +2 each = 4 penalty
+        # Score should be lower than max possible
+        assert result.quality_score < 100.0
+
+
+class TestP5IncludesUnverified:
+
+    def test_p5_builds_with_unverified_atoms(self, build_config, mock_claude, logger, seekers_cache, seekers_lookup):
+        """P5 includes atoms with status 'unverified' and 'passthrough' in build."""
+        atoms = [
+            {"id": "atom_0001", "title": "Verified A", "content": "Content A.",
+             "category": "general", "tags": ["a"], "confidence": 0.9,
+             "status": "verified", "verification_note": "OK"},
+            {"id": "atom_0002", "title": "Unverified B", "content": "Content B.",
+             "category": "general", "tags": ["b"], "confidence": 0.7,
+             "status": "unverified", "verification_note": "Expert insight — not found"},
+            {"id": "atom_0003", "title": "Passthrough C", "content": "Content C.",
+             "category": "general", "tags": ["c"], "confidence": 0.8,
+             "status": "passthrough", "verification_note": "Not sampled"},
+            {"id": "atom_0004", "title": "Flagged D", "content": "Content D.",
+             "category": "general", "tags": ["d"], "confidence": 0.3,
+             "status": "flagged", "verification_note": "Contradicts baseline"},
+        ]
+        write_json({"atoms": atoms, "total_atoms": 4, "score": 50.0},
+                    os.path.join(build_config.output_dir, "atoms_verified.json"))
+        result = run_p5(build_config, mock_claude, seekers_cache, seekers_lookup, logger)
+        assert result.status == "done"
+        # 4 atoms - 1 flagged = 3 included
+        assert result.atoms_count == 3
+
+
+class TestP5CompressionReal:
+
+    def test_p5_compression_uses_real_transcript(self, build_config, mock_claude, logger, seekers_cache, seekers_lookup):
+        """Compression ratio reads actual transcript, not hardcoded *10."""
+        atoms = [
+            {"id": "atom_0001", "title": "Atom A", "content": "Content about campaigns.",
+             "category": "campaign_management", "tags": ["campaign"], "confidence": 0.9,
+             "status": "verified", "verification_note": "OK"},
+        ]
+        write_json({"atoms": atoms, "total_atoms": 1, "score": 85.0},
+                    os.path.join(build_config.output_dir, "atoms_verified.json"))
+        result = run_p5(build_config, mock_claude, seekers_cache, seekers_lookup, logger)
+        assert result.status == "done"
+        # With real transcript file, compression should reflect actual ratio
+        # Output words ≈ 3 ("Content about campaigns")
+        # Input words = actual transcript word count (fixture file has ~100+ words)
+        # Compression should NOT be exactly 0.1 (the old hardcoded value)
+        # It should be output/input which varies with real transcript

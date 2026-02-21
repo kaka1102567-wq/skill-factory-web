@@ -303,7 +303,7 @@ def _verify_with_claude_batch(atoms_to_verify, config, claude, lookup, logger):
                     else:
                         verified_count += 1
                 else:
-                    atom["status"] = "verified"
+                    atom["status"] = "unverified"
                     atom["verification_note"] = (
                         "Expert insight — batch verify fallback"
                     )
@@ -318,7 +318,7 @@ def _verify_with_claude_batch(atoms_to_verify, config, claude, lookup, logger):
                 phase=phase_id,
             )
             for atom in batch:
-                atom["status"] = "verified"
+                atom["status"] = "unverified"
                 atom["verification_note"] = f"Verification skipped: {e}"
                 verified_ids.add(atom.get("id", ""))
                 verified_count += 1

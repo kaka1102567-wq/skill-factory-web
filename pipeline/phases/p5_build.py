@@ -900,24 +900,15 @@ def run_p5(config: BuildConfig, claude: ClaudeClient,
             len(a.get("content", "").split()) for a in build_atoms
         )
 
-        # Input words: read from P2 metrics or actual transcript files
+        # Input words: count actual transcript word count
         input_words = 0
         try:
-            raw_data = read_json(f"{config.output_dir}/atoms_raw.json")
-            chunks = raw_data.get("chunks_processed", 0)
-            if chunks > 0:
-                input_words = chunks * 1500
+            for tp in config.transcript_paths:
+                if os.path.exists(tp):
+                    with open(tp, "r", encoding="utf-8") as f:
+                        input_words += len(f.read().split())
         except Exception:
             pass
-
-        if input_words == 0:
-            try:
-                for tp in config.transcript_paths:
-                    if os.path.exists(tp):
-                        with open(tp, "r", encoding="utf-8") as f:
-                            input_words += len(f.read().split())
-            except Exception:
-                pass
 
         # Fallback: use output * 10 (old behavior)
         if input_words == 0:
