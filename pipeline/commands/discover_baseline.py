@@ -39,20 +39,24 @@ def _log(level: str, message: str) -> None:
 # ── Step 1: Read Samples ────────────────────────────────
 
 def read_samples(input_dir: str) -> list[dict]:
-    """Read first N .md files from input directory, sampling content.
+    """Read first N text files from input directory, sampling content.
 
+    Supports .md (from URL fetch) and .txt (from PDF extraction).
     Returns list of {"filename": str, "content": str (truncated)}.
     """
     input_path = Path(input_dir)
     if not input_path.is_dir():
         return []
 
-    md_files = sorted(input_path.glob("*.md"))
-    if not md_files:
+    text_files = sorted(
+        f for f in input_path.iterdir()
+        if f.suffix in (".md", ".txt") and f.is_file()
+    )
+    if not text_files:
         return []
 
     samples = []
-    for f in md_files[:MAX_SAMPLE_FILES]:
+    for f in text_files[:MAX_SAMPLE_FILES]:
         try:
             text = f.read_text(encoding="utf-8")
             # Strip YAML frontmatter

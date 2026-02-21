@@ -159,12 +159,26 @@ function _preProcessInputs(config: BuildConfig, pythonPath: string, cliPath: str
 
   const creds = _resolveApiCredentials(configContent);
 
-  console.log("[BUILD] discover check:", {
+  // Fallback: if no API key from DB/env, try reading from config.yaml
+  // (pipeline's Python side loads .env which may have the key)
+  if (!creds.apiKey) {
+    const yamlKey = parseYamlValue(configContent, "claude_api_key");
+    if (yamlKey) {
+      creds.apiKey = yamlKey;
+      creds.apiKeySource = "yaml";
+    }
+  }
+
+  const discoverInfo = {
     hasBaseline, autoDiscover, domain,
     hasApiKey: !!creds.apiKey, apiKeySource: creds.apiKeySource,
-    baseUrl: creds.baseUrl || "(direct)",
     seekersDir: seekersDir || "(empty)",
-  });
+  };
+  console.log("[BUILD] discover check:", discoverInfo);
+
+  // Log discovery decision to build logs so user can see it in the UI
+  const diagMsg = `Discovery check: baseline=${hasBaseline}, autoDiscover=${autoDiscover}, domain=${domain || "(empty)"}, apiKey=${creds.apiKeySource}`;
+  insertBuildLog(config.id, { level: "debug", phase: null, message: diagMsg });
 
   if (!hasBaseline && autoDiscover && domain && !creds.apiKey) {
     const msg = "Auto-discovery skipped: no API key configured (set in Settings or CLAUDE_API_KEY env var)";
@@ -239,13 +253,19 @@ function _preProcessInputs(config: BuildConfig, pythonPath: string, cliPath: str
         });
       }
 
-      // If discovery succeeded, update config so pipeline uses it
+      // If discovery succeeded, update config so P0 uses the baseline_summary.json
       if (ok) {
         try {
-          const updated = configContent.replace(
-            /^seekers_output_dir:.*$/m,
-            `seekers_output_dir: ${yamlStr(discoveryDir)}`,
-          );
+          let updated = configContent;
+          // P0 checks baseline_sources for .json paths (has_prebuilt path)
+          if (updated.includes("baseline_sources: []")) {
+            updated = updated.replace(
+              "baseline_sources: []",
+              `baseline_sources:\n  - ${yamlStr(summaryPath)}`,
+            );
+          } else if (!updated.includes("baseline_sources:")) {
+            updated += `\nbaseline_sources:\n  - ${yamlStr(summaryPath)}\n`;
+          }
           fs.writeFileSync(config.configPath, updated, "utf-8");
         } catch { /* config update failed, pipeline still runs */ }
       }
@@ -431,27 +451,49 @@ async function _maybeDiscoverFromContent(
   // Re-read config to check if domain-based discovery already set a baseline
   const latestConfig = fs.readFileSync(config.configPath, "utf-8");
   const seekersDir = parseYamlValue(latestConfig, "seekers_output_dir");
-  if (seekersDir) return; // baseline already configured
+  if (seekersDir) {
+    insertBuildLog(config.id, { level: "debug", message: `Content-discovery skipped: seekers_output_dir already set (${seekersDir})` });
+    return;
+  }
 
   // Check if baseline_sources has a .json entry
-  if (latestConfig.includes("baseline_summary.json")) return;
+  if (latestConfig.includes("baseline_summary.json")) {
+    insertBuildLog(config.id, { level: "debug", message: "Content-discovery skipped: baseline_summary.json already in config" });
+    return;
+  }
 
-  // Check if input dir has .md files to analyze
-  if (!fs.existsSync(inputDir)) return;
-  const mdFiles = fs.readdirSync(inputDir).filter(f => f.endsWith(".md"));
-  if (mdFiles.length === 0) return;
+  // Check if input dir has text files to analyze (.md from URLs, .txt from PDFs)
+  if (!fs.existsSync(inputDir)) {
+    insertBuildLog(config.id, { level: "debug", message: "Content-discovery skipped: input directory does not exist" });
+    return;
+  }
+  const textFiles = fs.readdirSync(inputDir).filter(f => f.endsWith(".md") || f.endsWith(".txt"));
+  if (textFiles.length === 0) {
+    insertBuildLog(config.id, { level: "debug", message: "Content-discovery skipped: no .md or .txt files in input directory" });
+    return;
+  }
 
   // Need API key for content analysis
   const creds = _resolveApiCredentials(latestConfig);
+  // Fallback: try config.yaml
   if (!creds.apiKey) {
-    console.warn("[BUILD] content-discovery skipped: no API key (source: none)");
+    const yamlKey = parseYamlValue(latestConfig, "claude_api_key");
+    if (yamlKey) {
+      creds.apiKey = yamlKey;
+      creds.apiKeySource = "yaml";
+    }
+  }
+  if (!creds.apiKey) {
+    const msg = "Content-discovery skipped: no API key available";
+    console.warn(`[BUILD] ${msg}`);
+    insertBuildLog(config.id, { level: "warn", message: msg });
     return;
   }
 
   const buildDir = path.dirname(config.outputDir);
   const baselineDir = path.join(buildDir, "baseline");
 
-  const discoverMsg = `Auto-discovering baseline from ${mdFiles.length} input files... (key: ${creds.apiKeySource})`;
+  const discoverMsg = `Auto-discovering baseline from ${textFiles.length} input files... (key: ${creds.apiKeySource})`;
   insertBuildLog(config.id, { level: "info", message: discoverMsg });
   sseManager.broadcast(config.id, "log", { level: "info", phase: "discovery", message: discoverMsg, timestamp: new Date().toISOString() });
   sseManager.broadcast(config.id, "pre-step", { id: "pre_content_discover", label: "Analyzing content for baseline", status: "running" });
