@@ -295,6 +295,19 @@ def _dedup_group(category, atoms, raw_atoms, config, claude, lookup,
 
         total_duplicates += stats.get("duplicates_found", 0)
 
+        # Safeguard: if Claude returned empty or removed >70% of atoms,
+        # keep all original atoms rather than losing data
+        if not unique_from_claude or len(unique_from_claude) < len(atoms) * 0.3:
+            logger.warn(
+                f"Claude dedup too aggressive for '{category}': "
+                f"{len(atoms)}→{len(unique_from_claude)} atoms — keeping all",
+                phase=phase_id,
+            )
+            for a in atoms:
+                a["status"] = "deduplicated"
+            all_unique_atoms.extend(atoms)
+            return all_unique_atoms, all_conflicts, total_duplicates
+
         # ★ Merge Claude's decisions with ORIGINAL atom data.
         # Claude Haiku may truncate content or drop fields — use original
         # atoms as source of truth, only take dedup decisions from Claude.

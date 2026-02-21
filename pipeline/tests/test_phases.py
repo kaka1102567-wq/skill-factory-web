@@ -246,6 +246,41 @@ class TestP3PreservesOriginal:
                     f"Atom {atom['id']} content truncated"
 
 
+class TestP3SafeguardEmptyResponse:
+
+    def test_p3_empty_claude_response_keeps_all_atoms(self, build_config, logger, seekers_cache, seekers_lookup):
+        """When Claude returns empty unique_atoms, safeguard keeps all original atoms."""
+        from pipeline.tests.conftest import MockClaudeClient
+
+        class EmptyDedupClaude(MockClaudeClient):
+            def call_json(self, system, user, **kwargs):
+                self.call_count += 1
+                if kwargs.get("use_light_model"):
+                    self.model_usage["light"] += 1
+                else:
+                    self.model_usage["main"] += 1
+                if "Deduplication Expert" in system:
+                    return {
+                        "unique_atoms": [],
+                        "conflicts": [],
+                        "stats": {"input_count": 5, "output_count": 0, "duplicates_found": 5, "conflicts_found": 0},
+                    }
+                return super().call_json(system, user, **kwargs)
+
+        atoms = [
+            {"id": f"atom_{i:04d}", "title": f"Atom {i}", "content": f"Content {i}",
+             "category": "general", "tags": ["a"], "confidence": 0.9, "status": "raw"}
+            for i in range(1, 6)
+        ]
+        write_json({"atoms": atoms, "total_atoms": 5, "score": 85.0},
+                    os.path.join(build_config.output_dir, "atoms_raw.json"))
+
+        mock = EmptyDedupClaude()
+        result = run_p3(build_config, mock, seekers_cache, seekers_lookup, logger)
+        assert result.status == "done"
+        assert result.atoms_count == 5, f"Expected 5 atoms kept, got {result.atoms_count}"
+
+
 class TestAdaptiveThreshold:
 
     def test_small_set_reduces_threshold(self):
