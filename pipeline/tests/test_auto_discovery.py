@@ -317,6 +317,69 @@ class TestContentInference:
         # Should NOT have called inference — goes straight to domain analysis
         # The first light model call should be domain_analyzer, not inference
 
+    def test_generic_domain_no_content_aborts(self, mock_claude, tmp_path):
+        """Generic domain + empty input dir → abort discovery (success=False)."""
+        empty_input = tmp_path / "empty_input"
+        empty_input.mkdir()
+        logger = PipelineLogger("test")
+        from pipeline.clients.web_client import WebClient
+        web = WebClient(rpm=60, timeout=5)
+        try:
+            result = run_auto_discovery(
+                domain="custom", language="vi",
+                output_dir=str(tmp_path / "out"),
+                claude_client=mock_claude, web_client=web, logger=logger,
+                input_dir=str(empty_input),
+            )
+        finally:
+            web.close()
+        assert result.success is False
+        assert result.discovery_metadata.get("error") == "generic_domain_no_content"
+
+    def test_generic_domain_with_content_infers(self, mock_claude, tmp_path):
+        """Generic domain + input dir with .md files → runs inference."""
+        input_dir = tmp_path / "input_with_content"
+        input_dir.mkdir()
+        (input_dir / "content.md").write_text(
+            "# AI Agent trong CSKH\nUng dung AI agent de tu van khach hang.",
+            encoding="utf-8",
+        )
+        logger = PipelineLogger("test")
+        from pipeline.clients.web_client import WebClient
+        web = WebClient(rpm=60, timeout=5)
+        try:
+            result = run_auto_discovery(
+                domain="custom", language="vi",
+                output_dir=str(tmp_path / "out"),
+                claude_client=mock_claude, web_client=web, logger=logger,
+                input_dir=str(input_dir),
+            )
+        finally:
+            web.close()
+        # Inference ran (light model used), didn't abort
+        assert mock_claude.model_usage["light"] >= 1
+        # Should NOT have generic_domain_no_content error
+        assert result.discovery_metadata.get("error") != "generic_domain_no_content"
+
+    def test_non_generic_domain_proceeds_normally(self, mock_claude, tmp_path):
+        """Non-generic domain proceeds to analyze_domain() normally."""
+        logger = PipelineLogger("test")
+        from pipeline.clients.web_client import WebClient
+        web = WebClient(rpm=60, timeout=5)
+        try:
+            result = run_auto_discovery(
+                domain="facebook-ads", language="en",
+                output_dir=str(tmp_path / "out"),
+                claude_client=mock_claude, web_client=web, logger=logger,
+                input_dir="",
+            )
+        finally:
+            web.close()
+        # Should have called analyze_domain (light model for domain analyzer)
+        assert mock_claude.model_usage["light"] >= 1
+        # No generic_domain_no_content error
+        assert result.discovery_metadata.get("error") != "generic_domain_no_content"
+
 
 # ===== CLI Integration Tests =====
 

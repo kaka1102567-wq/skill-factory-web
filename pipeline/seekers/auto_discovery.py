@@ -207,6 +207,22 @@ def _run_steps(domain, language, output_dir, claude_client, web_client,
             f"{len(analysis.search_queries)} content-based queries",
             phase="discovery",
         )
+    elif _is_generic_domain(domain):
+        # Generic domain + inference failed → ABORT discovery
+        # Let _maybeDiscoverFromContent (runs AFTER PDF extraction) handle it
+        logger.warn(
+            f"Domain '{domain}' is generic and content inference failed "
+            f"(no .md/.txt files in input yet?) — aborting discovery. "
+            f"Content-based discovery will retry after pre-processing.",
+            phase="discovery",
+        )
+        return DiscoveryResult(
+            success=False, output_dir=output_dir,
+            discovery_metadata={
+                "error": "generic_domain_no_content",
+                "domain": domain,
+            },
+        )
     else:
         analysis = analyze_domain(domain, language, claude_client, logger)
 
