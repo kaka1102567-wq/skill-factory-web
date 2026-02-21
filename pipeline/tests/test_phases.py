@@ -328,7 +328,7 @@ class TestP4Verify:
         with open(verified_path) as f:
             data = json.load(f)
         for atom in data["atoms"]:
-            assert atom["status"] in ("verified", "updated", "flagged")
+            assert atom["status"] in ("verified", "updated", "flagged", "unverified", "passthrough")
 
     def test_verify_no_input_fails(self, build_config, mock_claude, logger, seekers_cache, seekers_lookup):
         result = run_p4(build_config, mock_claude, seekers_cache, seekers_lookup, logger)
@@ -868,3 +868,176 @@ class TestSanitizeApiText:
         result = client._sanitize_api_text("hello\U0001F600world")
         assert "\U0001F600" not in result
         assert "hello" in result and "world" in result
+
+
+# ── Quality Score Tests ──────────────────────────────────
+
+
+class TestP2StructuralScore:
+
+    def test_p2_score_structural_not_confidence(self, build_config, mock_claude, logger, seekers_cache, seekers_lookup):
+        """P2 score reflects structural quality, not Claude confidence."""
+        result = run_p2(build_config, mock_claude, seekers_cache, seekers_lookup, logger)
+        assert result.status == "done"
+        # Score should not simply be avg_confidence * 100
+        # Mock atoms have confidence 0.88-0.92, so confidence-based = ~90
+        # Structural checks may penalize short content, missing tags, etc.
+        assert 0.0 <= result.quality_score <= 100.0
+
+    def test_p2_score_penalizes_short_content(self, build_config, mock_claude, logger, seekers_cache, seekers_lookup):
+        """Atoms with very short content get lower structural score."""
+        result = run_p2(build_config, mock_claude, seekers_cache, seekers_lookup, logger)
+        assert result.status == "done"
+        # Mock atoms have short content (<100 chars), so score should be penalized
+        assert result.quality_score < 95.0
+
+
+class TestP3BidirectionalScore:
+
+    def test_p3_score_ideal_range(self, build_config, mock_claude, logger, seekers_cache, seekers_lookup):
+        """Kept ratio in ideal range -> high score."""
+        # 3 raw atoms, mock keeps all 3 (tiny group, no Claude call)
+        atoms = [
+            {"id": f"atom_{i:04d}", "title": f"Atom {i}",
+             "content": f"Detailed content about topic {i} with enough words to be valid.",
+             "category": "general", "tags": ["a"], "confidence": 0.9, "status": "raw"}
+            for i in range(1, 4)
+        ]
+        write_json({"atoms": atoms, "total_atoms": 3, "score": 85.0},
+                    os.path.join(build_config.output_dir, "atoms_raw.json"))
+        result = run_p3(build_config, mock_claude, seekers_cache, seekers_lookup, logger)
+        assert result.status == "done"
+        # 3 atoms kept out of 3 = 100% kept, small set ideal is 70-95%
+        # 100% > 95% → slight under-dedup penalty
+        assert result.quality_score <= 95.0
+
+    def test_p3_score_under_dedup_penalty(self, build_config, mock_claude, logger, seekers_cache, seekers_lookup):
+        """Kept ratio = 1.0 (no dedup at all) -> penalized for medium+ sets."""
+        # 40 atoms, all kept = 100% kept, ideal for n>=30 is 50-85%
+        atoms = [
+            {"id": f"atom_{i:04d}", "title": f"Atom {i}",
+             "content": f"Content about topic {i}.",
+             "category": "campaign_management", "tags": ["a"], "confidence": 0.9, "status": "raw"}
+            for i in range(1, 41)
+        ]
+        write_json({"atoms": atoms, "total_atoms": 40, "score": 85.0},
+                    os.path.join(build_config.output_dir, "atoms_raw.json"))
+        result = run_p3(build_config, mock_claude, seekers_cache, seekers_lookup, logger)
+        assert result.status == "done"
+        # Mock Claude keeps all → under-dedup penalty applied
+        # Score should be below 90 (penalty for 100% kept when ideal is 50-85%)
+        assert result.quality_score < 90.0
+
+
+class TestP4EvidenceBasedScore:
+
+    def _setup_with_baseline(self, output_dir):
+        atoms = [
+            {"id": "atom_0001", "title": "Facebook Pixel Setup",
+             "content": "Setup Facebook Pixel with base code, standard events, and conversions API",
+             "category": "tools", "tags": ["pixel", "setup"], "confidence": 0.9, "status": "deduplicated"},
+            {"id": "atom_0002", "title": "Quantum Computing Tips",
+             "content": "Quantum entanglement enables faster computation across qubits",
+             "category": "advanced", "tags": ["quantum"], "confidence": 0.85, "status": "deduplicated"},
+        ]
+        write_json({"atoms": atoms, "total_atoms": 2, "score": 85.0},
+                    os.path.join(output_dir, "atoms_deduplicated.json"))
+        write_json({
+            "source": "skill_seekers",
+            "references": [
+                {"path": "references/pixel-setup.md",
+                 "content": "Facebook Pixel is a piece of code. Setup involves base code installation, adding standard events like Purchase and AddToCart, and connecting the Conversions API for server-side tracking."},
+            ],
+        }, os.path.join(output_dir, "baseline_summary.json"))
+
+    def test_p4_status_unverified_when_no_evidence(self, build_config, mock_claude, logger, seekers_cache, seekers_lookup):
+        """Atoms without baseline match -> status='unverified'."""
+        self._setup_with_baseline(build_config.output_dir)
+        build_config.quality_tier = "premium"
+        result = run_p4(build_config, mock_claude, seekers_cache, seekers_lookup, logger)
+        assert result.status == "done"
+
+        verified_path = os.path.join(build_config.output_dir, "atoms_verified.json")
+        with open(verified_path) as f:
+            data = json.load(f)
+
+        atom2 = next(a for a in data["atoms"] if a["id"] == "atom_0002")
+        assert atom2["status"] == "unverified"
+
+    def test_p4_status_passthrough_when_not_sampled(self, build_config, mock_claude, logger, seekers_cache, seekers_lookup):
+        """Non-sampled atoms -> status='passthrough'."""
+        # Create 20 atoms, draft tier samples ~30% = 6 atoms
+        atoms = [
+            {"id": f"atom_{i:04d}", "title": f"Atom {i}",
+             "content": f"Content about topic {i}",
+             "category": "general", "tags": ["a"], "confidence": 0.9, "status": "deduplicated"}
+            for i in range(1, 21)
+        ]
+        write_json({"atoms": atoms, "total_atoms": 20, "score": 85.0},
+                    os.path.join(build_config.output_dir, "atoms_deduplicated.json"))
+        result = run_p4(build_config, mock_claude, seekers_cache, seekers_lookup, logger)
+        assert result.status == "done"
+
+        verified_path = os.path.join(build_config.output_dir, "atoms_verified.json")
+        with open(verified_path) as f:
+            data = json.load(f)
+
+        passthrough = [a for a in data["atoms"] if a["status"] == "passthrough"]
+        assert len(passthrough) > 0, "Some atoms should be passthrough (not sampled)"
+
+    def test_p4_score_evidence_based(self, build_config, mock_claude, logger, seekers_cache, seekers_lookup):
+        """Score reflects evidence rate, not confidence."""
+        self._setup_with_baseline(build_config.output_dir)
+        build_config.quality_tier = "premium"
+        result = run_p4(build_config, mock_claude, seekers_cache, seekers_lookup, logger)
+        assert result.status == "done"
+        # 1 of 2 atoms has evidence → evidence_rate=0.5 → score much lower than old 85+
+        assert result.quality_score < 80.0
+
+
+class TestP5WeightedScore:
+
+    def _setup_full_pipeline_output(self, output_dir, p0_score=90, p2_score=85, p3_score=75, p4_score=40):
+        """Create all phase output files with known scores."""
+        write_json({"source": "skill_seekers", "references": [], "score": p0_score},
+                    os.path.join(output_dir, "baseline_summary.json"))
+        write_json({"topics": [], "score": 80.0},
+                    os.path.join(output_dir, "inventory.json"))
+        write_json({"atoms": [], "total_atoms": 0, "score": p2_score},
+                    os.path.join(output_dir, "atoms_raw.json"))
+        write_json({"atoms": [], "total_atoms": 0, "score": p3_score},
+                    os.path.join(output_dir, "atoms_deduplicated.json"))
+        atoms = [
+            {"id": "atom_0001", "title": "Atom A", "content": "Content about campaigns.",
+             "category": "campaign_management", "tags": ["campaign"], "confidence": 0.9,
+             "status": "verified", "verification_note": "OK"},
+            {"id": "atom_0002", "title": "Atom B", "content": "Content about pixel.",
+             "category": "pixel_tracking", "tags": ["pixel"], "confidence": 0.85,
+             "status": "verified", "verification_note": "OK"},
+        ]
+        write_json({"atoms": atoms, "total_atoms": 2, "score": p4_score},
+                    os.path.join(output_dir, "atoms_verified.json"))
+
+    def test_p5_final_score_weighted(self, build_config, mock_claude, logger, seekers_cache, seekers_lookup):
+        """Final score is weighted average, not just P5 confidence."""
+        self._setup_full_pipeline_output(build_config.output_dir)
+        result = run_p5(build_config, mock_claude, seekers_cache, seekers_lookup, logger)
+        assert result.status == "done"
+        # Score should reflect all phases, not just avg_confidence * 100
+        # With P4=40, score should be notably lower than old ~87
+        assert result.quality_score < 85.0
+
+    def test_p5_final_score_bad_baseline_cap(self, build_config, mock_claude, logger, seekers_cache, seekers_lookup):
+        """Bad baseline (P0<50) -> final score capped at 60."""
+        self._setup_full_pipeline_output(build_config.output_dir, p0_score=30)
+        result = run_p5(build_config, mock_claude, seekers_cache, seekers_lookup, logger)
+        assert result.status == "done"
+        assert result.quality_score <= 60.0
+
+    def test_p5_final_score_no_evidence_penalty(self, build_config, mock_claude, logger, seekers_cache, seekers_lookup):
+        """Low verification (P4<30) -> 20% penalty."""
+        self._setup_full_pipeline_output(build_config.output_dir, p4_score=20)
+        result = run_p5(build_config, mock_claude, seekers_cache, seekers_lookup, logger)
+        assert result.status == "done"
+        # P4 < 30 → score *= 0.8, so it should be lower
+        assert result.quality_score < 70.0

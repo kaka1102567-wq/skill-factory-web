@@ -168,7 +168,7 @@ class TestE2EDryRun:
         with open(os.path.join(self.output_dir, "atoms_verified.json")) as f:
             data = json.load(f)
         for atom in data["atoms"]:
-            assert atom["status"] in ("verified", "updated", "flagged")
+            assert atom["status"] in ("verified", "updated", "flagged", "unverified", "passthrough")
 
     def test_metadata_json_structure(self):
         """metadata.json has correct fields."""

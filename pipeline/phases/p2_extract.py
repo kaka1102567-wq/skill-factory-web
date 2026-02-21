@@ -171,11 +171,72 @@ def run_p2(config: BuildConfig, claude: ClaudeClient,
             phase=phase_id,
         )
 
-        # Calculate score
+        # Calculate score from MEASURABLE structural quality
+        if all_atoms:
+            checks_passed = 0
+            checks_total = 0
+
+            for atom in all_atoms:
+                content = atom.content if hasattr(atom, 'content') else atom.get("content", "")
+                category = atom.category if hasattr(atom, 'category') else atom.get("category", "")
+                tags = atom.tags if hasattr(atom, 'tags') else atom.get("tags", [])
+                title = atom.title if hasattr(atom, 'title') else atom.get("title", "")
+
+                # Check 1: Content length adequate (100-2000 chars)
+                checks_total += 1
+                if 100 <= len(content) <= 2000:
+                    checks_passed += 1
+
+                # Check 2: Content not truncated (ends with sentence-ender)
+                checks_total += 1
+                stripped = content.rstrip()
+                if stripped and stripped[-1] in '.!?\u3002\u2026':
+                    checks_passed += 1
+
+                # Check 3: Has meaningful category
+                checks_total += 1
+                if category and category.strip() and category.strip() != "general":
+                    checks_passed += 1
+
+                # Check 4: Has tags (>= 2)
+                checks_total += 1
+                if len(tags) >= 2:
+                    checks_passed += 1
+
+                # Check 5: Title is descriptive (3+ words)
+                checks_total += 1
+                if len(title.split()) >= 3:
+                    checks_passed += 1
+
+            structural_quality = (checks_passed / max(checks_total, 1)) * 100
+
+            # Completeness: atoms per chunk (target: 8-15 per chunk)
+            atoms_per_chunk = len(all_atoms) / max(total_chunks, 1)
+            if 8 <= atoms_per_chunk <= 15:
+                completeness_score = 100.0
+            elif atoms_per_chunk < 8:
+                completeness_score = max(50.0, (atoms_per_chunk / 8) * 100)
+            else:
+                completeness_score = max(70.0, 100.0 - (atoms_per_chunk - 15) * 3)
+
+            # Source diversity bonus
+            has_transcript = any(
+                (a.source if hasattr(a, 'source') else a.get("source", "")) == "transcript"
+                for a in all_atoms
+            )
+            has_gap_fill = any(
+                (a.gap_filled if hasattr(a, 'gap_filled') else a.get("gap_filled", False))
+                for a in all_atoms
+            )
+            diversity_bonus = 5.0 if (has_transcript and has_gap_fill) else 0.0
+
+            score = min(100.0, structural_quality * 0.6 + completeness_score * 0.4 + diversity_bonus)
+        else:
+            score = 0.0
+
         avg_confidence = (
             sum(a.confidence for a in all_atoms) / len(all_atoms)
         )
-        score = min(100.0, avg_confidence * 100)
 
         # Save output
         output_path = f"{config.output_dir}/atoms_raw.json"

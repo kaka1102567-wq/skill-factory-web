@@ -168,10 +168,46 @@ def run_p3(config: BuildConfig, claude: ClaudeClient,
         # Separate unresolved conflicts
         unresolved = [c for c in all_conflicts if not c.auto_resolved]
 
-        # Calculate score — higher kept ratio = cleaner extraction = better
+        # Calculate score — penalize BOTH over-dedup and under-dedup
         if raw_atoms:
             kept_ratio = len(all_unique_atoms) / len(raw_atoms)
-            score = min(100.0, 65.0 + kept_ratio * 35.0)
+
+            # Ideal kept_ratio depends on set size
+            n = len(raw_atoms)
+            if n < 30:
+                ideal_low, ideal_high = 0.70, 0.95
+            elif n < 100:
+                ideal_low, ideal_high = 0.50, 0.85
+            else:
+                ideal_low, ideal_high = 0.40, 0.75
+
+            if ideal_low <= kept_ratio <= ideal_high:
+                ratio_score = 90.0
+            elif kept_ratio > ideal_high:
+                # Under-dedup: kept too many -> missed duplicates
+                overshoot = (kept_ratio - ideal_high) / (1.0 - ideal_high)
+                ratio_score = 90.0 - overshoot * 25.0
+            else:
+                # Over-dedup: kept too few -> lost unique content
+                undershoot = (ideal_low - kept_ratio) / ideal_low
+                ratio_score = 90.0 - undershoot * 40.0
+
+            # Bonus for actual merges (not just deletions)
+            merge_bonus = min(10.0, total_duplicates * 2.0)
+
+            # Penalty for content integrity issues
+            integrity_penalty = 0.0
+            for atom in all_unique_atoms:
+                content = atom.get("content", "")
+                # Truncated content (ends mid-sentence)
+                if content and len(content) > 20 and not content.rstrip().endswith(('.', '!', '?', '\u3002', '\u2026')):
+                    integrity_penalty += 2.0
+                # Missing required fields
+                if not atom.get("category", "").strip():
+                    integrity_penalty += 3.0
+            integrity_penalty = min(20.0, integrity_penalty)
+
+            score = max(0.0, min(100.0, ratio_score + merge_bonus - integrity_penalty))
         else:
             score = 0.0
 

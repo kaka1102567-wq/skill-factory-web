@@ -168,7 +168,7 @@ def _verify_with_skill_seekers(atoms_to_verify, ss_references, logger):
             else:
                 weak_count += 1
         else:
-            atom["status"] = "verified"
+            atom["status"] = "unverified"
             atom["confidence"] = float(atom.get("confidence", 0.5))
             atom["verification_note"] = (
                 "Expert insight — not found in official docs"
@@ -410,23 +410,42 @@ def run_p4(config: BuildConfig, claude: ClaudeClient,
         # Mark non-sampled atoms as passthrough
         for atom in all_atoms:
             if atom.get("id") not in verified_ids:
-                atom["status"] = "verified"
+                atom["status"] = "passthrough"
                 atom.setdefault(
                     "verification_note", "Not sampled — passed through",
                 )
 
-        # Calculate score
+        # Calculate score based on MEASURABLE evidence, not Claude self-assessment
         if all_atoms:
-            avg_confidence = (
-                sum(float(a.get("confidence", 0.5)) for a in all_atoms)
-                / len(all_atoms)
+            total_sampled = max(total_to_verify, 1)
+
+            # Evidence rate: how many sampled atoms had real baseline matches
+            evidence_rate = verified_count / total_sampled
+
+            # Evidence strength: average match score of verified atoms
+            match_scores = []
+            for a in all_atoms:
+                ev = a.get("evidence", {})
+                if ev.get("found"):
+                    match_scores.append(ev.get("match_score", 0.0))
+            avg_match = (
+                sum(match_scores) / len(match_scores)
+                if match_scores else 0.0
             )
-            flagged_penalty = (
-                flagged_count / max(total_to_verify, 1)
-            ) * 20
-            score = min(
-                100.0, max(0.0, avg_confidence * 100 - flagged_penalty),
+
+            # Sampling coverage factor
+            sampling_factor = min(1.0, sample_pct / 100)
+
+            # Score components:
+            # - evidence_rate (0-1): 50% weight
+            # - avg_match (0-100): 30% weight
+            # - sampling_factor (0-1): 20% weight
+            score = (
+                evidence_rate * 50.0
+                + (avg_match / 100.0) * 30.0
+                + sampling_factor * 20.0
             )
+            score = min(100.0, max(0.0, score))
         else:
             score = 0.0
 

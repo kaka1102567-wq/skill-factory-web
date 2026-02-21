@@ -830,8 +830,64 @@ def run_p5(config: BuildConfig, claude: ClaudeClient,
         create_zip(config.output_dir, zip_path)
         output_files.append(zip_path)
 
-        # ── Report final quality ──
-        score = min(100.0, avg_confidence * 100)
+        # ── Report final quality — weighted average across all phases ──
+        phase_scores = {}
+        for fname, pid in [
+            ("baseline_summary.json", "p0"),
+            ("inventory.json", "p1"),
+            ("atoms_raw.json", "p2"),
+            ("atoms_deduplicated.json", "p3"),
+            ("atoms_verified.json", "p4"),
+        ]:
+            try:
+                data = read_json(f"{config.output_dir}/{fname}")
+                phase_scores[pid] = float(data.get("score", 0.0))
+            except Exception:
+                phase_scores[pid] = 0.0
+
+        # P5 own score: structural completeness
+        p5_checks = 0
+        p5_total = 5
+        if os.path.exists(skill_path):
+            p5_checks += 1
+        if pillar_names:
+            p5_checks += 1
+            if all(
+                os.path.exists(os.path.join(knowledge_dir, f"{p}.md"))
+                for p in pillar_names
+            ):
+                p5_checks += 1
+        if os.path.exists(zip_path):
+            p5_checks += 1
+        if build_atoms:
+            p5_checks += 1
+        p5_own = (p5_checks / p5_total) * 100.0
+        phase_scores["p5"] = p5_own
+
+        weights = {
+            "p0": 0.15, "p1": 0.10, "p2": 0.25,
+            "p3": 0.15, "p4": 0.20, "p5": 0.15,
+        }
+        score = sum(
+            phase_scores.get(pid, 0.0) * w
+            for pid, w in weights.items()
+        )
+        score = min(100.0, max(0.0, score))
+
+        # Hard penalties
+        if phase_scores.get("p0", 0) < 50:
+            score = min(score, 60.0)
+        if phase_scores.get("p4", 0) < 30:
+            score *= 0.8
+
+        breakdown = ", ".join(
+            f"{pid}={phase_scores.get(pid, 0):.0f}"
+            for pid in ["p0", "p1", "p2", "p3", "p4", "p5"]
+        )
+        logger.info(
+            f"Quality breakdown: {breakdown} -> final={score:.1f}",
+            phase=phase_id,
+        )
 
         atoms_extracted = verified_data.get("total_atoms", len(all_atoms))
         atoms_deduplicated = len(build_atoms)
@@ -839,11 +895,35 @@ def run_p5(config: BuildConfig, claude: ClaudeClient,
             1 for a in build_atoms
             if a.get("status") in ("verified", "updated")
         )
-        total_words = sum(
+        # Calculate REAL compression ratio
+        output_words = sum(
             len(a.get("content", "").split()) for a in build_atoms
         )
-        transcript_words = total_words * 10
-        compression = total_words / max(transcript_words, 1)
+
+        # Input words: read from P2 metrics or actual transcript files
+        input_words = 0
+        try:
+            raw_data = read_json(f"{config.output_dir}/atoms_raw.json")
+            chunks = raw_data.get("chunks_processed", 0)
+            if chunks > 0:
+                input_words = chunks * 1500
+        except Exception:
+            pass
+
+        if input_words == 0:
+            try:
+                for tp in config.transcript_paths:
+                    if os.path.exists(tp):
+                        with open(tp, "r", encoding="utf-8") as f:
+                            input_words += len(f.read().split())
+            except Exception:
+                pass
+
+        # Fallback: use output * 10 (old behavior)
+        if input_words == 0:
+            input_words = output_words * 10
+
+        compression = output_words / max(input_words, 1)
 
         logger.report_quality(
             quality_score=score,
