@@ -7,15 +7,18 @@ import type { Build } from "@/types/build";
 import type { PhaseState } from "@/hooks/use-build-stream";
 
 interface SmokeTest {
-  name: string;
+  prompt: string;
   passed: boolean;
-  detail?: string;
+  score?: number;
+  grade_notes?: string;
 }
 
 interface SmokeReport {
-  tests?: SmokeTest[];
-  passed?: number;
-  failed?: number;
+  results?: SmokeTest[];
+  pass_count?: number;
+  total?: number;
+  score?: number;
+  passed?: boolean;
 }
 
 interface P6Report {
@@ -158,17 +161,17 @@ export function QualityReport({
       )}
 
       {/* Smoke Tests */}
-      {smokeReport && smokeReport.tests && smokeReport.tests.length > 0 && (
+      {smokeReport && smokeReport.results && smokeReport.results.length > 0 && (
         <div className="p-4 rounded-xl bg-card border border-border">
           <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-            Smoke Tests ({smokeReport.passed ?? 0} passed
-            {(smokeReport.failed ?? 0) > 0 && (
-              <span className="text-red-400"> · {smokeReport.failed} failed</span>
+            Smoke Tests ({smokeReport.pass_count ?? 0} passed
+            {((smokeReport.total ?? 0) - (smokeReport.pass_count ?? 0)) > 0 && (
+              <span className="text-red-400"> · {(smokeReport.total ?? 0) - (smokeReport.pass_count ?? 0)} failed</span>
             )}
             )
           </h4>
           <div className="space-y-1.5">
-            {smokeReport.tests.map((t, i) => (
+            {smokeReport.results.map((t, i) => (
               <div key={i} className="flex items-center gap-2 text-sm">
                 {t.passed ? (
                   <CheckCircle className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
@@ -176,11 +179,11 @@ export function QualityReport({
                   <XCircle className="w-3.5 h-3.5 text-red-400 shrink-0" />
                 )}
                 <span className={t.passed ? "text-foreground" : "text-red-400"}>
-                  {t.name}
+                  {t.prompt}
                 </span>
-                {t.detail && (
+                {t.grade_notes && (
                   <span className="text-xs text-muted-foreground truncate">
-                    — {t.detail}
+                    — {t.grade_notes}
                   </span>
                 )}
               </div>
