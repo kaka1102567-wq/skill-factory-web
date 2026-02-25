@@ -958,6 +958,27 @@ def run_p5(config: BuildConfig, claude: ClaudeClient,
         if phase_scores.get("p4", 0) < 30:
             score *= 0.8
 
+        # Low atom density penalty: few atoms from large input
+        total_input_pages = 0
+        try:
+            for tp in config.transcript_paths:
+                if os.path.exists(tp):
+                    with open(tp, "r", encoding="utf-8") as f:
+                        content = f.read()
+                    # Count pages: markdown page markers or ~500 words per page
+                    page_markers = content.count("## Page ")
+                    total_input_pages += page_markers if page_markers > 0 else max(1, len(content.split()) // 500)
+        except Exception:
+            pass
+
+        if len(build_atoms) < 10 and total_input_pages > 20:
+            score = max(0.0, score - 20.0)
+            logger.warn(
+                f"Low atom density: only {len(build_atoms)} atoms from "
+                f"{total_input_pages} pages. Consider retrying build.",
+                phase=phase_id,
+            )
+
         breakdown = ", ".join(
             f"{pid}={phase_scores.get(pid, 0):.0f}"
             for pid in ["p0", "p1", "p2", "p3", "p4", "p5"]
