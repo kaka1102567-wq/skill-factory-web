@@ -13,7 +13,7 @@ RUN npm run build
 
 FROM node:20-slim AS runner
 WORKDIR /app
-RUN apt-get update && apt-get install -y python3 python3-pip && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y python3 python3-pip tesseract-ocr tesseract-ocr-vie && rm -rf /var/lib/apt/lists/*
 RUN mkdir -p /app/data/builds /app/data/uploads /app/data/logs /app/data/cache
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
