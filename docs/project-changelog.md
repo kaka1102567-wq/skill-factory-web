@@ -1,6 +1,23 @@
 # Project Changelog
 
-**Project:** skill-factory-web | **Updated:** 2026-02-25
+**Project:** skill-factory-web | **Updated:** 2026-02-26
+
+## Version 2.14.0 (2026-02-26) — Pipeline Resilience & UX Fixes
+
+### Pipeline Resilience
+- **P2 Zero-Atom Detection** — Raises `PhaseError` when all transcript chunks fail extraction, preventing garbage builds with only gap-fill atoms (was silently continuing with 0 transcript atoms)
+- **P2 Retry Backoff** — Exponential backoff for 502/524 server errors: 5s → 15s → 45s → 120s with 6 attempts (was 4s → 4s → 8s → 16s with 5 attempts)
+- **OCR Time Warning** — Warns users with estimated OCR duration when scanned PDF detected (~3-5 min/page × N pages)
+- **OCR Per-Page Timeout** — 5-minute timeout per page via ThreadPoolExecutor; timed-out pages skipped with warning, remaining pages continue
+- **Low Atom Density Penalty** — P5 applies -20 score penalty when < 10 atoms from > 20 input pages, with warning to retry build
+
+### Output Quality
+- **SKILL.md Routing Titles** — Uses descriptive titles from reference content (first heading/line) instead of raw filenames like "Ref 001 Tapchinganhang"
+- **SKILL.md Advanced Strategies** — Added introductory sentence and horizontal rules between strategies for better readability
+- **P6 Description Truncation** — Truncates at sentence boundary instead of hard-cutting mid-word at 1024 chars
+
+### Frontend
+- **Quality Report Atoms Count** — Displays total atoms (deduplicated count) instead of verified count; flow detail now reads "6 extracted → 6 deduped (1 verified)"
 
 ## Version 2.13.0 (2026-02-25) — V2 Upgrade Complete
 
