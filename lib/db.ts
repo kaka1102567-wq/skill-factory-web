@@ -9,8 +9,11 @@ let db: Database.Database | null = null;
 
 export function getDb(): Database.Database {
   if (!db) {
-    db = new Database(DB_PATH);
+    // Use in-memory DB during Next.js build to avoid file lock conflicts across workers
+    const dbPath = process.env.BUILD_PHASE === "1" ? ":memory:" : DB_PATH;
+    db = new Database(dbPath);
     db.pragma("journal_mode = WAL");
+    db.pragma("busy_timeout = 5000");
     db.pragma("foreign_keys = ON");
     initializeSchema(db);
   }
