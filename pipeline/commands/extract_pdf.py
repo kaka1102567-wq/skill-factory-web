@@ -21,6 +21,7 @@ if platform.system() == "Windows":
 MAX_PAGES = 500
 MAX_FILE_SIZE = 200 * 1024 * 1024  # 200MB
 MIN_TEXT_LENGTH = 20  # Minimum chars per page to consider extraction successful
+OCR_PAGE_TIMEOUT = 300  # 5 minutes max per page
 
 
 def _log(level: str, message: str) -> None:
@@ -183,6 +184,17 @@ def _clean_ocr_text(text: str) -> str:
     return text.strip()
 
 
+def _ocr_page_with_timeout(page, language: str = "vie+eng", dpi: int = 300) -> str | None:
+    """OCR a page with per-page timeout. Returns None on timeout, "" on error."""
+    from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        future = executor.submit(_ocr_page, page, language, dpi)
+        try:
+            return future.result(timeout=OCR_PAGE_TIMEOUT)
+        except FuturesTimeout:
+            return None
+
+
 def _ocr_page(page, language: str = "vie+eng", dpi: int = 300) -> str:
     """OCR a single PDF page using PyMuPDF pixmap + pytesseract."""
     try:
@@ -307,15 +319,26 @@ def extract_single_pdf(pdf_path: str, output_dir: str) -> str | None:
     if needs_ocr:
         has_tesseract = _check_tesseract()
         if has_tesseract:
-            _log("info", f"Scanned PDF detected ({empty_pages}/{page_count} pages empty). Using OCR (slower)...")
+            estimated_min = empty_pages * 4  # ~3-5 min per page average
+            _log("warn", (
+                f"Scanned PDF detected. OCR processing ~3-5 min per page. "
+                f"Estimated: {estimated_min} minutes for {empty_pages} pages"
+            ))
             ocr_count = 0
+            timeout_count = 0
             for i in range(page_count):
                 if len(pages_text[i].strip()) < MIN_TEXT_LENGTH:
-                    ocr_text = _ocr_page(doc[i])
-                    if ocr_text:
+                    ocr_text = _ocr_page_with_timeout(doc[i])
+                    if ocr_text is None:
+                        timeout_count += 1
+                        _log("warn", f"OCR timeout for page {i+1} (>{OCR_PAGE_TIMEOUT}s) — skipping")
+                    elif ocr_text:
                         pages_text[i] = ocr_text
                         ocr_count += 1
-            _log("info", f"OCR extracted text from {ocr_count}/{empty_pages} pages")
+            summary = f"OCR extracted text from {ocr_count}/{empty_pages} pages"
+            if timeout_count:
+                summary += f" ({timeout_count} timed out)"
+            _log("info", summary)
         else:
             _log("warn",
                 "Scanned PDF requires Tesseract OCR but it is not installed. "
