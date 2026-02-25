@@ -100,6 +100,35 @@ def _classify_atoms(atoms: list) -> dict:
     }
 
 
+def _extract_ref_title(ref: dict) -> str:
+    """Extract a descriptive title from reference content or URL.
+
+    Priority: first markdown heading > first non-empty line > URL path > filename.
+    """
+    content = ref.get("content", "")
+    if content:
+        for line in content.split("\n"):
+            stripped = line.strip()
+            # Match markdown heading (# Title)
+            if stripped.startswith("#"):
+                title = stripped.lstrip("#").strip()
+                if len(title) > 3:
+                    return title[:120]
+            # First non-empty text line as fallback
+            if stripped and not stripped.startswith("---") and len(stripped) > 5:
+                return stripped[:120]
+
+    url = ref.get("url", "")
+    if url:
+        # Use URL path as readable title
+        from urllib.parse import urlparse, unquote
+        path = unquote(urlparse(url).path).strip("/")
+        if path:
+            return path.split("/")[-1].replace("-", " ").replace("_", " ").title()[:120]
+
+    return ""
+
+
 def _build_routing_section(pillars: dict, references: list) -> str:
     """Build routing logic section for SKILL.md."""
     lines = ["## Routing Logic", ""]
@@ -111,7 +140,10 @@ def _build_routing_section(pillars: dict, references: list) -> str:
             ref_basename = os.path.basename(ref_path) if ref_path else ""
             if not ref_basename:
                 continue
-            name = ref_basename.replace(".md", "").replace("_", " ").replace("-", " ").title()
+            # Use descriptive title from content/URL instead of raw filename
+            name = _extract_ref_title(ref)
+            if not name:
+                name = ref_basename.replace(".md", "").replace("_", " ").replace("-", " ").title()
             lines.append(
                 f"- If user asks about **{name}** "
                 f"-> see `references/{ref_basename}`"
