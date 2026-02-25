@@ -195,8 +195,14 @@ def _build_advanced_section(verified_atoms: list) -> str:
     if not advanced:
         return ""
 
-    lines = ["## Advanced Strategies", ""]
-    for atom in advanced[:10]:
+    lines = [
+        "## Advanced Strategies", "",
+        "The following expert insights cover key patterns and best practices in this domain:", "",
+    ]
+    for i, atom in enumerate(advanced[:10]):
+        if i > 0:
+            lines.append("---")
+            lines.append("")
         lines.append(f"### {atom.get('title', 'Strategy')}")
         lines.append("")
         lines.append(atom.get("content", ""))
