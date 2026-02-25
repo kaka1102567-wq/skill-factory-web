@@ -311,10 +311,10 @@ def _split_eval_set(eval_set, holdout=0.4, seed=42):
 
 
 def _build_skills_list(skill_name: str, description: str) -> str:
-    """Build skills list with target skill + decoy skills for realistic simulation."""
-    lines = [f"1. {skill_name}: {description}"]
-    for i, (name, desc) in enumerate(DECOY_SKILLS, start=2):
-        lines.append(f"{i}. {name}: {desc}")
+    """Build skills list with target skill + decoy skills, randomized to avoid position bias."""
+    skills = [(skill_name, description)] + list(DECOY_SKILLS)
+    random.shuffle(skills)
+    lines = [f"{i+1}. {name}: {desc}" for i, (name, desc) in enumerate(skills)]
     return "\n".join(lines)
 
 

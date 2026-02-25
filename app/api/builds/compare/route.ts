@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getBuild } from "@/lib/db";
+import { isInsideBuildDir } from "@/lib/path-guard";
 import fs from "fs";
 import path from "path";
 
@@ -61,6 +62,10 @@ export async function GET(req: Request) {
 
   const dirA = buildA.output_path || path.join(process.cwd(), "data", "builds", aId, "output");
   const dirB = buildB.output_path || path.join(process.cwd(), "data", "builds", bId, "output");
+
+  if (!isInsideBuildDir(dirA) || !isInsideBuildDir(dirB)) {
+    return NextResponse.json({ error: "Invalid build path" }, { status: 403 });
+  }
 
   const reportA = readReport(dirA);
   const reportB = readReport(dirB);

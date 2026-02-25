@@ -237,8 +237,8 @@ PHASE_MODEL_MAP = {
     "premium": {
         "p1": False,  # Sonnet
         "p2": False,  # Sonnet
-        "p3": False,  # Sonnet (code hardcodes True, map ignored)
-        "p4": False,  # Sonnet (code hardcodes True, map ignored)
+        "p3": True,   # Haiku (hardcoded in phase code)
+        "p4": True,   # Haiku (hardcoded in phase code)
         "p5": False,  # Sonnet
         "p55": False, # Sonnet
         "p6": False,  # Sonnet

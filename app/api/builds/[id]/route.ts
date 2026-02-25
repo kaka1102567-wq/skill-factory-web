@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getBuild, getBuildLogs, deleteBuild } from "@/lib/db";
 import { isBuildRunning } from "@/lib/build-runner";
+import { isInsideBuildDir } from "@/lib/path-guard";
 import fs from "fs";
 import path from "path";
 
@@ -20,6 +21,9 @@ export async function GET(
   // Serve SKILL.md content
   if (content === "skill") {
     const outputDir = build.output_path || path.join(process.cwd(), "data", "builds", id, "output");
+    if (!isInsideBuildDir(outputDir)) {
+      return NextResponse.json({ error: "Invalid build path" }, { status: 403 });
+    }
     const candidates = [
       path.join(outputDir, "SKILL.md"),
       path.join(outputDir, "claude", "SKILL.md"),
@@ -35,6 +39,9 @@ export async function GET(
   // Serve knowledge files
   if (content === "knowledge") {
     const outputDir = build.output_path || path.join(process.cwd(), "data", "builds", id, "output");
+    if (!isInsideBuildDir(outputDir)) {
+      return NextResponse.json({ error: "Invalid build path" }, { status: 403 });
+    }
     const candidates = [
       path.join(outputDir, "knowledge"),
       path.join(outputDir, "claude", "knowledge"),

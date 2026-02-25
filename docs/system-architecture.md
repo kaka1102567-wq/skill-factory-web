@@ -55,15 +55,17 @@
                               │
                               ↓
 ┌────────────────────────────────────────────────────────────────┐
-│              PYTHON PIPELINE (6 Phases)                        │
+│              PYTHON PIPELINE (7 Phases + Inline P55)         │
 │  cli.py → runner.py → orchestrator/runner.py                  │
 │                                                                 │
 │  P0: Baseline      (skill-seekers + web scraping)            │
-│  P1: Audit         (Claude Sonnet — transcript analysis)      │
-│  P2: Extract       (Claude Sonnet — knowledge atoms)          │
-│  P3: Dedup         (Claude Haiku — merge duplicates)          │
-│  P4: Verify        (Claude Haiku — evidence validation)       │
-│  P5: Architect     (Claude Sonnet — SKILL.md generation)      │
+│  P1: Audit         (WHY-driven transcript analysis)           │
+│  P2: Extract       (WHY-driven knowledge atoms)               │
+│  P3: Dedup         (Merge duplicates with conflict tracking)  │
+│  P4: Verify        (Evidence validation + P55 inline check)   │
+│  P55: Smoke Test   (Non-blocking structural validation)       │
+│  P5: Architect     (SKILL.md generation + P6 optimizer)       │
+│  P6: Optimize      (Refine descriptions for marketplace)      │
 │                                                                 │
 │  Outputs: JSON artifacts + logs → stdout (JSON-line format)   │
 └────────────────────────────────────────────────────────────────┘
@@ -93,12 +95,13 @@
 | Page | Route | Components | Purpose |
 |------|-------|-----------|---------|
 | Dashboard | `/` | stats-bar, recent-builds, build-card | Overview of all builds |
-| Build Wizard | `/build/new` | build-wizard, 5 step-* components | Create new build |
-| Build Monitor | `/build/[id]` | phase-stepper, log-viewer, quality-report | Real-time progress |
+| Build Wizard | `/build/new` | build-wizard, 5 step-* components, progressive-disclosure | Create new build |
+| Build Monitor | `/build/[id]` | phase-stepper, log-viewer, quality-report (v2), eval-trigger | Real-time progress |
+| Build Compare | `/compare` | side-by-side build viewer, diff highlights | Compare two builds |
 | Library | `/library` | skill list with search/filter | Browse completed skills |
 | Templates | `/templates` | template cards with preview | Browse templates |
 | Baselines | `/baselines` | baseline list, CRUD form | Manage reference docs |
-| Settings | `/settings` | key-value form, cleanup trigger | Configure app |
+| Settings | `/settings` | key-value form, cleanup trigger, feedback-widget | Configure app |
 
 ### Custom Hooks
 
@@ -182,6 +185,11 @@ const { logs, currentPhase, quality, cost, complete } = useBuildStream(buildId);
 
 **Uploads:**
 - POST /api/uploads: Upload files (transcripts, PDFs) → return temp path
+
+**Evaluation & Reports:**
+- POST /api/reports: Generate quality report with smoke test and P6 data
+- POST /api/compare: Compare two builds (metrics, atoms, quality)
+- POST /api/feedback: Submit user feedback on build quality
 
 **Settings:**
 - GET /api/settings: Read all settings
@@ -364,9 +372,10 @@ class SSEManager {
 | `phase` | {phase, status, progress} | Once per phase start/end | Update stepper |
 | `log` | {timestamp, level, phase, message} | Per log line | Append to log viewer |
 | `quality` | {phase, score, details} | Once per phase end | Show scores |
+| `smoke_test` | {status, issues[], recommendations} | Once at P55 | Display validation report |
 | `cost` | {phase, tokens, usd} | Once per phase end | Track cost |
 | `conflict` | {count, samples} | Once if conflicts | Flag review needed |
-| `package` | {path, size, atoms} | Once at P5 end | Show download |
+| `package` | {path, size, atoms} | Once at P6 end | Show download |
 | `complete` | {status, totalTime} | Once at end | Enable download |
 | `error` | {level, message, fatal} | On error | Display error banner |
 
@@ -401,26 +410,26 @@ On complete:
 - Output: `baseline_summary.json` { topics: [...], refs_count, content_depth }
 - Quality: Content depth (40%) + diversity (30%) + relevance (30%)
 
-**P1: Audit (Claude Sonnet)**
+**P1: Audit (Claude Sonnet — WHY-driven)**
 - Input: Transcripts + baseline
-- Process: Analyze topic density, category coverage, balance
+- Process: Analyze WHY topic matters, category alignment, knowledge gaps
 - Output: `inventory.json` { topics: [...], categories: [...], stats }
-- Quality: Topic density (30%) + depth distribution (25%) + category (20%) + balance (25%)
+- Quality: Topic relevance (30%) + depth distribution (25%) + category fit (20%) + balance (25%)
 
-**P2: Extract (Claude Sonnet — Most Expensive)**
+**P2: Extract (Claude Sonnet — WHY-driven, Most Expensive)**
 - Input: All sources (transcripts, PDFs, URLs, repo)
-- Process: Chunk sources → Claude calls → extract KnowledgeAtoms
-- Output: `atoms_raw.json` { atoms: [{ id, title, content, source, tokens }] }
-- Quality: Structural quality (60%) + completeness (40%) + diversity bonus (+5)
-- Cost: ~$5-15 per build (Sonnet input)
+- Process: Chunk sources → Claude calls → extract KnowledgeAtoms with WHY context
+- Output: `atoms_raw.json` { atoms: [{ id, title, content, why, source, tokens }] }
+- Quality: Structural quality (60%) + completeness (40%) + WHY context bonus (+5)
+- Cost: ~$5-15 per build (varies by model tier via PHASE_MODEL_MAP)
 
 **P3: Dedup (Claude Haiku)**
 - Input: atoms_raw.json
 - Process: Pairwise similarity check → merge duplicates OR flag conflicts
 - Output: `atoms_deduplicated.json` + `conflicts.json` (if not auto-resolved)
-- Status: **PAUSES** if conflicts found → user must review
+- Status: **PAUSES** if conflicts found → user reviews via conflict UI
 - Quality: Kept ratio vs ideal (90 pts) + merge bonus (10 pts) - penalties
-- Resume: POST /api/builds/[id]/review with decisions → continue P3 → P4 → P5
+- Resume: POST /api/builds/[id]/review with decisions → continue P4 → P55 → P5 → P6
 
 **P4: Verify (Claude Haiku)**
 - Input: atoms_deduplicated.json
@@ -428,12 +437,28 @@ On complete:
 - Output: `atoms_verified.json` { atoms: [...with evidence flags] }
 - Quality: Evidence rate (50%) + match score (30%) + coverage (20%)
 
-**P5: Architect (Claude Sonnet)**
-- Input: atoms_verified.json
-- Process: Generate SKILL.md, organize knowledge files, create references
-- Output: SKILL.md + knowledge/*.md + references.json + package.zip
+**P55: Smoke Test (Inline Validation — Non-blocking)**
+- Input: atoms_verified.json (during P4 verification)
+- Process: Structural sanity checks (min atoms, token limits, required fields)
+- Output: Validation report + recommendations
+- Status: Non-blocking; issues noted in quality report
+- Purpose: Catch issues early, save compute cost before P5/P6
+
+**P5: Architect (Claude Sonnet — WHY-driven)**
+- Input: atoms_verified.json + domain_lessons (self-improvement)
+- Process: Generate SKILL.md, organize knowledge files, enforce progressive disclosure
+- Output: SKILL.md + knowledge/*.md + references.json + scripts/ (auto-bundled)
 - Quality: Weighted rollup of P0-P5 (coefficients: 0.15, 0.10, 0.25, 0.15, 0.20, 0.15)
-- Hard fail: < 50 atoms, > 40% conflicts, missing SKILL.md, token limit exceeded
+- Features: Auto-bundle attached scripts, inject domain_lessons, enforce disclosure
+- Hard fail: < 50 atoms, > 40% conflicts, missing SKILL.md
+
+**P6: Optimizer (Claude Sonnet — Description Refinement)**
+- Input: SKILL.md from P5
+- Process: Refine descriptions for clarity, brevity, marketplace appeal
+- Output: Optimized SKILL.md (inlined into package.zip)
+- Quality: Readability + conciseness for skill discovery
+- Cost: ~$1-2 additional per build
+- Purpose: Better marketplace positioning and user comprehension
 
 **Output Structure:**
 ```
@@ -445,12 +470,16 @@ On complete:
 ├── atoms_deduplicated.json (P3)
 ├── conflicts.json          (P3 optional)
 ├── atoms_verified.json     (P4)
-├── SKILL.md                (P5)
+├── smoke_test_report.json  (P55)
+├── SKILL.md                (P5, optimized by P6)
 ├── knowledge/
 │   ├── {atom_id}.md
 │   └── ...
+├── scripts/                (auto-bundled from source)
+│   ├── helper.py
+│   └── ...
 ├── references.json         (P5)
-├── package.zip             (P5 final)
+├── package.zip             (P5+P6 final)
 └── pipeline.log            (all logs)
 ```
 
@@ -674,6 +703,26 @@ server {
 sudo certbot --nginx -d factory.example.com
 ```
 
+## Multi-Model Strategy (v2.13)
+
+**PHASE_MODEL_MAP Configuration:**
+Routes phases to different Claude models based on quality tier and cost optimization.
+
+| Phase | Draft Tier | Standard Tier | Premium Tier |
+|-------|-----------|--------------|-------------|
+| P0 | Seekers (external) | Seekers (external) | Seekers (external) |
+| P1 | Haiku | Sonnet | Sonnet |
+| P2 | Haiku | Sonnet | Sonnet |
+| P3 | Haiku | Haiku | Haiku |
+| P4 | Haiku | Haiku | Sonnet |
+| P5 | Sonnet | Sonnet | Sonnet |
+| P6 | Haiku | Sonnet | Sonnet |
+
+**Cost Optimization:**
+- Draft tier: 30-40% lower cost (Haiku for P1, P2, P6)
+- Standard tier: Balanced quality/cost (mix of Haiku and Sonnet)
+- Premium tier: Maximum quality (Sonnet for P4, P5, P6)
+
 ## Scalability & Future Improvements
 
 **Current Constraints:**
@@ -696,12 +745,16 @@ sudo certbot --nginx -d factory.example.com
 |-----------|------------------|-------|
 | Build startup | 5-10 sec | Queue + spawn overhead |
 | P0 Baseline | 20-60 sec | Web scraping (depends on domain) |
-| P1 Audit | 30-90 sec | Claude API latency + tokens |
-| P2 Extract | 3-10 min | Most expensive (Claude API) |
-| P3 Dedup | 1-3 min | Claude API + conflict detection |
-| P4 Verify | 1-3 min | Claude API + sampling |
-| P5 Architect | 2-5 min | Final generation + packaging |
-| **Total (Standard)** | **~15 min** | Varies by source size |
+| P1 Audit | 30-90 sec | Claude API (model varies by tier) |
+| P2 Extract | 3-10 min | Most expensive (model varies by tier) |
+| P3 Dedup | 1-3 min | Claude Haiku + conflict detection |
+| P4 Verify | 1-3 min | Claude Haiku + sampling |
+| P55 Smoke Test | < 30 sec | Inline validation (non-blocking) |
+| P5 Architect | 2-5 min | Final generation + script bundling |
+| P6 Optimize | 1-2 min | Claude (model varies by tier) |
+| **Total (Draft)** | **~12 min** | Lower cost, Haiku for P1/P2/P6 |
+| **Total (Standard)** | **~15 min** | Balanced quality/cost |
+| **Total (Premium)** | **~18 min** | Maximum quality (Sonnet) |
 | SSE event latency | < 1 sec | JSON parse + broadcast |
 | API response | < 500 ms | Median (DB + JSON) |
 | Download package | < 10 sec | Zip compression on-disk |

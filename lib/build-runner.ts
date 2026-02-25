@@ -590,7 +590,11 @@ function _spawnPipeline(config: BuildConfig, pythonPath: string, cliPath: string
   const creds = _resolveApiCredentials(configContent);
   const seekersCacheDir = getSetting("seekers_cache_dir") || process.env.SEEKERS_CACHE_DIR || "./data/cache";
   const domain = parseYamlValue(configContent, "domain") || "";
-  const domainLessons = getDomainLessons(domain);
+  // Truncate at last newline before 8000 chars to avoid cutting mid-line
+  const rawLessons = getDomainLessons(domain);
+  const domainLessons = rawLessons.length > 8000
+    ? rawLessons.slice(0, rawLessons.lastIndexOf("\n", 8000) || 8000)
+    : rawLessons;
 
   console.log("[BUILD] pipeline spawn:", { hasApiKey: !!creds.apiKey, apiKeySource: creds.apiKeySource, baseUrl: creds.baseUrl || "(direct)", hasDomainLessons: !!domainLessons });
 

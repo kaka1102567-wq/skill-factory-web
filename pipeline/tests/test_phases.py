@@ -1471,5 +1471,11 @@ class TestMultiModelStrategy:
 
     def test_premium_uses_full_for_all(self):
         from pipeline.core.types import PHASE_MODEL_MAP
+        # P3 and P4 are hardcoded to use light models in their phase implementations
+        # See UPGRADE-PLAN section 7A: "P3/P4 HARDCODE use_light_model=True"
+        expected_full_model_phases = {"p1", "p2", "p5", "p55", "p6"}
         for phase_id, use_light in PHASE_MODEL_MAP["premium"].items():
-            assert use_light is False, f"Premium should use full model for {phase_id}"
+            if phase_id in {"p3", "p4"}:
+                assert use_light is True, f"P3/P4 must remain hardcoded True: {phase_id}"
+            elif phase_id in expected_full_model_phases:
+                assert use_light is False, f"Premium {phase_id} should use full model"
