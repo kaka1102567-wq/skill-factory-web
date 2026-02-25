@@ -4,6 +4,9 @@ import path from "path";
 import { existsSync } from "fs";
 import { v4 as uuidv4 } from "uuid";
 
+export const runtime = "nodejs";
+export const maxDuration = 300;
+
 const ALLOWED_EXTENSIONS = [".txt", ".md", ".pdf", ".json", ".yaml", ".yml", ".csv"];
 const MAX_FILE_SIZE = 200 * 1024 * 1024; // 200MB
 
