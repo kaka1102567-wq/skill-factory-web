@@ -769,6 +769,32 @@ def run_p5(config: BuildConfig, claude: ClaudeClient,
                 config, pillars, build_atoms, claude, logger,
             )
 
+        # ── Progressive disclosure check ──
+        description = ""
+        if isinstance(skill_content, str):
+            # Try to extract description from YAML frontmatter
+            import yaml as _yaml
+            try:
+                if skill_content.startswith("---"):
+                    parts = skill_content.split("---", 2)
+                    if len(parts) >= 3:
+                        fm = _yaml.safe_load(parts[1])
+                        if isinstance(fm, dict):
+                            description = fm.get("description", "")
+            except Exception:
+                pass
+
+        # Collect knowledge file contents for checking
+        knowledge_contents = {}
+        if os.path.isdir(knowledge_dir):
+            from pathlib import Path
+            for kf_path in sorted(Path(knowledge_dir).glob("*.md")):
+                knowledge_contents[kf_path.stem] = kf_path.read_text(encoding="utf-8")
+
+        skill_content, pd_warnings = _enforce_progressive_disclosure(
+            skill_content, description, knowledge_contents, logger
+        )
+
         skill_path = os.path.join(config.output_dir, "SKILL.md")
         write_file(skill_path, skill_content)
         output_files.append(skill_path)
@@ -788,6 +814,20 @@ def run_p5(config: BuildConfig, claude: ClaudeClient,
             config, config.output_dir, build_atoms,
             avg_confidence, logger,
         )
+
+        # ── Step 2.7: Auto-bundle utility scripts ──
+        _topics_str = ", ".join(
+            a.get("title", "") for a in build_atoms[:30] if a.get("title")
+        )
+        scripts = _maybe_bundle_scripts(
+            config, claude, build_atoms, _topics_str, logger,
+        )
+        for script in scripts:
+            script_dir = os.path.join(config.output_dir, "scripts")
+            os.makedirs(script_dir, exist_ok=True)
+            script_path = os.path.join(script_dir, script.get("name", "script.py"))
+            write_file(script_path, script.get("code", ""))
+            output_files.append(script_path)
 
         # ── Step 3: Write metadata.json ──
         metadata = {
@@ -976,6 +1016,14 @@ def _build_skill_md_via_claude(config, pillars, build_atoms,
         quality_tier=config.quality_tier,
     )
 
+    if config.domain_lessons:
+        # Wrap in XML delimiters to prevent prompt injection from user feedback
+        user_prompt += (
+            "\n\n<previous_build_lessons>\n"
+            f"{config.domain_lessons}\n"
+            "</previous_build_lessons>"
+        )
+
     try:
         result = claude.call_json(
             system=P5_SKILL_SYSTEM, user=user_prompt,
@@ -993,6 +1041,110 @@ def _build_skill_md_via_claude(config, pillars, build_atoms,
             phase="p5",
         )
         return _generate_fallback_skill(config, pillars, build_atoms)
+
+
+def _enforce_progressive_disclosure(
+    skill_content: str,
+    description: str,
+    knowledge_files: dict[str, str],
+    logger: PipelineLogger,
+) -> tuple[str, list[str]]:
+    """Enforce Anthropic's progressive disclosure guidelines.
+
+    Returns (possibly_modified_content, list_of_warnings).
+
+    Guidelines (from Anthropic Skill Creator source):
+    - L1 (description): 80-200 words, under 1024 chars
+    - L2 (SKILL.md body): under 500 lines
+    - L3 (knowledge files): unlimited but should have TOC if >300 lines
+    """
+    warnings = []
+
+    # Check 1: Description length
+    desc_words = len(description.split())
+    desc_chars = len(description)
+    if desc_chars > 1024:
+        warnings.append(
+            f"⚠️ Description {desc_chars} chars > 1024 limit — "
+            "may be truncated by Claude's system"
+        )
+    if desc_words > 200:
+        warnings.append(
+            f"⚠️ Description {desc_words} words > 200 recommended — "
+            "consider shortening for faster parsing"
+        )
+    if desc_words < 50:
+        warnings.append(
+            f"⚠️ Description only {desc_words} words — "
+            "too short, likely to undertrigger. Add more keywords and scenarios"
+        )
+
+    # Check 2: Body length
+    body_lines = skill_content.split('\n')
+    in_frontmatter = False
+    content_lines = 0
+    for line in body_lines:
+        if line.strip() == '---':
+            in_frontmatter = not in_frontmatter
+            continue
+        if not in_frontmatter:
+            content_lines += 1
+
+    if content_lines > 500:
+        warnings.append(
+            f"⚠️ SKILL.md body {content_lines} lines > 500 recommended — "
+            "Claude may not read the entire file. "
+            "Consider moving detailed content to knowledge/*.md"
+        )
+
+    # Check 3: Knowledge files
+    for name, content in knowledge_files.items():
+        file_lines = len(content.split('\n'))
+        if file_lines > 300:
+            has_toc = '## Table of Contents' in content or '## Mục lục' in content
+            if not has_toc:
+                warnings.append(
+                    f"⚠️ knowledge/{name}.md is {file_lines} lines — "
+                    "consider adding a Table of Contents at the top"
+                )
+
+    for w in warnings:
+        logger.warn(w, phase="p5")
+
+    if not warnings:
+        logger.info(
+            f"✅ Progressive disclosure check passed: "
+            f"desc={desc_words}w/{desc_chars}c, body={content_lines}L",
+            phase="p5",
+        )
+
+    return skill_content, warnings
+
+
+def _maybe_bundle_scripts(config, claude, atoms, topics_str, logger) -> list[dict]:
+    """Auto-generate helper scripts for standard/premium tiers."""
+    if config.quality_tier == "draft":
+        return []
+    if not claude:
+        return []
+
+    from ..prompts.p5_script_prompts import P5_SCRIPT_SYSTEM, P5_SCRIPT_USER
+
+    try:
+        result = claude.call_json(
+            system=P5_SCRIPT_SYSTEM,
+            user=P5_SCRIPT_USER.format(
+                name=config.name, domain=config.domain,
+                language=config.language, topics=topics_str,
+            ),
+            max_tokens=4096, phase="p5", use_light_model=True,
+        )
+        scripts = result.get("scripts", []) if isinstance(result, dict) else []
+        logger.info(f"Generated {len(scripts)} utility scripts", phase="p5")
+        return scripts
+    except Exception as e:
+        logger.warn(f"Script bundler error: {e}", phase="p5")
+        return []
 
 
 def _generate_fallback_skill(config: BuildConfig, pillars: dict,

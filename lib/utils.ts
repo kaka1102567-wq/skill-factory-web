@@ -87,13 +87,16 @@ export function getPhaseLabel(phase: PhaseId): string {
     p3: "Deduplicate",
     p4: "Verify",
     p5: "Architect",
+    p6: "Optimize",
   };
   return labels[phase];
 }
 
+const PHASE_IDS: PhaseId[] = ["p0", "p1", "p2", "p3", "p4", "p5", "p6"];
+
 export function getOverallProgress(currentPhase: PhaseId | null, phaseProgress: number): number {
   if (!currentPhase) return 0;
-  const phaseIndex = parseInt(currentPhase.replace("p", ""));
-  const phaseWeight = 100 / 6;
+  const phaseIndex = PHASE_IDS.indexOf(currentPhase);
+  const phaseWeight = 100 / PHASE_IDS.length;
   return Math.round(phaseIndex * phaseWeight + (phaseProgress / 100) * phaseWeight);
 }

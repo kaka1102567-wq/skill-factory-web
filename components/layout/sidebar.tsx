@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard, PlusCircle, FolderOpen,
-  Package, Database, Settings, Factory, ChevronLeft, ChevronRight, X
+  Package, Database, Settings, Factory, ChevronLeft, ChevronRight, X, GitCompare
 } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import { cn, getStatusColor } from "@/lib/utils";
@@ -13,6 +13,7 @@ import type { Build } from "@/types/build";
 const NAV_ITEMS = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/build/new", label: "New Build", icon: PlusCircle },
+  { href: "/compare", label: "Compare", icon: GitCompare },
   { href: "/templates", label: "Templates", icon: FolderOpen },
   { href: "/library", label: "Skills Library", icon: Package },
   { href: "/baselines", label: "Baselines", icon: Database },

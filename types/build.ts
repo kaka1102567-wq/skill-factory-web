@@ -1,5 +1,5 @@
 export type BuildStatus = "pending" | "queued" | "running" | "paused" | "completed" | "failed";
-export type PhaseId = "p0" | "p1" | "p2" | "p3" | "p4" | "p5";
+export type PhaseId = "p0" | "p1" | "p2" | "p3" | "p4" | "p5" | "p6";
 export type QualityTier = "draft" | "standard" | "premium";
 export type LogLevel = "debug" | "info" | "warn" | "error" | "phase";
 
@@ -79,4 +79,5 @@ export const PHASES: Omit<PhaseInfo, "status" | "score" | "progress">[] = [
   { id: "p3", name: "Deduplicate", icon: "🔄", tool: "Claude+Seekers" },
   { id: "p4", name: "Verify", icon: "✅", tool: "Seekers+Claude" },
   { id: "p5", name: "Architect", icon: "📦", tool: "Claude+Seekers" },
+  { id: "p6", name: "Optimize", icon: "🎯", tool: "Claude" },
 ];

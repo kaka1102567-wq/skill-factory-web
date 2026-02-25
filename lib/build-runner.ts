@@ -7,6 +7,7 @@ import { notifyBuildComplete } from "./notifications";
 import { parseYamlValue, baselineExists, findSeekersConfig, spawnScrape } from "./baseline-scraper";
 import { getBaselineForDomain } from "./baseline-registry";
 import { yamlStr } from "./config-generator";
+import { getDomainLessons } from "./feedback";
 import type { PhaseId } from "@/types/build";
 
 // ─── Shared API credentials resolver ────────────────────
@@ -588,8 +589,10 @@ function _spawnPipeline(config: BuildConfig, pythonPath: string, cliPath: string
   const configContent = fs.readFileSync(config.configPath, "utf-8");
   const creds = _resolveApiCredentials(configContent);
   const seekersCacheDir = getSetting("seekers_cache_dir") || process.env.SEEKERS_CACHE_DIR || "./data/cache";
+  const domain = parseYamlValue(configContent, "domain") || "";
+  const domainLessons = getDomainLessons(domain);
 
-  console.log("[BUILD] pipeline spawn:", { hasApiKey: !!creds.apiKey, apiKeySource: creds.apiKeySource, baseUrl: creds.baseUrl || "(direct)" });
+  console.log("[BUILD] pipeline spawn:", { hasApiKey: !!creds.apiKey, apiKeySource: creds.apiKeySource, baseUrl: creds.baseUrl || "(direct)", hasDomainLessons: !!domainLessons });
 
   const proc = spawn(pythonPath, [
     cliPath, "build",
@@ -607,6 +610,7 @@ function _spawnPipeline(config: BuildConfig, pythonPath: string, cliPath: string
       SEEKERS_CACHE_DIR: seekersCacheDir,
       CLAUDE_BASE_URL: creds.baseUrl,
       CLAUDE_MODEL_LIGHT: creds.modelLight,
+      DOMAIN_LESSONS: domainLessons,
     },
   });
 

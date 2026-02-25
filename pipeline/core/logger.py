@@ -33,6 +33,10 @@ class PipelineLogger:
     # ── Phase events ──
 
     def phase_start(self, phase: str, name: str, tool: str = "Claude") -> None:
+        # Sub-phase IDs (e.g. "p55") must NOT emit phase events — breaks frontend parseInt
+        if len(phase) > 2:
+            self.warn(f"Skipping phase_start for sub-phase '{phase}' — use info() instead")
+            return
         self._emit({"event": "phase", "phase": phase, "name": name,
                      "status": "running", "progress": 0})
         self.info(f"▶ Starting {name} phase ({tool})...", phase=phase)

@@ -1374,3 +1374,102 @@ class TestDiscoveryRelevanceScore:
         good_score = _score_refs_quality(good_refs, ["chatbot", "customer service"])
         bad_score = _score_refs_quality(bad_refs, ["chatbot", "customer service"])
         assert good_score > bad_score
+
+
+class TestP6Optimize:
+    def test_extract_description_double_quoted(self):
+        from pipeline.phases.p6_optimize import _extract_description
+        md = '---\nname: test\ndescription: "Use this for testing"\n---\n# Test'
+        assert _extract_description(md) == "Use this for testing"
+
+    def test_extract_description_unquoted(self):
+        from pipeline.phases.p6_optimize import _extract_description
+        md = '---\nname: test\ndescription: Use this for testing\n---\n# Test'
+        assert _extract_description(md) == "Use this for testing"
+
+    def test_extract_description_folded_scalar(self):
+        from pipeline.phases.p6_optimize import _extract_description
+        md = '---\nname: test\ndescription: >\n  Multi-line\n  folded scalar\n---\n# Body'
+        desc = _extract_description(md)
+        assert 'Multi-line' in desc and 'folded' in desc
+
+    def test_replace_description(self):
+        from pipeline.phases.p6_optimize import _replace_description
+        md = '---\nname: test\ndescription: "old desc"\n---\n# Test'
+        result = _replace_description(md, "new desc here")
+        assert "new desc here" in result
+        assert "old desc" not in result
+
+    def test_split_eval_set_stratified(self):
+        from pipeline.phases.p6_optimize import _split_eval_set
+        evals = [{"query": f"q{i}", "should_trigger": i < 10} for i in range(20)]
+        train, test = _split_eval_set(evals, holdout=0.4)
+        assert any(e["should_trigger"] for e in train)
+        assert any(not e["should_trigger"] for e in train)
+        assert any(e["should_trigger"] for e in test)
+
+    def test_calc_score(self):
+        from pipeline.phases.p6_optimize import _calc_score
+        assert _calc_score([{"pass": True}, {"pass": True}, {"pass": False}]) == pytest.approx(2/3)
+        assert _calc_score([]) == 0.0
+
+    def test_decoy_skills_count(self):
+        from pipeline.phases.p6_optimize import DECOY_SKILLS
+        assert len(DECOY_SKILLS) == 7
+
+
+class TestP55SmokeTest:
+    def test_import(self):
+        from pipeline.phases.p55_smoke_test import run_p55
+        assert callable(run_p55)
+
+    def test_skips_without_claude(self, tmp_path):
+        from pipeline.phases.p55_smoke_test import run_p55
+        from pipeline.core.types import BuildConfig
+        from pipeline.core.logger import PipelineLogger
+        config = BuildConfig(name="test", domain="test", output_dir=str(tmp_path))
+        result = run_p55(config, None, None, None, PipelineLogger())
+        assert result.status == "skipped"
+
+
+class TestProgressiveDisclosure:
+    def test_description_too_short(self):
+        from pipeline.phases.p5_build import _enforce_progressive_disclosure
+        from pipeline.core.logger import PipelineLogger
+        _, warnings = _enforce_progressive_disclosure("# Test", "Short", {}, PipelineLogger())
+        assert any("too short" in w.lower() or "undertrigger" in w.lower() for w in warnings)
+
+    def test_description_ok(self):
+        from pipeline.phases.p5_build import _enforce_progressive_disclosure
+        from pipeline.core.logger import PipelineLogger
+        desc = " ".join(["word"] * 120)
+        _, warnings = _enforce_progressive_disclosure("# Test", desc, {}, PipelineLogger())
+        desc_warnings = [w for w in warnings if "escription" in w]
+        assert len(desc_warnings) == 0
+
+    def test_description_over_1024_chars(self):
+        from pipeline.phases.p5_build import _enforce_progressive_disclosure
+        from pipeline.core.logger import PipelineLogger
+        desc = "x " * 600  # >1024 chars
+        _, warnings = _enforce_progressive_disclosure("# Test", desc, {}, PipelineLogger())
+        assert any("1024" in w for w in warnings)
+
+
+class TestMultiModelStrategy:
+    def test_phase_model_map_structure(self):
+        from pipeline.core.types import PHASE_MODEL_MAP
+        for tier in ["draft", "standard", "premium"]:
+            assert tier in PHASE_MODEL_MAP
+            assert "p1" in PHASE_MODEL_MAP[tier]
+            assert "p5" in PHASE_MODEL_MAP[tier]
+            assert "p6" in PHASE_MODEL_MAP[tier]
+            assert "p55" in PHASE_MODEL_MAP[tier]
+
+    def test_draft_uses_light_for_p1(self):
+        from pipeline.core.types import PHASE_MODEL_MAP
+        assert PHASE_MODEL_MAP["draft"]["p1"] is True
+
+    def test_premium_uses_full_for_all(self):
+        from pipeline.core.types import PHASE_MODEL_MAP
+        for phase_id, use_light in PHASE_MODEL_MAP["premium"].items():
+            assert use_light is False, f"Premium should use full model for {phase_id}"

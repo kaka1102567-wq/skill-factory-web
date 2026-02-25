@@ -46,7 +46,12 @@ const INITIAL_PHASES: PhaseState[] = [
   { id: "p3", status: "pending", progress: 0, score: null, name: "Deduplicate" },
   { id: "p4", status: "pending", progress: 0, score: null, name: "Verify" },
   { id: "p5", status: "pending", progress: 0, score: null, name: "Architect" },
+  { id: "p6", status: "pending", progress: 0, score: null, name: "Optimize" },
 ];
+
+const PHASE_ORDER: Record<string, number> =
+  Object.fromEntries(INITIAL_PHASES.map((p, i) => [p.id, i]));
+const phaseRank = (id: string) => PHASE_ORDER[id] ?? -1;
 
 export function useBuildStream(buildId: string) {
   const [logs, setLogs] = useState<LogEntry[]>([]);
@@ -76,11 +81,12 @@ export function useBuildStream(buildId: string) {
 
       // Reconstruct phase states from initial state
       if (data.current_phase) {
-        const currentIdx = parseInt(data.current_phase.replace("p", ""));
+        const currentRank = phaseRank(data.current_phase);
         setPhases((prev) =>
-          prev.map((p, i) => {
-            if (i < currentIdx) return { ...p, status: "done", progress: 100 };
-            if (i === currentIdx)
+          prev.map((p) => {
+            const thisRank = phaseRank(p.id);
+            if (thisRank < currentRank) return { ...p, status: "done", progress: 100 };
+            if (thisRank === currentRank)
               return { ...p, status: "running", progress: data.phase_progress || 0 };
             return p;
           })
@@ -108,9 +114,9 @@ export function useBuildStream(buildId: string) {
             };
           }
           // Mark previous phases as done
-          const phaseIdx = parseInt(data.phase.replace("p", ""));
-          const thisIdx = parseInt(p.id.replace("p", ""));
-          if (thisIdx < phaseIdx && p.status !== "done") {
+          const incomingRank = phaseRank(data.phase);
+          const thisRank = phaseRank(p.id);
+          if (thisRank < incomingRank && p.status !== "done") {
             return { ...p, status: "done", progress: 100 };
           }
           return p;

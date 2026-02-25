@@ -13,6 +13,7 @@ class PhaseId(str, Enum):
     P3_DEDUP = "p3"
     P4_VERIFY = "p4"
     P5_BUILD = "p5"
+    P6_OPTIMIZE = "p6"
 
 
 class PhaseStatus(str, Enum):
@@ -174,6 +175,14 @@ class BuildConfig:
     auto_resolve_threshold: float = 0.8
     # Auto-discovery
     auto_discover_baseline: bool = False
+    # Multi-model strategy (populated by runner from PHASE_MODEL_MAP)
+    phase_model_hints: dict = field(default_factory=dict)
+    # Skip P6 optimization phase
+    skip_optimize: bool = False
+    # Template pre-optimized description (from enhanced template library)
+    template_optimized_description: str = ""
+    # Lessons from previous builds (self-improving pipeline)
+    domain_lessons: str = ""
 
 
 @dataclass
@@ -197,3 +206,41 @@ class PipelineState:
             data = json.load(f)
         return cls(**{k: v for k, v in data.items()
                       if k in {f.name for f in cls.__dataclass_fields__.values()}})
+
+
+# Model routing per phase -- maps phase_id to use_light_model flag
+# Light model (Haiku) for pattern matching, classification
+# Full model (Sonnet) for complex reasoning, generation
+#
+# WARNING: Map only affects NEW phases (P55, P6) that read config.phase_model_hints.
+# Existing P3 and P4 HARDCODE use_light_model=True in their source files.
+# To change P3/P4 model selection, edit those files directly.
+PHASE_MODEL_MAP = {
+    "draft": {
+        "p1": True,   # Haiku
+        "p2": True,   # Haiku
+        "p3": True,   # Haiku (hardcoded True anyway)
+        "p4": True,   # Haiku (hardcoded True anyway)
+        "p5": False,  # Sonnet
+        "p55": True,  # Haiku
+        "p6": True,   # Haiku
+    },
+    "standard": {
+        "p1": True,   # Haiku
+        "p2": False,  # Sonnet
+        "p3": True,   # Haiku (hardcoded True anyway)
+        "p4": True,   # Haiku (hardcoded True anyway)
+        "p5": False,  # Sonnet
+        "p55": True,  # Haiku
+        "p6": False,  # Sonnet
+    },
+    "premium": {
+        "p1": False,  # Sonnet
+        "p2": False,  # Sonnet
+        "p3": False,  # Sonnet (code hardcodes True, map ignored)
+        "p4": False,  # Sonnet (code hardcodes True, map ignored)
+        "p5": False,  # Sonnet
+        "p55": False, # Sonnet
+        "p6": False,  # Sonnet
+    },
+}

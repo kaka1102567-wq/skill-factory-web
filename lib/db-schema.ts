@@ -80,7 +80,30 @@ export function initializeSchema(db: Database.Database) {
 
     CREATE INDEX IF NOT EXISTS idx_baselines_domain
       ON baselines(domain);
+
+    CREATE TABLE IF NOT EXISTS build_feedback (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      build_id    TEXT NOT NULL,
+      domain      TEXT,
+      rating      INTEGER NOT NULL CHECK(rating BETWEEN 1 AND 5),
+      feedback    TEXT,
+      issues      TEXT,
+      created_at  TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (build_id) REFERENCES builds(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_feedback_domain ON build_feedback(domain);
   `);
+
+  // Migration-safe: add new template columns
+  const templateCols = db.prepare("PRAGMA table_info(templates)").all();
+  const hasOptDesc = (templateCols as any[]).some((col: any) => col.name === "optimized_description");
+  if (!hasOptDesc) {
+    db.exec("ALTER TABLE templates ADD COLUMN optimized_description TEXT");
+    db.exec("ALTER TABLE templates ADD COLUMN eval_queries TEXT");
+    db.exec("ALTER TABLE templates ADD COLUMN taxonomy TEXT");
+    db.exec("ALTER TABLE templates ADD COLUMN avg_quality REAL");
+  }
 
   // Seed settings if empty
   const settingsCount = db

@@ -1,21 +1,30 @@
 """Phase 4 — Verify: Cross-reference atoms against baseline knowledge."""
 
 P4_SYSTEM = """\
-You are a Verification Expert. Your task is to verify a Knowledge Atom against official documentation evidence and determine its accuracy.
+You are a Verification Expert cross-referencing knowledge atoms against official documentation.
 
-Verification outcomes:
-- "verified": The atom's claims are supported by the evidence. Keep as-is.
-- "updated": The atom is mostly correct but needs minor corrections based on evidence. Provide updated content.
-- "flagged": The atom contains claims that contradict the evidence or cannot be verified. Needs human review.
+WHY VERIFICATION MATTERS:
+Video experts sometimes share outdated information, misremember details, or express opinions as
+facts. Baseline documentation provides ground truth. Your job is to catch inaccuracies BEFORE they
+become part of the AI skill — because once embedded, wrong information gets confidently repeated
+to every user.
 
-RULES:
-- Compare the atom's claims against the provided baseline evidence
-- If evidence supports the atom: mark as "verified" with high confidence
-- If evidence partially supports but some details are outdated/wrong: mark as "updated" and provide corrected content
-- If evidence contradicts the atom or no evidence exists: mark as "flagged"
-- Confidence: 0.9+ = strongly verified, 0.7-0.89 = mostly verified, 0.5-0.69 = weakly verified, <0.5 = unverified
-- Always explain your reasoning in the "note" field
-- Respond ONLY with valid JSON, no markdown formatting, no code fences\
+VERIFICATION OUTCOMES:
+- "verified": The atom's claims are supported by evidence. This is the ideal outcome — expert
+  knowledge confirmed by official sources. Keep as-is.
+- "updated": The atom is mostly correct but some details need correction based on newer/more
+  accurate evidence. Provide the corrected content while preserving the expert's useful framing.
+- "flagged": The atom contradicts evidence OR makes claims that cannot be verified. Flag for
+  human review — don't silently discard expert insights that might be correct but just not in docs.
+
+CONFIDENCE SCORING:
+- 0.9+: Strongly verified — multiple evidence points confirm
+- 0.7-0.89: Mostly verified — evidence supports core claim, minor details unchecked
+- 0.5-0.69: Weakly verified — some evidence but also some gaps
+- Below 0.5: Unverified — insufficient evidence to confirm or deny
+
+Always explain your reasoning in the "note" field — this helps human reviewers make informed decisions.
+OUTPUT: Valid JSON only. No markdown fences.\
 """
 
 P4_USER_TEMPLATE = """\
@@ -50,20 +59,22 @@ Return a JSON object with this EXACT structure:
 # ── Batch Verify Prompts (10 atoms per request) ──
 
 P4_BATCH_VERIFY_SYSTEM = """\
-You are a Knowledge Verification Expert.
-You will receive a BATCH of knowledge atoms and baseline reference material.
-For EACH atom, verify its accuracy against the provided references.
+You are a Knowledge Verification Expert checking a batch of atoms against baseline references.
 
-Return a JSON object with a "results" array.
+WHY BATCH VERIFICATION:
+Checking atoms individually is expensive. Batch processing lets you see patterns — if multiple
+atoms reference the same baseline section, you can verify them together more accurately. But
+evaluate EACH atom independently; batch is for efficiency, not for shortcuts.
 
-Rules:
-- Evaluate EACH atom independently
-- "verified" = content matches or supported by baseline
+VERIFICATION GUIDE:
+- "verified" = content matches or is supported by baseline evidence
 - "flagged" = content contradicts baseline
-- "unverified" = not found in baseline (expert insight — still valid, NOT an error)
-- confidence_adjustment: 0.0 to 0.1 (boost if baseline-verified)
-- Return results in SAME ORDER as input atoms
-- Respond ONLY with valid JSON, no markdown formatting, no code fences\
+- "unverified" = topic not found in baseline — this is NOT an error. Expert insights often go
+  beyond official docs. Mark as unverified but do NOT penalize confidence.
+- confidence_adjustment: 0.0 to 0.1 boost for baseline-verified atoms
+
+Return results in SAME ORDER as input atoms.
+OUTPUT: Valid JSON only. No markdown fences.\
 """
 
 P4_BATCH_VERIFY_USER_TEMPLATE = """\

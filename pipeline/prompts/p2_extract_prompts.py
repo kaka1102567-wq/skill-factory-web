@@ -1,24 +1,31 @@
 """Phase 2 — Extract: Break transcripts into discrete Knowledge Atoms."""
 
 P2_SYSTEM = """\
-You are a Knowledge Atom Extractor. Your job is to break video transcript chunks into discrete, self-contained knowledge units called "Knowledge Atoms".
+You are a Knowledge Atom Extractor transforming video transcripts into structured, retrievable knowledge units.
 
-Each Knowledge Atom must be:
-- **Self-contained**: Understandable without reading the rest of the transcript
-- **Actionable**: Contains a specific fact, procedure, tip, or insight
-- **Atomic**: Covers exactly ONE concept (not a bundle of loosely related ideas)
-- **Accurate**: Faithfully represents what was said in the transcript
+WHY KNOWLEDGE ATOMS:
+AI assistants retrieve knowledge by topic, not by reading long narratives. Each "atom" must be a
+self-contained answer to a potential question. When someone asks "How do I set up Facebook Pixel?",
+the AI should find ONE atom that fully answers this — not a paragraph buried in a 30-minute transcript.
 
-RULES:
-- Be thorough — extract ALL distinct knowledge atoms. Each unique concept, technique, tip, metric, tool, or process is a SEPARATE atom
-- DO NOT merge related concepts into one atom. Example: "Facebook Pixel tracks conversions" and "Facebook Pixel enables retargeting" are TWO separate atoms
-- For a typical 20-30 line transcript, expect 12-20 atoms minimum
-- Each atom title should be clear and descriptive (5-15 words)
-- Content should be 2-6 sentences, written in clear instructional language
-- Confidence: 0.9+ = directly stated, 0.7-0.89 = clearly implied, 0.5-0.69 = inferred
-- Tags: 2-5 relevant keywords per atom
-- Respond ONLY with valid JSON, no markdown formatting, no code fences
-- Write atoms in the same language as the transcript\
+WHAT MAKES A GOOD ATOM:
+- **Self-contained**: A reader understands it without any other context. Test: "If someone found
+  ONLY this atom via search, would it make sense and be useful?"
+- **Actionable**: Contains a specific fact, procedure, tip, or insight someone can use
+- **Atomic**: ONE concept per atom. "Facebook Pixel tracks conversions" and "Facebook Pixel enables
+  retargeting" are TWO atoms — merging them makes retrieval worse because a query about retargeting
+  would also pull in conversion tracking noise
+- **Faithful**: Accurately represents the transcript. Don't embellish or add information not present
+
+EXTRACTION GUIDE:
+- Be thorough — for 20-30 transcript lines, expect 12-20 atoms minimum. Under-extraction is the
+  most common failure mode, not over-extraction
+- Title: 5-15 words, clear enough that someone scanning a list would know the content
+- Content: 2-6 sentences in clear instructional language (not transcript-style speech)
+- Confidence: 0.9+ = speaker explicitly stated this, 0.7-0.89 = clearly implied, 0.5-0.69 = inferred
+- Tags: 2-5 keywords that someone might search for when looking for this knowledge
+
+OUTPUT: Valid JSON only. No markdown fences. Write in the transcript's language.\
 """
 
 P2_USER_TEMPLATE = """\
@@ -55,22 +62,20 @@ Return a JSON object with this EXACT structure:
 # ── Gap-fill: extract atoms from baseline reference docs ──
 
 P2_GAP_SYSTEM = """\
-You are a Knowledge Atom Extractor. Your job is to extract 1-3 discrete knowledge atoms about a SPECIFIC TOPIC from reference documentation.
+You are a Knowledge Atom Extractor filling gaps identified between video content and official documentation.
 
-Each Knowledge Atom must be:
-- **Self-contained**: Understandable without reading the full document
-- **Actionable**: Contains a specific fact, procedure, tip, or insight
-- **Atomic**: Covers exactly ONE concept
-- **Accurate**: Faithfully represents what the documentation says
+WHY GAP-FILLING:
+Sometimes video experts skip foundational concepts (assuming audience knows them) or official docs
+have been updated since the video was recorded. These gaps mean the skill package would give
+incomplete answers. You're extracting 1-3 atoms about a SPECIFIC missing topic from reference docs.
 
-RULES:
-- Extract 1-3 atoms ONLY about the requested topic
-- Each atom title should be clear and descriptive (5-15 words)
-- Content should be 2-6 sentences, written in clear instructional language
-- Confidence: 0.9+ for directly stated facts from official docs
-- Tags: 2-5 relevant keywords per atom
-- Respond ONLY with valid JSON, no markdown formatting, no code fences
-- Write atoms in the requested language\
+ATOM QUALITY:
+- Self-contained: Understandable without the full document
+- Actionable: Contains a specific fact, procedure, or tip
+- Atomic: One concept per atom
+- Accurate: Faithfully represents what the documentation says
+
+OUTPUT: Valid JSON only. No markdown fences. Write in the requested language.\
 """
 
 P2_GAP_USER_TEMPLATE = """\
@@ -104,28 +109,28 @@ Return a JSON object with this EXACT structure:
 # ── Code pattern extraction: extract atoms from source code analysis ──
 
 P2_CODE_SYSTEM = """\
-You are a Code Pattern Extractor. Analyze source code and extract reusable knowledge atoms — patterns, architectures, best practices, and common idioms that would help someone understand and use this codebase effectively.
+You are a Code Pattern Extractor analyzing source code to capture reusable architectural knowledge.
 
-Each atom should teach ONE code concept. Focus on:
-1. Architecture patterns (how the code is organized)
-2. Key functions/classes and their purpose
-3. Configuration and setup patterns
-4. Error handling approaches
-5. Integration patterns (how modules connect)
-6. Best practices demonstrated in the code
+WHY CODE PATTERNS:
+Developers spend 80% of time reading code, 20% writing. A skill that captures WHY code is
+structured a certain way — not just WHAT it does — saves enormous time for anyone working with
+or learning from this codebase. Focus on patterns someone would explain to a new team member.
 
-Do NOT extract:
-- Trivial boilerplate or import statements alone
+EXTRACT THESE TYPES:
+1. Architecture patterns — how the code is organized and WHY
+2. Key functions/classes — their purpose and WHEN to use them
+3. Configuration patterns — setup approaches and gotchas
+4. Error handling — strategies and edge cases covered
+5. Integration patterns — how modules connect
+6. Best practices — demonstrated patterns worth replicating
+
+SKIP:
+- Trivial boilerplate or import statements
 - Generated/config files with no learning value
 - Test implementation details (unless testing patterns are noteworthy)
 
-RULES:
-- Each atom title should be clear and descriptive (5-15 words)
-- Content should be 2-6 sentences explaining the pattern and when to use it
-- Include a relevant code snippet (10-30 lines max) for each atom
-- Confidence: 0.85+ for clear patterns, 0.7-0.84 for inferred patterns
-- Tags: 2-5 relevant keywords per atom
-- Respond ONLY with valid JSON, no markdown formatting, no code fences\
+Each atom: 5-15 word title, 2-6 sentence explanation, 10-30 line code snippet.
+OUTPUT: Valid JSON only. No markdown fences.\
 """
 
 P2_CODE_USER_TEMPLATE = """\

@@ -1,21 +1,36 @@
 """Phase 5 — Build: Generate final SKILL.md and knowledge files."""
 
 P5_SKILL_SYSTEM = """\
-You are an AI Skill Architect. Your task is to create a professional SKILL.md file that serves as the master index for an AI knowledge skill package.
+You are an AI Skill Architect creating SKILL.md files optimized for Claude's skill triggering system.
 
-The SKILL.md file must:
-1. Clearly define the skill's purpose and scope
-2. List all knowledge pillars (categories) with descriptions
-3. Reference the knowledge files that contain detailed atoms
-4. Include usage instructions for AI assistants
-5. Be well-structured with proper Markdown formatting
+CRITICAL CONTEXT — Why description matters:
+Claude has a tendency to NOT invoke skills even when they're relevant (called "undertriggering").
+The skill description is the ONLY thing Claude sees when deciding whether to use this skill.
+A weak description means the entire skill package — no matter how good — will never be used.
+
+Your task is to create a SKILL.md with TWO critical sections:
+
+1. YAML FRONTMATTER with an aggressively "pushy" description:
+   - Use imperative form: "Use this skill when..." not "This skill provides..."
+   - Focus on USER INTENT: what the user is trying to achieve, not how the skill works
+   - List specific trigger contexts, keywords, file types, and scenarios
+   - Include "even if they don't explicitly mention" phrases to catch indirect queries
+   - Add "Do NOT use for..." to prevent false triggers on adjacent domains
+   - Keep between 80-200 words — enough to be comprehensive but not bloated
+   - MUST be under 1024 characters total
+
+2. SKILL.md BODY (the main content):
+   - Clear purpose statement explaining what knowledge this skill contains
+   - List all knowledge pillars with descriptions and file references
+   - Usage instructions for AI assistants
+   - Keep under 500 lines — if content is longer, reference knowledge/*.md files
+   - Structure with proper Markdown headings for easy scanning
 
 RULES:
-- Write in the specified language
-- Use clear, professional language suitable for AI consumption
-- Structure with proper headings, lists, and descriptions
-- Include a metadata header with skill name, domain, version, atom count
-- Respond ONLY with valid JSON containing the "content" field, no markdown fences around the JSON\
+- Write in the specified language (body), but description can mix languages if it helps triggering
+- Respond ONLY with valid JSON containing "content" and "description" fields
+- The "description" field should be the YAML description text ONLY (no quotes, no YAML syntax)
+- The "content" field should be the FULL SKILL.md including YAML frontmatter with the description\
 """
 
 P5_SKILL_USER = """\
@@ -28,9 +43,27 @@ Create a SKILL.md file for this AI knowledge skill.
 **Total verified atoms:** {atom_count}
 **Quality tier:** {quality_tier}
 
+DESCRIPTION WRITING GUIDE:
+Write a description that would make Claude think "I should definitely use this skill" for any
+related query. Include:
+- Primary use cases (3-5 specific scenarios)
+- Trigger keywords that users commonly use when asking about this domain
+- Adjacent topics that should ALSO trigger this skill
+- Explicit exclusions (what this skill is NOT for)
+
+Example of a GOOD pushy description for a "Facebook Ads" skill:
+"Use this skill whenever the user asks about Facebook advertising, Meta Ads, campaign optimization,
+ROAS improvement, ad spend allocation, audience targeting, Facebook Pixel, Custom Audiences,
+Lookalike Audiences, ad creative testing, CPM/CPC/CPA optimization, or any question about running
+paid campaigns on Facebook/Instagram/Meta platforms. Also trigger when users mention declining ad
+performance, iOS tracking changes affecting ads, or budget allocation for social media advertising —
+even if they don't explicitly say 'Facebook Ads'. Do NOT use for organic social media, SEO,
+Google Ads, or non-advertising Meta features."
+
 Return a JSON object with this EXACT structure:
 {{
-  "content": "The full SKILL.md content as a string with proper Markdown formatting",
+  "description": "The pushy description text (80-200 words, under 1024 chars)",
+  "content": "The full SKILL.md content as a string with YAML frontmatter including the description",
   "metadata": {{
     "name": "{name}",
     "domain": "{domain}",
@@ -38,26 +71,33 @@ Return a JSON object with this EXACT structure:
     "version": "1.0.0",
     "atom_count": {atom_count},
     "pillar_count": 0,
-    "quality_tier": "{quality_tier}"
+    "quality_tier": "{quality_tier}",
+    "description_word_count": 0,
+    "body_line_count": 0
   }}
 }}\
 """
 
 P5_KNOWLEDGE_SYSTEM = """\
-You are a Knowledge File Writer. Your task is to organize a set of verified Knowledge Atoms into a well-structured knowledge file for a specific pillar (category).
+You are a Knowledge File Writer organizing verified Knowledge Atoms into structured reference files.
 
-The knowledge file must:
-1. Group atoms logically within the pillar
-2. Present each atom clearly with its title, content, and metadata
-3. Use consistent Markdown formatting
-4. Be optimized for AI retrieval — clear headings, structured content
+WHY THIS STRUCTURE MATTERS:
+AI assistants retrieve knowledge by scanning headings and content sequentially. If atoms are
+randomly ordered or poorly formatted, the assistant may miss relevant information or return
+incomplete answers. Your organization directly affects answer quality.
+
+ORGANIZATION PRINCIPLES:
+- Order atoms from most fundamental to most advanced (foundational → specialized)
+- Group related atoms with clear section headings
+- Each atom gets its own ## heading with descriptive title
+- Include tags and confidence as metadata (helps AI filter by topic and reliability)
+- Keep formatting consistent — the AI parses this programmatically
 
 RULES:
-- Each atom should be a separate section with ## heading
-- Include atom tags and confidence score as metadata
+- Each atom = separate ## section
+- Include atom tags and confidence score as metadata below content
 - Write in the specified language
-- Order atoms from most fundamental to most advanced
-- Respond ONLY with valid JSON containing the "content" field, no markdown fences around the JSON\
+- Respond ONLY with valid JSON containing the "content" field, no markdown fences around JSON\
 """
 
 P5_KNOWLEDGE_USER = """\

@@ -11,6 +11,7 @@ const PHASE_COLORS: Record<string, string> = {
   p3: "text-purple-400 border-purple-400",
   p4: "text-red-400 border-red-400",
   p5: "text-cyan-400 border-cyan-400",
+  p6: "text-rose-400 border-rose-400",
 };
 
 function StepIcon({ status }: { status: string }) {

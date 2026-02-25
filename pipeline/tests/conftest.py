@@ -259,7 +259,17 @@ class MockClaudeClient:
         # P5 Build — SKILL.md
         if "AI Skill Architect" in system:
             return {
-                "content": "# Test Skill\n\n## Overview\nTest skill package.\n",
+                "content": (
+                    "---\n"
+                    "name: Test Skill\n"
+                    "description: >\n"
+                    "  Use this skill for Facebook Ads knowledge including campaign management,\n"
+                    "  audience targeting, ad creative, and budget optimization in Vietnam.\n"
+                    "  Covers pixel tracking, conversion events, and performance metrics.\n"
+                    'version: "1.0"\n'
+                    "---\n\n"
+                    "# Test Skill\n\n## Overview\nTest skill package.\n"
+                ),
                 "metadata": {
                     "name": "Test Skill",
                     "domain": "fb_ads",
@@ -279,6 +289,17 @@ class MockClaudeClient:
                 "atom_ids": ["atom_0001"],
                 "word_count": 10,
             }
+
+        # P6 Optimize — eval query generation
+        if "AI Skill Evaluation Designer" in system:
+            return [
+                {"query": "How to set up Facebook Ads campaign?", "should_trigger": True},
+                {"query": "What is audience targeting in Facebook Ads?", "should_trigger": True},
+                {"query": "How to optimize ad budget?", "should_trigger": True},
+                {"query": "Facebook pixel tracking setup", "should_trigger": True},
+                {"query": "How to write Python code?", "should_trigger": False},
+                {"query": "What is the weather today?", "should_trigger": False},
+            ]
 
         return {"result": "unknown_prompt"}
 

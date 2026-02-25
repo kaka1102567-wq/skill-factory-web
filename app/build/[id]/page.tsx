@@ -17,6 +17,7 @@ import {
   FileText,
   Activity,
   BarChart3,
+  Target,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -44,6 +45,7 @@ import { LogViewer } from "@/components/build/log-viewer";
 import { QualityReport } from "@/components/build/quality-report";
 import { ConflictReview } from "@/components/build/conflict-review";
 import { SkillPreview } from "@/components/build/skill-preview";
+import { EvalTriggerPanel } from "@/components/build/eval-trigger-panel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { Build } from "@/types/build";
 
@@ -318,6 +320,10 @@ export default function BuildDetailPage() {
                   <BarChart3 className="h-3.5 w-3.5" />
                   Quality
                 </TabsTrigger>
+                <TabsTrigger value="triggering" className="gap-1.5 text-xs">
+                  <Target className="h-3.5 w-3.5" />
+                  Triggering
+                </TabsTrigger>
                 <TabsTrigger value="preview" className="gap-1.5 text-xs">
                   <FileText className="h-3.5 w-3.5" />
                   Preview
@@ -330,6 +336,10 @@ export default function BuildDetailPage() {
 
               <TabsContent value="quality">
                 <QualityReport build={build} phases={phases} />
+              </TabsContent>
+
+              <TabsContent value="triggering">
+                <EvalTriggerPanel buildId={buildId} />
               </TabsContent>
 
               <TabsContent value="preview">

@@ -1,10 +1,10 @@
-"""Main pipeline runner — sequences P0 through P5."""
+"""Main pipeline runner — sequences P0 through P6."""
 
 import os
 import uuid
 from datetime import datetime, timezone
 
-from ..core.types import BuildConfig, PipelineState
+from ..core.types import BuildConfig, PipelineState, PHASE_MODEL_MAP
 from ..core.logger import PipelineLogger
 from ..core.errors import PipelineError
 from ..clients.claude_client import ClaudeClient, CreditExhaustedError
@@ -16,6 +16,8 @@ from ..phases.p2_extract import run_p2
 from ..phases.p3_dedup import run_p3
 from ..phases.p4_verify import run_p4
 from ..phases.p5_build import run_p5
+from ..phases.p6_optimize import run_p6
+from ..phases.p55_smoke_test import run_p55
 from .state import (
     save_checkpoint, load_checkpoint,
     should_skip_phase, update_state_with_result,
@@ -29,6 +31,7 @@ PHASES = [
     ("p3", "Deduplicate", run_p3),
     ("p4", "Verify", run_p4),
     ("p5", "Build", run_p5),
+    ("p6", "Optimize", run_p6),
 ]
 
 
@@ -61,7 +64,7 @@ class PipelineRunner:
         self.lookup = SeekersLookup(self.cache, self.logger)
 
     def run(self) -> int:
-        """Run the full pipeline P0→P5.
+        """Run the full pipeline P0→P6.
 
         Returns exit code: 0=success, 1=failed, 2=paused (conflicts).
         """
@@ -79,6 +82,12 @@ class PipelineRunner:
             self.logger.info(f"Resuming from checkpoint: phase {state.current_phase}")
         else:
             state = PipelineState(build_id=self.build_id)
+
+        # Initialize model hints from quality tier
+        model_map = PHASE_MODEL_MAP.get(
+            self.config.quality_tier, PHASE_MODEL_MAP["standard"]
+        )
+        self.config.phase_model_hints = model_map
 
         try:
             for phase_id, phase_name, phase_func in PHASES:
@@ -125,6 +134,17 @@ class PipelineRunner:
                     )
                     return 0
 
+                # P55 Smoke Test — inline after P5 (non-blocking sub-step)
+                if phase_id == "p5" and result.status == "done":
+                    try:
+                        p55_result = run_p55(
+                            self.config, self.claude, self.cache, self.lookup, self.logger
+                        )
+                        update_state_with_result(state, p55_result)
+                        save_checkpoint(state, self.config.output_dir)
+                    except Exception as e:
+                        self.logger.warn(f"Smoke test error (non-fatal): {e}")
+
         except CreditExhaustedError as e:
             self.logger.error(str(e))
             self.logger.error(
@@ -159,8 +179,8 @@ class PipelineRunner:
         state.is_paused = False
         state.pause_reason = None
 
-        # Run remaining phases (P4, P5)
-        resume_phases = [p for p in PHASES if p[0] in ("p4", "p5")]
+        # Run remaining phases (P4, P5, P6)
+        resume_phases = [p for p in PHASES if p[0] in ("p4", "p5", "p6")]
 
         for phase_id, phase_name, phase_func in resume_phases:
             if should_skip_phase(state, phase_id):
@@ -183,6 +203,17 @@ class PipelineRunner:
                     f"Pipeline stopped: {phase_name} failed — {result.error_message}"
                 )
                 return 1
+
+            # P55 Smoke Test — inline after P5 (non-blocking sub-step)
+            if phase_id == "p5" and result.status == "done":
+                try:
+                    p55_result = run_p55(
+                        self.config, self.claude, self.cache, self.lookup, self.logger
+                    )
+                    update_state_with_result(state, p55_result)
+                    save_checkpoint(state, self.config.output_dir)
+                except Exception as e:
+                    self.logger.warn(f"Smoke test error (non-fatal): {e}")
 
         self.logger.info(
             f"Pipeline complete! Total cost: ${state.total_cost_usd:.4f}, "

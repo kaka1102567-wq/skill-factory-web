@@ -100,10 +100,10 @@ class TestE2EDryRun:
         return state, 0
 
     def test_full_pipeline_completes(self):
-        """Pipeline P0→P5 runs to completion with exit code 0."""
+        """Pipeline P0→P6 runs to completion with exit code 0."""
         state, exit_code = self._run_full_pipeline()
         assert exit_code == 0, f"Pipeline failed at phase {state.current_phase}"
-        assert state.current_phase == "p5"
+        assert state.current_phase == "p6"
         assert not state.is_paused
 
     def test_all_phases_recorded_in_state(self):
@@ -119,7 +119,7 @@ class TestE2EDryRun:
         loaded = load_checkpoint(self.output_dir)
         assert loaded is not None
         assert loaded.build_id == "e2e_test"
-        assert loaded.current_phase == "p5"
+        assert loaded.current_phase == "p6"
 
     def test_output_files_exist(self):
         """All intermediate and final output files are created."""
