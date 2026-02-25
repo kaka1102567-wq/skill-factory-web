@@ -124,10 +124,20 @@ def run_p2(config: BuildConfig, claude: ClaudeClient,
                 raise
             except Exception as e:
                 logger.warn(
-                    f"Claude call failed for chunk {chunk_info['chunk_index']} "
-                    f"of {chunk_info['filename']}: {e}",
+                    f"Chunk {chunk_info['chunk_index']}/{chunk_info['total_chunks']} "
+                    f"of {chunk_info['filename']} FAILED — skipping. Error: {e}",
                     phase=phase_id,
                 )
+
+        # Fail-safe: all transcript chunks failed → don't produce garbage build
+        if not transcript_atoms and valid_transcripts:
+            raise PhaseError(
+                phase_id,
+                f"All transcript extractions failed — 0 atoms from "
+                f"{total_chunks} chunks across {len(valid_transcripts)} transcripts. "
+                f"Only gap-fill atoms would be available. Consider retrying "
+                f"when API is stable.",
+            )
 
         # ── Stream B: Baseline gap filling ──
         gap_atoms: list[KnowledgeAtom] = []
