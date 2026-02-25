@@ -25,3 +25,7 @@ coverage
 # Allow reading these files
 !.env
 !.env.*
+
+# Allow components/build source directory (not the .next/build output dir)
+!components/build
+!build

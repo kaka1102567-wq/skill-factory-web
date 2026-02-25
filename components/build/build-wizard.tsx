@@ -1,47 +1,36 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, ArrowRight, Rocket, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import type { Template, QualityTier } from "@/types/build";
+import type { Template } from "@/types/build";
 import { StepTemplate } from "./step-template";
 import { StepConfig } from "./step-config";
 import { StepDataSources, type DataSourcesData } from "./step-data-sources";
 import { StepUpload } from "./step-upload";
 import { StepReview } from "./step-review";
+import { useWizardState, clearWizardState, savePendingBuild } from "@/hooks/use-wizard-state";
 
 const STEPS = ["Template", "Config", "Data Sources", "Upload", "Review"];
 
 export function BuildWizard() {
   const router = useRouter();
-  const [step, setStep] = useState(0);
 
-  // Step 1 state
-  const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
+  // Persisted wizard state (restored from sessionStorage on mount)
+  const {
+    step, setStep,
+    selectedTemplate, setSelectedTemplate,
+    config, setConfig,
+    dataSources, setDataSources,
+    urls, setUrls,
+    githubRepo, setGithubRepo,
+    githubAnalyzeCode, setGithubAnalyzeCode,
+  } = useWizardState();
 
-  // Step 2 state
-  const [config, setConfig] = useState({
-    name: "",
-    language: "vi",
-    qualityTier: "standard" as QualityTier,
-    platforms: ["claude"] as string[],
-  });
-
-  // Step 3 state (Data Sources)
-  const [dataSources, setDataSources] = useState<DataSourcesData>({
-    autoScrape: true,
-    baselineUrls: [""],
-  });
-
-  // Step 4 state (Upload)
+  // Transient UI state — not persisted
   const [files, setFiles] = useState<File[]>([]);
-  const [urls, setUrls] = useState<string[]>([""]);
-  const [githubRepo, setGithubRepo] = useState("");
-  const [githubAnalyzeCode, setGithubAnalyzeCode] = useState(true);
-
-  // Step 5 state
   const [confirmed, setConfirmed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -50,14 +39,14 @@ export function BuildWizard() {
     uploadedBytes: number; totalBytes: number; warnings: string[];
   } | null>(null);
 
-  // Template selection auto-fills config
+  // Template selection auto-fills name if empty
   const handleTemplateSelect = useCallback((tpl: Template) => {
     setSelectedTemplate(tpl);
     setConfig((prev) => ({
       ...prev,
       name: prev.name || tpl.name,
     }));
-  }, []);
+  }, [setSelectedTemplate, setConfig]);
 
   // Step validation
   const canProceed = (): boolean => {
@@ -83,15 +72,11 @@ export function BuildWizard() {
 
         const res = await fetch("/api/uploads", { method: "POST", body: formData });
         if (!res.ok) {
-          const err = await res.json();
           if (attempt === 0) continue; // retry once
           return null;
         }
         const data = await res.json();
-        return {
-          path: data.files[0].path,
-          uploadDir: data.upload_dir,
-        };
+        return { path: data.files[0].path, uploadDir: data.upload_dir };
       } catch {
         if (attempt === 0) continue;
         return null;
@@ -100,7 +85,7 @@ export function BuildWizard() {
     return null;
   };
 
-  // Submit build
+  // Submit build — saves pending state before navigating away
   const handleSubmit = async () => {
     if (!selectedTemplate) return;
     setSubmitting(true);
@@ -149,10 +134,7 @@ export function BuildWizard() {
         }
       }
 
-      // Separate input URLs (for content fetch) from baseline URLs
       const inputUrls = urls.filter((u) => u.trim().match(/^https?:\/\/.+/));
-
-      // Create build
       const githubUrl = githubRepo.trim().includes("github.com") ? githubRepo.trim() : "";
 
       const body = {
@@ -170,6 +152,9 @@ export function BuildWizard() {
         github_analyze_code: githubAnalyzeCode,
       };
 
+      // Save pending build before API call — enables background recovery
+      savePendingBuild("__creating__", "creating");
+
       const res = await fetch("/api/builds", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -178,10 +163,18 @@ export function BuildWizard() {
 
       if (!res.ok) {
         const errData = await res.json();
+        clearWizardState();
         throw new Error(errData.error || "Failed to create build");
       }
 
       const data = await res.json();
+
+      // Update pending build with real ID so navigation away can redirect back
+      savePendingBuild(data.id, "creating");
+
+      // Clear wizard state — build has been created successfully
+      clearWizardState();
+
       router.push(`/build/${data.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
