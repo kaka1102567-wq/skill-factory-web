@@ -377,6 +377,23 @@ def _improve_description(claude, name, domain, current, score, results, history,
     match = re.search(r'<description>(.*?)</description>', response, re.DOTALL)
     new_desc = match.group(1).strip().strip('"') if match else response.strip().strip('"')
     if len(new_desc) > 1024:
-        new_desc = new_desc[:1020] + "..."
-        logger.warn("Description truncated to 1024 chars", phase="p6")
+        new_desc = _truncate_at_sentence(new_desc, 1024)
+        logger.warn("Description truncated to 1024 chars at sentence boundary", phase="p6")
     return new_desc
+
+
+def _truncate_at_sentence(text: str, limit: int) -> str:
+    """Truncate text at the last sentence boundary before limit."""
+    if len(text) <= limit:
+        return text
+    # Search for last sentence-ending punctuation before limit
+    truncated = text[:limit]
+    for sep in [". ", ".\n", "? ", "!\n", "! ", "? "]:
+        idx = truncated.rfind(sep)
+        if idx > limit * 0.5:  # don't cut too short
+            return truncated[:idx + 1].rstrip()
+    # Fallback: cut at last space to avoid mid-word break
+    idx = truncated.rfind(" ")
+    if idx > limit * 0.5:
+        return truncated[:idx].rstrip()
+    return truncated.rstrip()
