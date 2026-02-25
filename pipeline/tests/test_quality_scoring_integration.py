@@ -318,10 +318,10 @@ class TestSourceDetectionConsistency:
     REQUIRED_SOURCES = ["skill_seekers", "auto-discovery", "auto-discovery-content"]
 
     @pytest.mark.parametrize("module_path", [
-        "pipeline/phases/p1_audit.py",
-        "pipeline/phases/p2_extract.py",
-        "pipeline/phases/p4_verify.py",
-        "pipeline/phases/p5_build.py",
+        "phases/p1_audit.py",
+        "phases/p2_extract.py",
+        "phases/p4_verify.py",
+        "phases/p5_build.py",
     ])
     def test_source_detection(self, module_path):
         """Each phase should recognize all three source types."""
@@ -343,7 +343,7 @@ class TestDiscoveryScore:
     def test_auto_discovery_no_count_formula(self):
         """auto_discovery.py should NOT use count-based scoring."""
         with open(
-            "pipeline/seekers/auto_discovery.py", "r", encoding="utf-8",
+            "seekers/auto_discovery.py", "r", encoding="utf-8",
         ) as f:
             content = f.read()
         assert "60.0 + len(ok_refs) * 2.5" not in content, (
@@ -356,7 +356,7 @@ class TestDiscoveryScore:
     def test_discover_baseline_no_count_formula(self):
         """discover_baseline.py should NOT use count-based scoring."""
         with open(
-            "pipeline/commands/discover_baseline.py", "r", encoding="utf-8",
+            "commands/discover_baseline.py", "r", encoding="utf-8",
         ) as f:
             content = f.read()
         assert "60.0 + len(references) * 3.0" not in content, (
