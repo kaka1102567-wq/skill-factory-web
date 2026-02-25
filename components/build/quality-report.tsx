@@ -91,11 +91,12 @@ export function QualityReport({
           icon={Atom}
           label="Atoms"
           value={formatNumber(
-            build.atoms_verified || build.atoms_extracted || 0
+            build.atoms_deduplicated || build.atoms_extracted || 0
           )}
           detail={
             build.atoms_extracted
-              ? `${build.atoms_extracted} → ${build.atoms_deduplicated || "?"} → ${build.atoms_verified || "?"}`
+              ? `${build.atoms_extracted} extracted → ${build.atoms_deduplicated || "?"} deduped` +
+                (build.atoms_verified != null ? ` (${build.atoms_verified} verified)` : "")
               : undefined
           }
           color="text-purple-400"
