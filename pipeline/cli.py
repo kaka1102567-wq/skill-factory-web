@@ -45,6 +45,7 @@ def main():
     fetch_parser = subparsers.add_parser("fetch-urls", help="Fetch URLs and convert to Markdown")
     fetch_parser.add_argument("--urls", required=True, help="Comma or newline separated URLs")
     fetch_parser.add_argument("--output-dir", required=True, help="Output directory for .md files")
+    fetch_parser.add_argument("--jina-api-key", default="", help="Jina Reader API key (optional)")
 
     # ── extract-pdf ──
     pdf_parser = subparsers.add_parser("extract-pdf", help="Extract text from PDFs to Markdown")
@@ -71,6 +72,7 @@ def main():
     discover_parser.add_argument("--model-light", default="", help="Claude light model")
     discover_parser.add_argument("--base-url", default="", help="Custom API base URL")
     discover_parser.add_argument("--input-dir", default="", help="Input dir for content-based domain inference")
+    discover_parser.add_argument("--jina-api-key", default="", help="Jina Reader API key (optional)")
 
     # ── discover-from-content ──
     dfc_parser = subparsers.add_parser(
@@ -83,6 +85,7 @@ def main():
     dfc_parser.add_argument("--model", default="", help="Claude model")
     dfc_parser.add_argument("--model-light", default="", help="Claude light model")
     dfc_parser.add_argument("--base-url", default="", help="Custom API base URL")
+    dfc_parser.add_argument("--jina-api-key", default="", help="Jina Reader API key (optional)")
 
     args = parser.parse_args()
 
@@ -187,7 +190,8 @@ def cmd_status(args) -> int:
 def cmd_fetch_urls(args) -> int:
     """Fetch URLs and convert to Markdown input files."""
     from pipeline.commands.fetch_urls import run_fetch_urls
-    return run_fetch_urls(args.urls, args.output_dir)
+    jina_key = getattr(args, "jina_api_key", "") or os.environ.get("JINA_API_KEY", "")
+    return run_fetch_urls(args.urls, args.output_dir, jina_api_key=jina_key)
 
 
 def cmd_extract_pdf(args) -> int:
@@ -279,6 +283,7 @@ def cmd_discover_from_content(args) -> int:
         _error_json("CLAUDE_API_KEY is required for discover-from-content")
         return 1
 
+    jina_key = getattr(args, "jina_api_key", "") or os.environ.get("JINA_API_KEY", "")
     return run_cmd(
         input_dir=args.input_dir,
         output_dir=args.output_dir,
@@ -286,6 +291,7 @@ def cmd_discover_from_content(args) -> int:
         model=args.model or os.environ.get("CLAUDE_MODEL", ""),
         model_light=args.model_light or os.environ.get("CLAUDE_MODEL_LIGHT", ""),
         base_url=args.base_url or os.environ.get("CLAUDE_BASE_URL", ""),
+        jina_api_key=jina_key,
     )
 
 

@@ -19,6 +19,7 @@ interface ApiCredentials {
   modelLight: string;
   baseUrl: string;
   apiKeySource: string;
+  jinaApiKey: string;
 }
 
 function _resolveApiCredentials(configContent?: string): ApiCredentials {
@@ -36,7 +37,9 @@ function _resolveApiCredentials(configContent?: string): ApiCredentials {
   const configBaseUrl = configContent ? parseYamlValue(configContent, "claude_base_url") : "";
   const baseUrl = configBaseUrl || getSetting("claude_base_url") || process.env.CLAUDE_BASE_URL || "";
 
-  return { apiKey, model, modelLight, baseUrl, apiKeySource };
+  const jinaApiKey = getSetting("jina_api_key") || process.env.JINA_API_KEY || "";
+
+  return { apiKey, model, modelLight, baseUrl, apiKeySource, jinaApiKey };
 }
 
 /** Write Google Vision credentials JSON to a temp file. Returns temp path or null. */
@@ -230,6 +233,7 @@ function _preProcessInputs(config: BuildConfig, pythonPath: string, cliPath: str
       "--input-dir", inputDir,
     ];
     if (creds.baseUrl) discoverArgs.push("--base-url", creds.baseUrl);
+    if (creds.jinaApiKey) discoverArgs.push("--jina-api-key", creds.jinaApiKey);
 
     const discoverProc = spawn(pythonPath, discoverArgs, {
       cwd: process.cwd(),
@@ -310,7 +314,7 @@ function _preProcessInputs(config: BuildConfig, pythonPath: string, cliPath: str
   return _continuePreProcessInputs(config, pythonPath, cliPath, inputDir);
 }
 
-const DISCOVERY_STEP_RE = /^Step (\d)\/5:\s*(.+?)\.{0,3}$/;
+const DISCOVERY_STEP_RE = /^(?:Step|Buoc) (\d)\/5:\s*(.+?)\.{0,3}$/;
 const DISCOVERY_STEP_LABELS: Record<number, string> = {
   1: "Đang phân tích domain",
   2: "Đang khám phá URL",
@@ -366,6 +370,8 @@ function _continuePreProcessInputs(
     }
   }
 
+  const creds = _resolveApiCredentials(configContent);
+
   const hasUrls = urls.length > 0;
   const hasPdfs = pdfFiles.length > 0;
   const hasGithub = githubRepo.length > 0;
@@ -416,7 +422,8 @@ function _continuePreProcessInputs(
     if (hasUrls) {
       sseManager.broadcast(config.id, "pre-step", { id: "pre_urls", label: `Đang tải ${urls.length} URL`, status: "running" });
       const urlStr = urls.join(",");
-      const code = await runStep(`đang tải ${urls.length} URL`, ["fetch-urls", "--urls", urlStr, "--output-dir", inputDir], 60_000);
+      const fetchUrlsArgs = ["fetch-urls", "--urls", urlStr, "--output-dir", inputDir, ...(creds.jinaApiKey ? ["--jina-api-key", creds.jinaApiKey] : [])];
+      const code = await runStep(`đang tải ${urls.length} URL`, fetchUrlsArgs, 60_000);
       const lvl = code === 0 ? "info" : "warn";
       const msg = code === 0 ? `Đã tải ${urls.length} URL` : `Tải URL kết thúc với mã ${code}, tiếp tục...`;
       insertBuildLog(config.id, { level: lvl, message: msg });
@@ -538,6 +545,7 @@ async function _maybeDiscoverFromContent(
   if (creds.model) discoverArgs.push("--model", creds.model);
   if (creds.modelLight) discoverArgs.push("--model-light", creds.modelLight);
   if (creds.baseUrl) discoverArgs.push("--base-url", creds.baseUrl);
+  if (creds.jinaApiKey) discoverArgs.push("--jina-api-key", creds.jinaApiKey);
 
   // runStep spawns: pythonPath realCliPath ...args
   const code = await runStep("đang phân tích nội dung cho baseline", discoverArgs, 180_000);
@@ -551,6 +559,16 @@ async function _maybeDiscoverFromContent(
   insertBuildLog(config.id, { level: lvl, message: msg });
   sseManager.broadcast(config.id, "log", { level: lvl, phase: "discovery", message: msg, timestamp: new Date().toISOString() });
   sseManager.broadcast(config.id, "pre-step", { id: "pre_content_discover", label: "Đang phân tích nội dung cho baseline", status: ok ? "done" : "failed" });
+
+  // When content-based discovery succeeds, override discovery steps
+  // (may have been marked "failed" by domain-based discovery earlier)
+  if (ok) {
+    for (let i = 1; i <= 5; i++) {
+      sseManager.broadcast(config.id, "pre-step", {
+        id: `discovery_${i}`, label: DISCOVERY_STEP_LABELS[i], status: "done",
+      });
+    }
+  }
 
   // Update config so P0 uses the discovered baseline
   if (ok) {
@@ -692,31 +710,39 @@ function _spawnPipeline(config: BuildConfig, pythonPath: string, cliPath: string
     if (stdoutBuffer.trim()) handlePlainLog(config.id, stdoutBuffer.trim());
     if (stderrBuffer.trim()) handlePlainLog(config.id, stderrBuffer.trim(), "error");
 
-    const status = code === 0 ? "completed" : "failed";
     const now = new Date().toISOString();
     console.log(`[BUILD] Build ${config.id} kết thúc: code=${code}, signal=${signal}`);
 
-    updateBuild(config.id, {
-      status,
-      completed_at: now,
-      error_message: code !== 0 ? `Tiến trình kết thúc với mã ${code}${signal ? `, signal ${signal}` : ""}` : null,
-    });
+    // Check if build was already set to "paused" by conflict handler — don't override
+    const currentBuild = getBuild(config.id);
+    const status = currentBuild?.status === "paused" ? "paused" : (code === 0 ? "completed" : "failed");
 
-    const finalLog = {
-      level: status === "completed" ? "info" : "error",
-      message: `Build ${status === "completed" ? "hoàn thành" : "thất bại"}${code !== 0 ? ` (exit code: ${code})` : ""}`,
-    };
-    insertBuildLog(config.id, finalLog);
+    if (status === "paused") {
+      insertBuildLog(config.id, { level: "info", message: "Build tạm dừng — đang chờ xử lý xung đột" });
+      sseManager.broadcast(config.id, "paused", { status: "paused", reason: "conflicts", timestamp: now });
+    } else {
+      updateBuild(config.id, {
+        status,
+        completed_at: now,
+        error_message: code !== 0 ? `Tiến trình kết thúc với mã ${code}${signal ? `, signal ${signal}` : ""}` : null,
+      });
 
-    const build = getBuild(config.id);
-    sseManager.broadcast(config.id, "complete", {
-      status,
-      quality_score: build?.quality_score,
-      package_path: build?.package_path,
-      completed_at: now,
-    });
+      const finalLog = {
+        level: status === "completed" ? "info" : "error",
+        message: `Build ${status === "completed" ? "hoàn thành" : "thất bại"}${code !== 0 ? ` (exit code: ${code})` : ""}`,
+      };
+      insertBuildLog(config.id, finalLog);
 
-    if (build) notifyBuildComplete(build).catch(() => {});
+      const build = getBuild(config.id);
+      sseManager.broadcast(config.id, "complete", {
+        status,
+        quality_score: build?.quality_score,
+        package_path: build?.package_path,
+        completed_at: now,
+      });
+
+      if (build) notifyBuildComplete(build).catch(() => {});
+    }
 
     const processQueue = (globalThis as Record<string, unknown>).__processQueue as (() => void) | undefined;
     if (processQueue) processQueue();

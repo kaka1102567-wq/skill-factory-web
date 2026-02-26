@@ -11,6 +11,7 @@ from pipeline.commands.fetch_urls import (
     _find_main_content,
     _remove_noise,
     fetch_and_convert,
+    fetch_via_jina,
     run_fetch_urls,
 )
 from bs4 import BeautifulSoup
@@ -113,7 +114,8 @@ def test_fetch_and_convert_network_error():
 def test_run_fetch_urls_creates_files(tmp_path):
     output_dir = str(tmp_path / "output")
 
-    with patch("pipeline.clients.web_client.WebClient") as MockClient:
+    with patch("pipeline.clients.web_client.WebClient") as MockClient, \
+         patch("pipeline.clients.jina_client.JinaClient", side_effect=Exception("mock")):
         instance = MockClient.return_value
         instance.get.return_value = SAMPLE_HTML
         instance.close = MagicMock()
@@ -134,3 +136,48 @@ def test_run_fetch_urls_creates_files(tmp_path):
 def test_run_fetch_urls_no_valid_urls():
     code = run_fetch_urls("not-a-url", "/tmp/fake")
     assert code == 1
+
+
+# ── Jina integration ──
+
+def test_fetch_and_convert_jina_first():
+    """When jina_client returns content, web_client should NOT be called."""
+    mock_web = MagicMock()
+    mock_jina = MagicMock()
+    mock_jina.fetch.return_value = "# Jina Title\n\nJina content that is long enough to pass the fifty char minimum check."
+
+    content, title = fetch_and_convert("https://example.com", mock_web, mock_jina)
+    assert content is not None
+    assert "Jina" in content
+    mock_web.get.assert_not_called()
+
+
+def test_fetch_and_convert_jina_fails_fallback():
+    """When jina returns None, should fallback to web_client (BS4)."""
+    mock_web = MagicMock()
+    mock_web.get.return_value = SAMPLE_HTML
+    mock_jina = MagicMock()
+    mock_jina.fetch.return_value = None
+
+    content, title = fetch_and_convert("https://example.com", mock_web, mock_jina)
+    assert content is not None
+    assert "Main Heading" in content
+    mock_web.get.assert_called_once()
+
+
+def test_fetch_via_jina_extracts_title():
+    mock_jina = MagicMock()
+    mock_jina.fetch.return_value = "# My Title\n\nSome content that is definitely longer than fifty characters for the check."
+
+    content, title = fetch_via_jina("https://example.com", mock_jina)
+    assert title == "My Title"
+    assert content is not None
+
+
+def test_fetch_via_jina_returns_none_on_empty():
+    mock_jina = MagicMock()
+    mock_jina.fetch.return_value = ""
+
+    content, title = fetch_via_jina("https://example.com", mock_jina)
+    assert content is None
+    assert title is None

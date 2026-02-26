@@ -175,6 +175,7 @@ class BuildConfig:
     auto_resolve_threshold: float = 0.8
     # Auto-discovery
     auto_discover_baseline: bool = False
+    jina_api_key: str = ""
     # Multi-model strategy (populated by runner from PHASE_MODEL_MAP)
     phase_model_hints: dict = field(default_factory=dict)
     # Skip P6 optimization phase
