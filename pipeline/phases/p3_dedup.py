@@ -15,6 +15,14 @@ from ..seekers.cache import SeekersCache
 from ..seekers.lookup import SeekersLookup
 from ..prompts.p3_dedup_prompts import P3_SYSTEM, P3_USER_TEMPLATE
 
+# Max atoms per single Claude API call to avoid 524 timeout on proxy
+MAX_ATOMS_PER_API_CALL = 30
+
+
+def _chunk_list(items: list, chunk_size: int) -> list[list]:
+    """Split list into chunks of at most chunk_size."""
+    return [items[i:i + chunk_size] for i in range(0, len(items), chunk_size)]
+
 
 def _get_adaptive_threshold(base_threshold: float, atom_count: int) -> float:
     """Lower the overlap threshold when atom count is small to avoid over-dedup.
@@ -127,7 +135,7 @@ def run_p3(config: BuildConfig, claude: ClaudeClient,
                 a["status"] = "deduplicated"
             all_unique_atoms.extend(atoms)
 
-        # Batch mini groups into one Claude call
+        # Batch mini groups into one Claude call (sub-batched if large)
         if medium_groups:
             mini_total = sum(len(v) for v in medium_groups.values())
             logger.info(
@@ -140,30 +148,66 @@ def run_p3(config: BuildConfig, claude: ClaudeClient,
                     a["_batch_category"] = cat
                 combined_atoms.extend(atoms)
 
-            all_unique_atoms, all_conflicts, total_duplicates = (
-                _dedup_group(
-                    "combined_batch", combined_atoms, raw_atoms,
-                    config, claude, lookup, logger,
-                    all_unique_atoms, all_conflicts, total_duplicates,
-                    phase_id,
+            if len(combined_atoms) > MAX_ATOMS_PER_API_CALL:
+                batches = _chunk_list(combined_atoms, MAX_ATOMS_PER_API_CALL)
+                batch_sizes = "+".join(str(len(b)) for b in batches)
+                logger.info(
+                    f"Combined batch ({len(combined_atoms)} atoms) split into "
+                    f"{len(batches)} sub-batches: {batch_sizes}",
+                    phase=phase_id,
                 )
-            )
+                for bi, batch in enumerate(batches):
+                    all_unique_atoms, all_conflicts, total_duplicates = (
+                        _dedup_group(
+                            f"combined_batch_{bi+1}", batch, raw_atoms,
+                            config, claude, lookup, logger,
+                            all_unique_atoms, all_conflicts, total_duplicates,
+                            phase_id,
+                        )
+                    )
+            else:
+                all_unique_atoms, all_conflicts, total_duplicates = (
+                    _dedup_group(
+                        "combined_batch", combined_atoms, raw_atoms,
+                        config, claude, lookup, logger,
+                        all_unique_atoms, all_conflicts, total_duplicates,
+                        phase_id,
+                    )
+                )
 
-        # Solo groups — each gets its own Claude call
+        # Solo groups — each gets its own Claude call (sub-batched if large)
         total_solo = len(solo_groups)
         for gi, (category, atoms) in enumerate(solo_groups.items()):
             progress = int(((gi + 1) / max(total_solo, 1)) * 80)
             logger.phase_progress(phase_id, phase_name, progress)
             logger.info(f"Dedup group '{category}': {len(atoms)} atoms", phase=phase_id)
 
-            all_unique_atoms, all_conflicts, total_duplicates = (
-                _dedup_group(
-                    category, atoms, raw_atoms,
-                    config, claude, lookup, logger,
-                    all_unique_atoms, all_conflicts, total_duplicates,
-                    phase_id,
+            if len(atoms) > MAX_ATOMS_PER_API_CALL:
+                batches = _chunk_list(atoms, MAX_ATOMS_PER_API_CALL)
+                batch_sizes = "+".join(str(len(b)) for b in batches)
+                logger.info(
+                    f"Group '{category}' ({len(atoms)} atoms) split into "
+                    f"{len(batches)} sub-batches: {batch_sizes}",
+                    phase=phase_id,
                 )
-            )
+                for bi, batch in enumerate(batches):
+                    all_unique_atoms, all_conflicts, total_duplicates = (
+                        _dedup_group(
+                            f"{category}_batch_{bi+1}", batch, raw_atoms,
+                            config, claude, lookup, logger,
+                            all_unique_atoms, all_conflicts, total_duplicates,
+                            phase_id,
+                        )
+                    )
+            else:
+                all_unique_atoms, all_conflicts, total_duplicates = (
+                    _dedup_group(
+                        category, atoms, raw_atoms,
+                        config, claude, lookup, logger,
+                        all_unique_atoms, all_conflicts, total_duplicates,
+                        phase_id,
+                    )
+                )
 
         # Separate unresolved conflicts
         unresolved = [c for c in all_conflicts if not c.auto_resolved]

@@ -21,6 +21,9 @@ from ..prompts.p5_build_prompts import (
     P5_KNOWLEDGE_SYSTEM, P5_KNOWLEDGE_USER,
 )
 
+# Max atoms per single Claude API call to avoid 524 timeout on proxy
+MAX_ATOMS_PER_API_CALL = 30
+
 MAX_ANTIGRAVITY_CHARS = 50000
 
 PATTERN_TYPES = {
@@ -737,54 +740,100 @@ def run_p5(config: BuildConfig, claude: ClaudeClient,
             )
             refs_copied = _copy_seekers_references(baseline, config.output_dir, logger)
 
-        # ── Step 1: Generate knowledge files per pillar ──
+        # ── Step 1: Generate knowledge files per pillar (chunked if large) ──
         for pillar_name, atoms in pillars.items():
             current_step += 1
             progress = int((current_step / max(total_steps, 1)) * 80)
             logger.phase_progress(phase_id, phase_name, progress)
 
-            logger.info(
-                f"Generating knowledge/{pillar_name}.md "
-                f"({len(atoms)} atoms)",
-                phase=phase_id,
-            )
+            fp = os.path.join(knowledge_dir, f"{pillar_name}.md")
 
-            atoms_json = json.dumps(atoms, ensure_ascii=False, indent=1)
-            user_prompt = P5_KNOWLEDGE_USER.format(
-                pillar_name=pillar_name,
-                language=config.language,
-                atom_count=len(atoms),
-                atoms_json=atoms_json,
-            )
-
-            try:
-                result = claude.call_json(
-                    system=P5_KNOWLEDGE_SYSTEM, user=user_prompt,
-                    max_tokens=4096, phase=phase_id,
-                )
-                content = result.get("content", "")
-                if content:
-                    fp = os.path.join(knowledge_dir, f"{pillar_name}.md")
-                    write_file(fp, content)
-                    output_files.append(fp)
-                else:
-                    logger.warn(
-                        f"Empty content for pillar '{pillar_name}'",
-                        phase=phase_id,
-                    )
-            except CreditExhaustedError:
-                raise
-            except Exception as e:
-                logger.warn(
-                    f"Failed to generate {pillar_name}.md: {e}",
+            if len(atoms) > MAX_ATOMS_PER_API_CALL:
+                # Chunk large pillar to avoid API timeout
+                chunks = [atoms[i:i + MAX_ATOMS_PER_API_CALL]
+                          for i in range(0, len(atoms), MAX_ATOMS_PER_API_CALL)]
+                logger.info(
+                    f"Generating knowledge/{pillar_name}.md "
+                    f"({len(atoms)} atoms, {len(chunks)} chunks)",
                     phase=phase_id,
                 )
-                fallback = _generate_fallback_knowledge(
-                    pillar_name, atoms,
-                )
-                fp = os.path.join(knowledge_dir, f"{pillar_name}.md")
-                write_file(fp, fallback)
+                merged_parts = []
+                for ci, chunk in enumerate(chunks):
+                    atoms_json = json.dumps(chunk, ensure_ascii=False, indent=1)
+                    user_prompt = P5_KNOWLEDGE_USER.format(
+                        pillar_name=pillar_name,
+                        language=config.language,
+                        atom_count=len(chunk),
+                        atoms_json=atoms_json,
+                    )
+                    try:
+                        result = claude.call_json(
+                            system=P5_KNOWLEDGE_SYSTEM, user=user_prompt,
+                            max_tokens=4096, phase=phase_id,
+                        )
+                        content = result.get("content", "")
+                        if content:
+                            # Strip duplicate heading from subsequent chunks
+                            if ci > 0 and content.startswith("# "):
+                                content = content.split("\n", 1)[-1].lstrip("\n")
+                            merged_parts.append(content)
+                    except CreditExhaustedError:
+                        raise
+                    except Exception as e:
+                        logger.warn(
+                            f"Chunk {ci+1}/{len(chunks)} of {pillar_name} failed: {e}",
+                            phase=phase_id,
+                        )
+                        merged_parts.append(
+                            _generate_fallback_knowledge(
+                                f"{pillar_name} (part {ci+1})", chunk,
+                            )
+                        )
+
+                if merged_parts:
+                    write_file(fp, "\n\n".join(merged_parts))
+                else:
+                    write_file(fp, _generate_fallback_knowledge(pillar_name, atoms))
                 output_files.append(fp)
+            else:
+                logger.info(
+                    f"Generating knowledge/{pillar_name}.md "
+                    f"({len(atoms)} atoms)",
+                    phase=phase_id,
+                )
+                atoms_json = json.dumps(atoms, ensure_ascii=False, indent=1)
+                user_prompt = P5_KNOWLEDGE_USER.format(
+                    pillar_name=pillar_name,
+                    language=config.language,
+                    atom_count=len(atoms),
+                    atoms_json=atoms_json,
+                )
+                try:
+                    result = claude.call_json(
+                        system=P5_KNOWLEDGE_SYSTEM, user=user_prompt,
+                        max_tokens=4096, phase=phase_id,
+                    )
+                    content = result.get("content", "")
+                    if content:
+                        write_file(fp, content)
+                        output_files.append(fp)
+                    else:
+                        logger.warn(
+                            f"Empty content for pillar '{pillar_name}'",
+                            phase=phase_id,
+                        )
+                except CreditExhaustedError:
+                    raise
+                except Exception as e:
+                    logger.warn(
+                        f"Failed to generate {pillar_name}.md: {e}",
+                        phase=phase_id,
+                    )
+                    fallback = _generate_fallback_knowledge(
+                        pillar_name, atoms,
+                    )
+                    write_file(fp, fallback)
+                    output_files.append(fp)
 
         # ── Step 2: Generate SKILL.md ──
         current_step += 1
