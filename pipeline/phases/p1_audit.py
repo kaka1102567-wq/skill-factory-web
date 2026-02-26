@@ -50,7 +50,7 @@ def run_p1(config: BuildConfig, claude: ClaudeClient,
 
         # Count total chunks for progress tracking
         for t in valid_transcripts:
-            chunks = chunk_text(t["content"], max_tokens=6000)
+            chunks = chunk_text(t["content"], max_tokens=3000)
             total_chunks += len(chunks)
 
         processed_chunks = 0
@@ -58,7 +58,7 @@ def run_p1(config: BuildConfig, claude: ClaudeClient,
         for t in valid_transcripts:
             filename = t["filename"]
             content = t["content"]
-            chunks = chunk_text(content, max_tokens=6000)
+            chunks = chunk_text(content, max_tokens=3000)
 
             logger.info(f"Đang kiểm tra {filename} ({len(chunks)} chunks)...", phase=phase_id)
 

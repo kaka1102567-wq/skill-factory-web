@@ -61,7 +61,7 @@ def run_p2(config: BuildConfig, claude: ClaudeClient,
         # ── Stream A: Transcript extraction ──
         all_chunks = []
         for t in valid_transcripts:
-            chunks = chunk_text(t["content"], max_tokens=6000)
+            chunks = chunk_text(t["content"], max_tokens=3000)
             for ci, chunk in enumerate(chunks):
                 all_chunks.append({
                     "filename": t["filename"],
