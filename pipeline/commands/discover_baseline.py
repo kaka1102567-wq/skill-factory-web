@@ -19,6 +19,7 @@ from ..prompts.p0_discover_prompts import (
     SYSTEM_ANALYZE_CONTENT, USER_ANALYZE_CONTENT,
     SYSTEM_EVALUATE_URLS, USER_EVALUATE_URLS,
 )
+from ..seekers.url_discoverer import is_blacklisted_domain
 
 
 MAX_SAMPLE_FILES = 5
@@ -220,7 +221,9 @@ _EXCLUDE_PATTERNS = [
 
 
 def _is_valid_url(url: str) -> bool:
-    """Filter out non-documentation URLs."""
+    """Filter out non-documentation URLs and blacklisted JS-rendered sites."""
+    if is_blacklisted_domain(url):
+        return False
     lower = url.lower()
     return not any(x in lower for x in _EXCLUDE_PATTERNS)
 
@@ -287,6 +290,11 @@ def fetch_references(
     for i, item in enumerate(urls):
         url = item.get("url", "")
         if not url:
+            continue
+
+        if is_blacklisted_domain(url):
+            if logger:
+                logger.warn(f"Bo qua (JS-rendered): {url}", phase="discovery")
             continue
 
         if logger:

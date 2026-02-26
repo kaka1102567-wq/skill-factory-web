@@ -16,6 +16,37 @@ class CandidateURL:
     source: str = ""  # "search" | "sitemap" | "crawl"
 
 
+# JS-rendered sites that httpx/requests cannot crawl (need headless browser)
+CRAWL_BLACKLIST_DOMAINS = frozenset({
+    "docs.anthropic.com",
+    "platform.openai.com",
+    "cloud.google.com",
+    "console.cloud.google.com",
+    "console.firebase.google.com",
+    "console.aws.amazon.com",
+    "portal.azure.com",
+    "notion.so",
+    "app.notion.so",
+    "airtable.com",
+    "figma.com",
+    "miro.com",
+    "trello.com",
+    "dashboard.stripe.com",
+    "app.hubspot.com",
+    "app.asana.com",
+    "linear.app",
+})
+
+
+def is_blacklisted_domain(url: str) -> bool:
+    """Check if URL belongs to a JS-rendered site that cannot be crawled."""
+    try:
+        netloc = urlparse(url).netloc.lower()
+        return netloc in CRAWL_BLACKLIST_DOMAINS
+    except Exception:
+        return False
+
+
 # URLs that are clearly not documentation
 _EXCLUDE_PATTERNS = [
     "/login", "/signup", "/register", "/cart", "/checkout",
@@ -206,5 +237,7 @@ def _normalize_url(url: str) -> str:
 
 
 def _is_valid_doc_url(url: str) -> bool:
-    """Filter out non-documentation URLs."""
+    """Filter out non-documentation URLs and blacklisted JS-rendered sites."""
+    if is_blacklisted_domain(url):
+        return False
     return not any(x in url.lower() for x in _EXCLUDE_PATTERNS)

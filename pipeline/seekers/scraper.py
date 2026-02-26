@@ -9,6 +9,7 @@ from typing import Optional
 from ..clients.web_client import WebClient
 from ..core.logger import PipelineLogger
 from ..core.errors import SeekersError
+from .url_discoverer import is_blacklisted_domain
 
 
 @dataclass
@@ -107,6 +108,13 @@ def smart_crawl(ranked_urls, output_dir, web_client, logger, parser=None):
 
     results = []
     for i, ranked in enumerate(ranked_urls):
+        if is_blacklisted_domain(ranked.url):
+            logger.warn(
+                f"Bo qua [{i + 1}/{len(ranked_urls)}] (JS-rendered): {ranked.url}",
+                phase="discovery",
+            )
+            results.append({"url": ranked.url, "status": "blacklisted"})
+            continue
         logger.info(f"Crawling [{i + 1}/{len(ranked_urls)}]: {ranked.url}", phase="discovery")
 
         content = None

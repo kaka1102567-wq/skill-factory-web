@@ -7,7 +7,7 @@ import pytest
 from pipeline.seekers.domain_analyzer import analyze_domain, DomainAnalysis
 from pipeline.seekers.url_discoverer import (
     CandidateURL, _normalize_url, _is_valid_doc_url, _matches_patterns,
-    _extract_ddg_url,
+    _extract_ddg_url, is_blacklisted_domain, CRAWL_BLACKLIST_DOMAINS,
 )
 from pipeline.seekers.url_evaluator import evaluate_urls, RankedURL, _prefilter
 from pipeline.seekers.scraper import smart_crawl, _url_to_safe_filename, _fetch_and_parse
@@ -103,6 +103,38 @@ class TestURLDiscoverer:
 
     def test_normalize_url_lowercases(self):
         assert _normalize_url("https://Example.COM/Docs") == "https://example.com/docs"
+
+    # ----- Blacklist Tests -----
+
+    def test_blacklist_rejects_anthropic_docs(self):
+        assert is_blacklisted_domain("https://docs.anthropic.com/en/docs/agents") is True
+
+    def test_blacklist_rejects_openai_platform(self):
+        assert is_blacklisted_domain("https://platform.openai.com/docs/api-reference") is True
+
+    def test_blacklist_rejects_google_cloud(self):
+        assert is_blacklisted_domain("https://cloud.google.com/docs/overview") is True
+
+    def test_blacklist_rejects_notion(self):
+        assert is_blacklisted_domain("https://notion.so/some-page-id") is True
+
+    def test_blacklist_allows_normal_docs(self):
+        assert is_blacklisted_domain("https://docs.python.org/3/library/json.html") is False
+
+    def test_blacklist_allows_github(self):
+        assert is_blacklisted_domain("https://github.com/anthropics/anthropic-sdk") is False
+
+    def test_blacklist_allows_wikipedia(self):
+        assert is_blacklisted_domain("https://en.wikipedia.org/wiki/AI") is False
+
+    def test_is_valid_doc_url_rejects_blacklisted(self):
+        assert _is_valid_doc_url("https://docs.anthropic.com/en/docs/agents") is False
+
+    def test_is_valid_doc_url_rejects_blacklisted_openai(self):
+        assert _is_valid_doc_url("https://platform.openai.com/docs/overview") is False
+
+    def test_blacklist_set_has_minimum_entries(self):
+        assert len(CRAWL_BLACKLIST_DOMAINS) >= 10
 
 
 # ===== URL Evaluator Tests =====
