@@ -145,12 +145,17 @@ def _parse_json(text: str):
         text = text[:-3]
     text = text.strip()
     try:
-        return json.loads(text)
+        result = json.loads(text)
     except json.JSONDecodeError:
         match = re.search(r'[\[{].*[\]}]', text, re.DOTALL)
         if match:
-            return json.loads(match.group())
-        raise
+            result = json.loads(match.group())
+        else:
+            raise
+    # Unwrap list — Claude sometimes returns [{...}] instead of {...}
+    if isinstance(result, list) and len(result) > 0:
+        result = result[0]
+    return result
 
 
 def run_auto_discovery(domain, language, output_dir, claude_client, web_client,

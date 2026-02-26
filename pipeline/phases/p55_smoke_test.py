@@ -163,9 +163,13 @@ def run_p55(
             score = grade.get("score", 0)
             results.append({
                 "prompt": prompt, "expected_facts": expected,
+                "response": response,
                 "response_preview": response[:300],
                 "passed": passed, "score": score,
                 "grade_notes": grade.get("notes", ""),
+                "grade_results": grade.get("results", []),
+                "category": test.get("category", ""),
+                "complexity": test.get("complexity", ""),
             })
             logger.info(f"  {'PASS' if passed else 'FAIL'} Score: {score:.0%}", phase=phase)
 

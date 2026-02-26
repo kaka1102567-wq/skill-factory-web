@@ -3,8 +3,9 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   Database, RefreshCw, Trash2, Plus, Loader2,
-  CheckCircle2, Clock, AlertCircle, Globe
+  CheckCircle2, Clock, AlertCircle, Globe, ChevronDown
 } from "lucide-react";
+import { BaselineDetailPanel } from "./baseline-detail-panel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -38,6 +39,7 @@ export default function BaselinesPage() {
   const [newName, setNewName] = useState("");
   const [newUrls, setNewUrls] = useState("");
   const [creating, setCreating] = useState(false);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const fetchBaselines = useCallback(() => {
     fetch("/api/baselines")
@@ -158,9 +160,12 @@ export default function BaselinesPage() {
             return (
               <div key={bl.id} className="p-4 rounded-xl bg-card border border-border">
                 <div className="flex items-start justify-between">
-                  <div className="flex items-start gap-3">
+                  <div
+                    className="flex items-start gap-3 flex-1 cursor-pointer"
+                    onClick={() => setExpandedId(expandedId === bl.id ? null : bl.id)}
+                  >
                     <StatusIcon className={cn("w-5 h-5 mt-0.5", statusInfo.color)} />
-                    <div>
+                    <div className="flex-1">
                       <h3 className="text-sm font-semibold text-foreground">{bl.name}</h3>
                       <p className="text-xs text-muted-foreground mt-0.5">
                         {bl.domain} | {bl.refs_count} refs | {bl.topics_count} topics
@@ -179,6 +184,10 @@ export default function BaselinesPage() {
                         </div>
                       )}
                     </div>
+                    <ChevronDown className={cn(
+                      "w-4 h-4 text-muted-foreground transition-transform mt-1 shrink-0",
+                      expandedId === bl.id && "rotate-180"
+                    )} />
                   </div>
                   <div className="flex items-center gap-1">
                     <Button
@@ -204,6 +213,17 @@ export default function BaselinesPage() {
                   <p className="text-xs text-muted-foreground mt-2">
                     Last scraped: {new Date(bl.last_scraped_at).toLocaleString()}
                   </p>
+                )}
+                {/* Expandable detail panel */}
+                {expandedId === bl.id && bl.status === "ready" && (
+                  <div className="mt-4 pt-4 border-t border-border">
+                    <BaselineDetailPanel domain={bl.domain} />
+                  </div>
+                )}
+                {expandedId === bl.id && bl.status !== "ready" && (
+                  <div className="mt-4 pt-4 border-t border-border">
+                    <p className="text-sm text-muted-foreground">Baseline chưa sẵn sàng — cần scrape trước</p>
+                  </div>
                 )}
               </div>
             );

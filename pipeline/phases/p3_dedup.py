@@ -435,7 +435,41 @@ def _dedup_group(category, atoms, raw_atoms, config, claude, lookup,
                         f"Auto-resolved: baseline supports atom_a "
                         f"(confidence {check['confidence']})"
                     )
+            # Auto-resolve duplicate/overlap conflicts — keep longer (more detailed) atom
+            if not conflict.auto_resolved:
+                ctype = conflict.conflict_type.lower()
+                if "duplicate" in ctype or "minor_variation" in ctype or "overlap" in ctype:
+                    content_a = (conflict.atom_a.get("content", "") if conflict.atom_a else "")
+                    content_b = (conflict.atom_b.get("content", "") if conflict.atom_b else "")
+                    if content_a and content_b:
+                        if len(content_a) >= len(content_b):
+                            conflict.auto_resolved = True
+                            conflict.resolution = "keep_a"
+                            conflict.resolution_note = (
+                                f"Auto-resolved: giữ bản chi tiết hơn "
+                                f"(A: {len(content_a)} vs B: {len(content_b)} chars)"
+                            )
+                        else:
+                            conflict.auto_resolved = True
+                            conflict.resolution = "keep_b"
+                            conflict.resolution_note = (
+                                f"Auto-resolved: giữ bản chi tiết hơn "
+                                f"(B: {len(content_b)} vs A: {len(content_a)} chars)"
+                            )
+
             all_conflicts.append(conflict)
+
+        # Apply auto-resolved conflicts — remove rejected atoms
+        for conflict in all_conflicts:
+            if not conflict.auto_resolved:
+                continue
+            reject_id = None
+            if conflict.resolution == "keep_a" and conflict.atom_b:
+                reject_id = conflict.atom_b.get("id")
+            elif conflict.resolution == "keep_b" and conflict.atom_a:
+                reject_id = conflict.atom_a.get("id")
+            if reject_id:
+                all_unique_atoms = [a for a in all_unique_atoms if a.get("id") != reject_id]
 
         logger.debug(
             f"Nhóm '{category}': {len(atoms)}->{len(unique_from_claude)} atoms, "

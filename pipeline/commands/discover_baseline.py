@@ -228,6 +228,36 @@ def _is_valid_url(url: str) -> bool:
     return not any(x in lower for x in _EXCLUDE_PATTERNS)
 
 
+# ── Step 3b: Jina Search (preferred over DDG) ─────────
+
+def search_jina(queries: list[str], jina_client, logger=None) -> list[dict]:
+    """Search via Jina Search API for each query. Returns deduped URL candidates.
+
+    Each result: {"url": str, "title": str, "snippet": str, "content": str}.
+    """
+    candidates = []
+    seen_urls = set()
+
+    for query in queries[:6]:
+        try:
+            results = jina_client.search(query, max_results=5)
+            for r in results:
+                url = r.get("url", "")
+                if url and url not in seen_urls and _is_valid_url(url):
+                    seen_urls.add(url)
+                    candidates.append(r)
+            if logger:
+                logger.info(f"Tim kiem Jina '{query}': {len(results)} ket qua", phase="discovery")
+        except Exception as e:
+            if logger:
+                logger.warn(f"Tim kiem Jina that bai '{query}': {e}", phase="discovery")
+
+    if logger:
+        logger.info(f"Tong URL ung vien Jina (da loai trung): {len(candidates)}", phase="discovery")
+
+    return candidates[:50]
+
+
 # ── Step 4: Evaluate & Fetch URLs ──────────────────────
 
 def evaluate_urls(
@@ -275,11 +305,13 @@ def evaluate_urls(
 
 
 def fetch_references(
-    urls: list[dict], output_dir: str, web_client, logger=None,
+    urls: list[dict], output_dir: str, web_client, logger=None, jina_client=None,
 ) -> list[dict]:
     """Fetch top URLs and save as markdown. Returns list of references.
 
     Each reference: {"path": str, "content": str, "url": str, "tokens": int}.
+    When jina_client is provided, blacklisted domains are NOT skipped (Jina handles JS).
+    Items with pre-fetched "content" (from Jina search, len>200) are used directly.
     """
     from ..commands.fetch_urls import fetch_and_convert
 
@@ -292,7 +324,8 @@ def fetch_references(
         if not url:
             continue
 
-        if is_blacklisted_domain(url):
+        # Skip blacklisted only when no Jina (Jina can handle JS-rendered sites)
+        if jina_client is None and is_blacklisted_domain(url):
             if logger:
                 logger.warn(f"Bo qua (JS-rendered): {url}", phase="discovery")
             continue
@@ -301,11 +334,24 @@ def fetch_references(
             logger.info(f"Dang tai {i+1}/{len(urls)}: {url}", phase="discovery")
 
         try:
-            content, title = fetch_and_convert(url, web_client)
+            # Use pre-fetched content from Jina search if available and long enough
+            pre_content = item.get("content", "")
+            if pre_content and len(pre_content) > 200:
+                content = pre_content
+                # Extract title from first heading
+                title = None
+                for line in content.split('\n')[:10]:
+                    stripped = line.strip()
+                    if stripped.startswith('# '):
+                        title = stripped[2:].strip()
+                        break
+                title = title or "Reference"
+            else:
+                content, title = fetch_and_convert(url, web_client, jina_client)
+
             if not content:
                 continue
 
-            # Truncate very long content
             if len(content) > MAX_CONTENT_LENGTH:
                 content = content[:MAX_CONTENT_LENGTH] + "\n\n*[Truncated]*"
 
@@ -418,7 +464,7 @@ def build_baseline_summary(
 
 def run_discover_from_content(
     input_dir: str, output_dir: str,
-    claude_client, web_client, logger=None,
+    claude_client, web_client, logger=None, jina_client=None,
 ) -> dict:
     """Main entry: analyze input content → search → fetch → baseline.
 
@@ -443,14 +489,26 @@ def run_discover_from_content(
         domain = analysis["domain"]
         result["domain"] = domain
 
-        # Step 3: Web search
+        # Step 3: Web search — try Jina first, fallback to DDG
         _log("info", "Buoc 3/5: Tim kiem tai lieu tham khao...")
         queries = analysis.get("search_queries", [])
         if not queries:
             _log("warn", "Khong tao duoc truy van tim kiem")
             return result
 
-        candidates = search_ddg(queries, web_client, logger)
+        search_engine = "duckduckgo"
+        candidates = []
+        if jina_client is not None:
+            candidates = search_jina(queries, jina_client, logger)
+            if candidates:
+                search_engine = "jina"
+                _log("info", f"Jina tra ve {len(candidates)} ung vien")
+
+        if not candidates:
+            if jina_client is not None:
+                _log("info", "Jina khong co ket qua, fallback sang DuckDuckGo")
+            candidates = search_ddg(queries, web_client, logger)
+
         if not candidates:
             _log("warn", "Khong tim thay URL ung vien qua web search")
             return result
@@ -459,7 +517,7 @@ def run_discover_from_content(
         _log("info", "Buoc 4/5: Danh gia va tai tai lieu...")
         top_urls = evaluate_urls(candidates, domain, analysis.get("topics", []),
                                  claude_client, logger)
-        references = fetch_references(top_urls, output_dir, web_client, logger)
+        references = fetch_references(top_urls, output_dir, web_client, logger, jina_client)
 
         # Step 5: Build baseline
         _log("info", "Buoc 5/5: Tao baseline...")
@@ -468,6 +526,7 @@ def run_discover_from_content(
             "language": analysis.get("language", "en"),
             "candidates_found": len(candidates),
             "queries_used": queries,
+            "search_engine": search_engine,
         }
         summary_path = build_baseline_summary(
             domain, analysis.get("topics", []),
@@ -498,7 +557,7 @@ def run_discover_from_content(
 
 def run_cmd(input_dir: str, output_dir: str,
             api_key: str, model: str = "", model_light: str = "",
-            base_url: str = "") -> int:
+            base_url: str = "", jina_api_key: str = "") -> int:
     """CLI entry point for discover-from-content command.
 
     Returns exit code: 0 on success, 1 on failure.
@@ -525,10 +584,23 @@ def run_cmd(input_dir: str, output_dir: str,
 
     web = WebClient(rpm=10, timeout=30)
 
+    # Init Jina client (graceful — failure just means no Jina)
+    jina_client = None
     try:
-        result = run_discover_from_content(input_dir, output_dir, claude, web, logger)
+        from ..clients.jina_client import JinaClient
+        jina_client = JinaClient(api_key=jina_api_key)
+        _log("info", "Jina Reader da san sang" + (" (co API key)" if jina_api_key else " (free tier)"))
+    except Exception:
+        _log("warn", "Khong khoi tao duoc Jina client, chi dung DDG + BS4")
+
+    try:
+        result = run_discover_from_content(
+            input_dir, output_dir, claude, web, logger, jina_client,
+        )
     finally:
         web.close()
+        if jina_client:
+            jina_client.close()
 
     if result["success"]:
         _log("info", f"Kham pha hoan tat: {result['domain']}, {result['refs_count']} tai lieu")

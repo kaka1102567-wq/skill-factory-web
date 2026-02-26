@@ -1,25 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Atom, DollarSign, Clock, TrendingUp, CheckCircle, XCircle } from "lucide-react";
+import { Atom, DollarSign, Clock, TrendingUp } from "lucide-react";
 import { cn, formatCost, formatNumber, formatDuration } from "@/lib/utils";
 import type { Build } from "@/types/build";
 import type { PhaseState } from "@/hooks/use-build-stream";
-
-interface SmokeTest {
-  prompt: string;
-  passed: boolean;
-  score?: number;
-  grade_notes?: string;
-}
-
-interface SmokeReport {
-  results?: SmokeTest[];
-  pass_count?: number;
-  total?: number;
-  score?: number;
-  passed?: boolean;
-}
+import { SmokeTestDetail, type SmokeReport } from "./smoke-test-detail";
 
 interface P6Report {
   best_train_score?: number;
@@ -163,34 +149,7 @@ export function QualityReport({
 
       {/* Smoke Tests */}
       {smokeReport && smokeReport.results && smokeReport.results.length > 0 && (
-        <div className="p-4 rounded-xl bg-card border border-border">
-          <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-            Smoke Tests ({smokeReport.pass_count ?? 0} passed
-            {((smokeReport.total ?? 0) - (smokeReport.pass_count ?? 0)) > 0 && (
-              <span className="text-red-400"> · {(smokeReport.total ?? 0) - (smokeReport.pass_count ?? 0)} failed</span>
-            )}
-            )
-          </h4>
-          <div className="space-y-1.5">
-            {smokeReport.results.map((t, i) => (
-              <div key={i} className="flex items-center gap-2 text-sm">
-                {t.passed ? (
-                  <CheckCircle className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                ) : (
-                  <XCircle className="w-3.5 h-3.5 text-red-400 shrink-0" />
-                )}
-                <span className={t.passed ? "text-foreground" : "text-red-400"}>
-                  {t.prompt}
-                </span>
-                {t.grade_notes && (
-                  <span className="text-xs text-muted-foreground truncate">
-                    — {t.grade_notes}
-                  </span>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
+        <SmokeTestDetail report={smokeReport} />
       )}
 
       {/* P6 Optimization */}

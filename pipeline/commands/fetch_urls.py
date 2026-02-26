@@ -53,15 +53,15 @@ def _parse_urls(urls_str: str) -> list[str]:
         if not u:
             continue
         if not u.startswith(('http://', 'https://')):
-            _log("warn", f"Bỏ qua URL không hợp lệ (thiếu http/https): {u}")
+            _log("warn", f"Bo qua URL khong hop le (thieu http/https): {u}")
             continue
         try:
             parsed = urlparse(u)
             if not parsed.netloc:
-                _log("warn", f"Bỏ qua URL không hợp lệ (thiếu domain): {u}")
+                _log("warn", f"Bo qua URL khong hop le (thieu domain): {u}")
                 continue
         except Exception:
-            _log("warn", f"Bỏ qua URL không thể phân tích: {u}")
+            _log("warn", f"Bo qua URL khong the phan tich: {u}")
             continue
         valid.append(u)
     return valid
@@ -231,15 +231,15 @@ def _table_to_md(table, lines: list) -> None:
     lines.append('')
 
 
-def fetch_and_convert(url: str, web_client) -> tuple[str | None, str | None]:
-    """Fetch a URL and convert its HTML to Markdown.
+def fetch_and_convert_legacy(url: str, web_client) -> tuple[str | None, str | None]:
+    """Fetch URL via BS4 HTML-to-Markdown conversion (original logic).
 
     Returns (markdown_content, title) or (None, None) on failure.
     """
     try:
         html = web_client.get(url)
     except Exception as e:
-        _log("warn", f"Tải URL thất bại {url}: {e}")
+        _log("warn", f"Tai URL that bai {url}: {e}")
         return None, None
 
     soup = BeautifulSoup(html, 'lxml')
@@ -248,18 +248,64 @@ def fetch_and_convert(url: str, web_client) -> tuple[str | None, str | None]:
     main_el = _find_main_content(soup)
     content = _html_to_markdown(main_el)
 
-    # Truncate if too long
     if len(content) > MAX_CONTENT_LENGTH:
         content = content[:MAX_CONTENT_LENGTH] + "\n\n*[Content truncated]*"
 
     if not content or len(content) < 50:
-        _log("warn", f"Nội dung trích xuất quá ngắn cho {url}")
+        _log("warn", f"Noi dung trich xuat qua ngan cho {url}")
         return None, None
 
     return content, title
 
 
-def run_fetch_urls(urls_str: str, output_dir: str) -> int:
+def fetch_via_jina(url: str, jina_client) -> tuple[str | None, str | None]:
+    """Fetch URL as Markdown via Jina Reader API.
+
+    Returns (markdown_content, title) or (None, None) on failure.
+    """
+    try:
+        content = jina_client.fetch(url)
+    except Exception:
+        return None, None
+
+    if not content or len(content) < 50:
+        return None, None
+
+    # Extract title from first heading or first meaningful line
+    title = None
+    for line in content.split('\n'):
+        stripped = line.strip()
+        if stripped.startswith('# '):
+            title = stripped[2:].strip()
+            break
+        if not stripped or stripped == '---':
+            continue
+        if len(stripped) > 5:
+            title = stripped
+            break
+    title = title or "Untitled"
+
+    if len(content) > MAX_CONTENT_LENGTH:
+        content = content[:MAX_CONTENT_LENGTH] + "\n\n*[Content truncated]*"
+
+    return content, title
+
+
+def fetch_and_convert(url: str, web_client, jina_client=None) -> tuple[str | None, str | None]:
+    """Fetch URL and convert to Markdown. Tries Jina first, falls back to BS4.
+
+    Returns (markdown_content, title) or (None, None) on failure.
+    """
+    if jina_client is not None:
+        content, title = fetch_via_jina(url, jina_client)
+        if content is not None:
+            return content, title
+        _log("info", f"Jina failed, fallback to BS4: {url}")
+
+    return fetch_and_convert_legacy(url, web_client)
+
+
+def run_fetch_urls(urls_str: str, output_dir: str, jina_api_key: str = "") -> int:
     """Main entry point for the fetch-urls command.
 
     Returns exit code: 0 on success (even partial), 1 on total failure.
@@ -268,19 +314,29 @@ def run_fetch_urls(urls_str: str, output_dir: str) -> int:
 
     urls = _parse_urls(urls_str)
     if not urls:
-        _log("error", "Không có URL hợp lệ được cung cấp")
+        _log("error", "Khong co URL hop le duoc cung cap")
         return 1
 
     os.makedirs(output_dir, exist_ok=True)
-    _log("info", f"Đang tải {len(urls)} URLs...")
+    _log("info", f"Dang tai {len(urls)} URLs...")
 
     client = WebClient(rpm=10, timeout=30)
+
+    # Init Jina client (graceful — failure just means no Jina)
+    jina_client = None
+    try:
+        from pipeline.clients.jina_client import JinaClient
+        jina_client = JinaClient(api_key=jina_api_key)
+        _log("info", "Jina Reader da san sang" + (" (co API key)" if jina_api_key else " (free tier)"))
+    except Exception:
+        _log("warn", "Khong khoi tao duoc Jina client, chi dung BS4")
+
     created_files = []
 
     try:
         for i, url in enumerate(urls):
-            _log("info", f"Đang tải {i + 1}/{len(urls)}: {url}")
-            content, title = fetch_and_convert(url, client)
+            _log("info", f"Dang tai {i + 1}/{len(urls)}: {url}")
+            content, title = fetch_and_convert(url, client, jina_client)
             if content is None:
                 continue
 
@@ -305,13 +361,14 @@ title: "{title}"
                 f.write(output)
 
             created_files.append(filepath)
-            _log("info", f"Đã lưu {filename} ({len(content)} ký tự)")
+            _log("info", f"Da luu {filename} ({len(content)} ky tu)")
     finally:
         client.close()
+        if jina_client:
+            jina_client.close()
 
     if created_files:
-        _log("info", f"Đã tải thành công {len(created_files)}/{len(urls)} URLs")
-        # Print result as JSON for build-runner to parse
+        _log("info", f"Da tai thanh cong {len(created_files)}/{len(urls)} URLs")
         print(json.dumps({
             "event": "fetch-urls-done",
             "files": created_files,
@@ -320,5 +377,5 @@ title: "{title}"
         }, ensure_ascii=False), flush=True)
         return 0
     else:
-        _log("error", "Tất cả URL tải thất bại")
+        _log("error", "Tat ca URL tai that bai")
         return 1
