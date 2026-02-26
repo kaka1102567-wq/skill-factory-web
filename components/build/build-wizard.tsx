@@ -60,17 +60,19 @@ export function BuildWizard() {
     }
   };
 
-  // Upload a single file with timeout + retry. Returns error reason on failure.
+  // Upload a single file with dynamic timeout + retry. Returns error reason on failure.
   const uploadSingleFile = async (
     file: File, uploadDir: string | null,
   ): Promise<{ ok: true; path: string; uploadDir: string } | { ok: false; reason: string }> => {
-    const TIMEOUT_MS = 120_000; // 120s per file
+    // Dynamic timeout: 60s base + 5s per MB (50MB → 310s, 100MB → 560s)
+    const fileMB = file.size / (1024 * 1024);
+    const timeoutMs = Math.max(60_000, Math.round(60_000 + fileMB * 5_000));
 
     for (let attempt = 0; attempt < 2; attempt++) {
-      if (attempt > 0) await new Promise((r) => setTimeout(r, 2000)); // 2s delay before retry
+      if (attempt > 0) await new Promise((r) => setTimeout(r, 2000));
 
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
 
       try {
         const formData = new FormData();
@@ -86,7 +88,10 @@ export function BuildWizard() {
 
         if (!res.ok) {
           const errData = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
-          const reason = errData.error || `HTTP ${res.status}`;
+          let reason = errData.error || `HTTP ${res.status}`;
+          if (reason.includes("stream interrupted") || reason.includes("Unexpected end of form")) {
+            reason = "upload interrupted — slow network or proxy timeout";
+          }
           console.warn(`[Upload] ${file.name} attempt ${attempt + 1} failed: ${reason}`);
           if (attempt === 0) continue;
           return { ok: false, reason };
@@ -96,7 +101,7 @@ export function BuildWizard() {
         return { ok: true, path: data.files[0].path, uploadDir: data.upload_dir };
       } catch (err) {
         const reason = err instanceof DOMException && err.name === "AbortError"
-          ? "timeout (>120s)"
+          ? `timeout (>${Math.round(timeoutMs / 1000)}s)`
           : err instanceof Error ? err.message : "network error";
         console.warn(`[Upload] ${file.name} attempt ${attempt + 1} error: ${reason}`);
         if (attempt === 0) continue;
