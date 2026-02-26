@@ -124,6 +124,7 @@ export function initializeSchema(db: Database.Database) {
       insertSetting.run("claude_api_key", "", "Claude/Anthropic API key");
       insertSetting.run("claude_base_url", "", "Custom API base URL (e.g. https://claudible.io)");
       insertSetting.run("claude_model_light", "claude-haiku-4-5-20251001", "Light model for P3/P4 (cost saving)");
+      insertSetting.run("google_vision_credentials", "", "Google Cloud Vision API credentials JSON content");
     });
     seedSettings();
   }
@@ -132,6 +133,7 @@ export function initializeSchema(db: Database.Database) {
   db.prepare(`INSERT OR IGNORE INTO settings (key, value, description) VALUES ('claude_api_key', '', 'Claude/Anthropic API key')`).run();
   db.prepare(`INSERT OR IGNORE INTO settings (key, value, description) VALUES ('claude_base_url', '', 'Custom API base URL')`).run();
   db.prepare(`INSERT OR IGNORE INTO settings (key, value, description) VALUES ('claude_model_light', 'claude-haiku-4-5-20251001', 'Light model for P3/P4')`).run();
+  db.prepare(`INSERT OR IGNORE INTO settings (key, value, description) VALUES ('google_vision_credentials', '', 'Google Cloud Vision API credentials JSON content')`).run();
 
   // Seed templates if empty
   const templateCount = db

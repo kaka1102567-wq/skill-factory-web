@@ -79,7 +79,7 @@ def _copy_seekers_references(baseline: dict, output_dir: str,
             refs_copied += 1
 
     logger.info(
-        f"Copied {refs_copied} reference files to output",
+        f"Đã sao chép {refs_copied} file tài liệu tham khảo vào output",
         phase="p5",
     )
     return refs_copied
@@ -298,7 +298,7 @@ def _generate_examples(build_atoms: list, output_dir: str,
     code_atoms = [a for a in build_atoms if a.get("category") == "code_pattern"]
 
     if not code_atoms:
-        logger.info("No code atoms found — skipping examples/", phase="p5")
+        logger.info("Không tìm thấy code atoms — bỏ qua examples/", phase="p5")
         return False
 
     # Group by pattern_type (extract from tags)
@@ -333,7 +333,7 @@ def _generate_examples(build_atoms: list, output_dir: str,
     write_file(os.path.join(examples_dir, "code_patterns.md"), content)
 
     logger.info(
-        f"Generated examples/code_patterns.md ({len(code_atoms)} patterns)",
+        f"Đã tạo examples/code_patterns.md ({len(code_atoms)} mẫu)",
         phase="p5",
     )
     return True
@@ -534,7 +534,7 @@ def _package_for_platforms(config, output_dir, build_atoms,
             packager(platform_dir)
         else:
             logger.warn(
-                f"Unknown platform '{platform}', skipping",
+                f"Platform không xác định '{platform}', bỏ qua",
                 phase="p5",
             )
 
@@ -550,7 +550,7 @@ def _package_for_platforms(config, output_dir, build_atoms,
 
     platform_names = ", ".join(platforms)
     logger.info(
-        f"Packaged for {len(platforms)} platforms: {platform_names}",
+        f"Đã đóng gói cho {len(platforms)} platform: {platform_names}",
         phase="p5",
     )
     return platforms
@@ -708,8 +708,8 @@ def run_p5(config: BuildConfig, claude: ClaudeClient,
             a for a in all_atoms if a.get("status") != "flagged"
         ]
         logger.info(
-            f"Building from {len(build_atoms)} atoms "
-            f"({len(all_atoms) - len(build_atoms)} flagged excluded)",
+            f"Tạo từ {len(build_atoms)} atoms "
+            f"({len(all_atoms) - len(build_atoms)} đã loại do bị gắn cờ)",
             phase=phase_id,
         )
 
@@ -735,7 +735,7 @@ def run_p5(config: BuildConfig, claude: ClaudeClient,
         if use_seekers:
             baseline_type = baseline.get("source", "unknown")
             logger.info(
-                f"Using baseline ({baseline_type}) for production build",
+                f"Sử dụng baseline ({baseline_type}) cho bản build production",
                 phase=phase_id,
             )
             refs_copied = _copy_seekers_references(baseline, config.output_dir, logger)
@@ -753,7 +753,7 @@ def run_p5(config: BuildConfig, claude: ClaudeClient,
                 chunks = [atoms[i:i + MAX_ATOMS_PER_API_CALL]
                           for i in range(0, len(atoms), MAX_ATOMS_PER_API_CALL)]
                 logger.info(
-                    f"Generating knowledge/{pillar_name}.md "
+                    f"Đang tạo knowledge/{pillar_name}.md "
                     f"({len(atoms)} atoms, {len(chunks)} chunks)",
                     phase=phase_id,
                 )
@@ -781,7 +781,7 @@ def run_p5(config: BuildConfig, claude: ClaudeClient,
                         raise
                     except Exception as e:
                         logger.warn(
-                            f"Chunk {ci+1}/{len(chunks)} of {pillar_name} failed: {e}",
+                            f"Chunk {ci+1}/{len(chunks)} của {pillar_name} thất bại: {e}",
                             phase=phase_id,
                         )
                         merged_parts.append(
@@ -797,7 +797,7 @@ def run_p5(config: BuildConfig, claude: ClaudeClient,
                 output_files.append(fp)
             else:
                 logger.info(
-                    f"Generating knowledge/{pillar_name}.md "
+                    f"Đang tạo knowledge/{pillar_name}.md "
                     f"({len(atoms)} atoms)",
                     phase=phase_id,
                 )
@@ -819,14 +819,14 @@ def run_p5(config: BuildConfig, claude: ClaudeClient,
                         output_files.append(fp)
                     else:
                         logger.warn(
-                            f"Empty content for pillar '{pillar_name}'",
+                            f"Nội dung trống cho pillar '{pillar_name}'",
                             phase=phase_id,
                         )
                 except CreditExhaustedError:
                     raise
                 except Exception as e:
                     logger.warn(
-                        f"Failed to generate {pillar_name}.md: {e}",
+                        f"Không tạo được {pillar_name}.md: {e}",
                         phase=phase_id,
                     )
                     fallback = _generate_fallback_knowledge(
@@ -839,7 +839,7 @@ def run_p5(config: BuildConfig, claude: ClaudeClient,
         current_step += 1
         progress = int((current_step / max(total_steps, 1)) * 80)
         logger.phase_progress(phase_id, phase_name, progress)
-        logger.info("Generating SKILL.md", phase=phase_id)
+        logger.info("Đang tạo SKILL.md", phase=phase_id)
 
         avg_confidence = (
             sum(float(a.get("confidence", 0.5)) for a in build_atoms)
@@ -949,10 +949,10 @@ def run_p5(config: BuildConfig, claude: ClaudeClient,
                 pdir = os.path.join(config.output_dir, platform.lower())
                 if os.path.isdir(pdir):
                     write_file(os.path.join(pdir, "README.md"), readme_content)
-        logger.info("Generated README.md", phase=phase_id)
+        logger.info("Đã tạo README.md", phase=phase_id)
 
         # ── Step 4: Create package.zip ──
-        logger.info("Creating package.zip", phase=phase_id)
+        logger.info("Đang tạo package.zip", phase=phase_id)
         zip_path = os.path.join(config.output_dir, "package.zip")
         create_zip(config.output_dir, zip_path)
         output_files.append(zip_path)
@@ -1023,8 +1023,8 @@ def run_p5(config: BuildConfig, claude: ClaudeClient,
         if len(build_atoms) < 10 and total_input_pages > 20:
             score = max(0.0, score - 20.0)
             logger.warn(
-                f"Low atom density: only {len(build_atoms)} atoms from "
-                f"{total_input_pages} pages. Consider retrying build.",
+                f"Mật độ atoms thấp: chỉ {len(build_atoms)} atoms từ "
+                f"{total_input_pages} trang. Cân nhắc thử lại build.",
                 phase=phase_id,
             )
 
@@ -1033,7 +1033,7 @@ def run_p5(config: BuildConfig, claude: ClaudeClient,
             for pid in ["p0", "p1", "p2", "p3", "p4", "p5"]
         )
         logger.info(
-            f"Quality breakdown: {breakdown} -> final={score:.1f}",
+            f"Phân tích chất lượng: {breakdown} -> cuối cùng={score:.1f}",
             phase=phase_id,
         )
 
@@ -1145,7 +1145,7 @@ def _build_skill_md_via_claude(config, pillars, build_atoms,
         raise
     except Exception as e:
         logger.warn(
-            f"Claude SKILL.md failed: {e} — using fallback",
+            f"Claude tạo SKILL.md thất bại: {e} — dùng phương án dự phòng",
             phase="p5",
         )
         return _generate_fallback_skill(config, pillars, build_atoms)
@@ -1173,18 +1173,18 @@ def _enforce_progressive_disclosure(
     desc_chars = len(description)
     if desc_chars > 1024:
         warnings.append(
-            f"⚠️ Description {desc_chars} chars > 1024 limit — "
-            "may be truncated by Claude's system"
+            f"⚠️ Description {desc_chars} ký tự > giới hạn 1024 — "
+            "có thể bị cắt bởi hệ thống Claude"
         )
     if desc_words > 200:
         warnings.append(
-            f"⚠️ Description {desc_words} words > 200 recommended — "
-            "consider shortening for faster parsing"
+            f"⚠️ Description {desc_words} từ > khuyến nghị 200 — "
+            "cân nhắc rút ngắn để phân tích nhanh hơn"
         )
     if desc_words < 50:
         warnings.append(
-            f"⚠️ Description only {desc_words} words — "
-            "too short, likely to undertrigger. Add more keywords and scenarios"
+            f"⚠️ Description chỉ {desc_words} từ — "
+            "quá ngắn, dễ không kích hoạt. Thêm từ khóa và tình huống"
         )
 
     # Check 2: Body length
@@ -1200,9 +1200,9 @@ def _enforce_progressive_disclosure(
 
     if content_lines > 500:
         warnings.append(
-            f"⚠️ SKILL.md body {content_lines} lines > 500 recommended — "
-            "Claude may not read the entire file. "
-            "Consider moving detailed content to knowledge/*.md"
+            f"⚠️ Nội dung SKILL.md {content_lines} dòng > khuyến nghị 500 — "
+            "Claude có thể không đọc hết file. "
+            "Cân nhắc chuyển nội dung chi tiết sang knowledge/*.md"
         )
 
     # Check 3: Knowledge files
@@ -1212,8 +1212,8 @@ def _enforce_progressive_disclosure(
             has_toc = '## Table of Contents' in content or '## Mục lục' in content
             if not has_toc:
                 warnings.append(
-                    f"⚠️ knowledge/{name}.md is {file_lines} lines — "
-                    "consider adding a Table of Contents at the top"
+                    f"⚠️ knowledge/{name}.md có {file_lines} dòng — "
+                    "cân nhắc thêm Mục lục ở đầu file"
                 )
 
     for w in warnings:
@@ -1221,8 +1221,8 @@ def _enforce_progressive_disclosure(
 
     if not warnings:
         logger.info(
-            f"✅ Progressive disclosure check passed: "
-            f"desc={desc_words}w/{desc_chars}c, body={content_lines}L",
+            f"✅ Kiểm tra progressive disclosure đạt: "
+            f"desc={desc_words}từ/{desc_chars}ký tự, body={content_lines}dòng",
             phase="p5",
         )
 
@@ -1248,10 +1248,10 @@ def _maybe_bundle_scripts(config, claude, atoms, topics_str, logger) -> list[dic
             max_tokens=4096, phase="p5", use_light_model=True,
         )
         scripts = result.get("scripts", []) if isinstance(result, dict) else []
-        logger.info(f"Generated {len(scripts)} utility scripts", phase="p5")
+        logger.info(f"Đã tạo {len(scripts)} script tiện ích", phase="p5")
         return scripts
     except Exception as e:
-        logger.warn(f"Script bundler error: {e}", phase="p5")
+        logger.warn(f"Lỗi script bundler: {e}", phase="p5")
         return []
 
 

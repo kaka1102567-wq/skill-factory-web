@@ -1437,7 +1437,7 @@ class TestProgressiveDisclosure:
         from pipeline.phases.p5_build import _enforce_progressive_disclosure
         from pipeline.core.logger import PipelineLogger
         _, warnings = _enforce_progressive_disclosure("# Test", "Short", {}, PipelineLogger())
-        assert any("too short" in w.lower() or "undertrigger" in w.lower() for w in warnings)
+        assert any("too short" in w.lower() or "undertrigger" in w.lower() or "ngắn" in w.lower() or "kích hoạt" in w.lower() for w in warnings)
 
     def test_description_ok(self):
         from pipeline.phases.p5_build import _enforce_progressive_disclosure

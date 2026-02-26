@@ -63,7 +63,7 @@ def _log(level: str, message: str) -> None:
 def clone_repo(repo_url: str, target_dir: str) -> str:
     """Clone GitHub repo (shallow). Returns path to cloned repo."""
     if Path(repo_url).exists():
-        _log("info", f"Using local repo: {repo_url}")
+        _log("info", f"Sử dụng repo cục bộ: {repo_url}")
         return repo_url
 
     # Validate: must contain github.com as a domain (not substring of another domain)
@@ -81,7 +81,7 @@ def clone_repo(repo_url: str, target_dir: str) -> str:
     repo_dir = Path(target_dir) / "_repo_clone"
     repo_dir.mkdir(parents=True, exist_ok=True)
 
-    _log("info", f"Cloning repository: {repo_url}")
+    _log("info", f"Đang clone repository: {repo_url}")
 
     try:
         subprocess.run(
@@ -279,21 +279,21 @@ def run_analyze_repo(repo_url: str, output_dir: str,
         )
         _log("info",
              f"Repo: {scan['total_files']} files"
-             f"{f', languages: {lang_summary}' if lang_summary else ''}")
+             f"{f', ngôn ngữ: {lang_summary}' if lang_summary else ''}")
 
         # Step 3: Extract docs
         docs = extract_docs(repo_dir, repo_url, scan, output_dir)
-        _log("info", f"Extracted {len(docs)} doc files to input/")
+        _log("info", f"Đã trích xuất {len(docs)} file tài liệu vào input/")
 
         # Step 4: Analyze code (optional)
         if analyze_code_flag and scan["source_files"]:
             code_path = analyze_code(repo_dir, repo_url, scan, output_dir)
             file_count = len(scan["source_files"][:MAX_SOURCE_FILES])
-            _log("info", f"Analyzed {file_count} source files -> code_analysis.json")
+            _log("info", f"Đã phân tích {file_count} file nguồn -> code_analysis.json")
         elif not scan["source_files"]:
-            _log("info", "No source files found, skipping code analysis")
+            _log("info", "Không tìm thấy file nguồn, bỏ qua phân tích code")
         else:
-            _log("info", "Code analysis skipped (docs only mode)")
+            _log("info", "Bỏ qua phân tích code (chỉ xử lý tài liệu)")
 
         # Cleanup cloned repo
         if tmp_dir:
@@ -306,7 +306,7 @@ def run_analyze_repo(repo_url: str, output_dir: str,
         print(json.dumps({
             "event": "log", "level": "info", "phase": "fetch",
             "message": (
-                f"Repo analysis complete: {len(docs)} docs"
+                f"Phân tích repo hoàn thành: {len(docs)} tài liệu"
                 f"{', code_analysis.json' if analyze_code_flag and scan['source_files'] else ''}"
             ),
         }, ensure_ascii=True), flush=True)
@@ -314,5 +314,5 @@ def run_analyze_repo(repo_url: str, output_dir: str,
         return 0
 
     except Exception as e:
-        _log("error", f"Repo analysis failed: {e}")
+        _log("error", f"Phân tích repo thất bại: {e}")
         return 1

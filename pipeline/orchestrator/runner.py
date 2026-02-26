@@ -68,18 +68,18 @@ class PipelineRunner:
 
         Returns exit code: 0=success, 1=failed, 2=paused (conflicts).
         """
-        self.logger.info(f"Pipeline started: {self.config.name} (build {self.build_id})")
+        self.logger.info(f"Pipeline bắt đầu: {self.config.name} (build {self.build_id})")
         self.logger.info(f"Domain: {self.config.domain}, Tier: {self.config.quality_tier}")
-        self.logger.debug(f"Output dir: {self.config.output_dir}")
-        self.logger.debug(f"Config path: {self.config.config_path}")
-        self.logger.debug(f"Transcripts found: {len(self.config.transcript_paths)}")
+        self.logger.debug(f"Thư mục output: {self.config.output_dir}")
+        self.logger.debug(f"Đường dẫn config: {self.config.config_path}")
+        self.logger.debug(f"Transcripts tìm thấy: {len(self.config.transcript_paths)}")
         for tp in self.config.transcript_paths:
             self.logger.debug(f"  transcript: {tp}")
 
         # Load or create state
         state = load_checkpoint(self.config.output_dir)
         if state:
-            self.logger.info(f"Resuming from checkpoint: phase {state.current_phase}")
+            self.logger.info(f"Tiếp tục từ checkpoint: phase {state.current_phase}")
         else:
             state = PipelineState(build_id=self.build_id)
 
@@ -93,13 +93,13 @@ class PipelineRunner:
             for phase_id, phase_name, phase_func in PHASES:
                 # Skip completed phases
                 if should_skip_phase(state, phase_id):
-                    self.logger.info(f"Skipping {phase_name} (already done)")
+                    self.logger.info(f"Bỏ qua {phase_name} (đã hoàn thành)")
                     continue
 
                 # P1+ require Claude client
                 if phase_id != "p0" and self.claude is None:
                     self.logger.error(
-                        f"Cannot run {phase_name}: CLAUDE_API_KEY not set",
+                        f"Không thể chạy {phase_name}: CLAUDE_API_KEY chưa được đặt",
                         phase=phase_id,
                     )
                     return 1
@@ -120,7 +120,7 @@ class PipelineRunner:
                 # Phase failed → stop
                 if result.status == "failed":
                     self.logger.error(
-                        f"Pipeline stopped: {phase_name} failed — {result.error_message}"
+                        f"Pipeline dừng: {phase_name} thất bại — {result.error_message}"
                     )
                     return 1
 
@@ -129,8 +129,8 @@ class PipelineRunner:
                 # already set status="paused" on the TS side (line 227-234)
                 if state.is_paused:
                     self.logger.info(
-                        f"Pipeline paused: {state.pause_reason}. "
-                        "Waiting for conflict review."
+                        f"Pipeline tạm dừng: {state.pause_reason}. "
+                        "Đang chờ xem xét xung đột."
                     )
                     return 0
 
@@ -143,19 +143,19 @@ class PipelineRunner:
                         update_state_with_result(state, p55_result)
                         save_checkpoint(state, self.config.output_dir)
                     except Exception as e:
-                        self.logger.warn(f"Smoke test error (non-fatal): {e}")
+                        self.logger.warn(f"Lỗi smoke test (không nghiêm trọng): {e}")
 
         except CreditExhaustedError as e:
             self.logger.error(str(e))
             self.logger.error(
-                "Pipeline stopped. Please add API credits, then retry this build."
+                "Pipeline dừng. Vui lòng thêm credit API, sau đó thử lại build này."
             )
             save_checkpoint(state, self.config.output_dir)
             return 1
 
         # All phases complete
         self.logger.info(
-            f"Pipeline complete! Total cost: ${state.total_cost_usd:.4f}, "
+            f"Pipeline hoàn thành! Tổng chi phí: ${state.total_cost_usd:.4f}, "
             f"Tokens: {state.total_tokens}"
         )
         return 0
@@ -165,11 +165,11 @@ class PipelineRunner:
 
         Applies resolutions to atoms_deduplicated.json, then runs P4→P5.
         """
-        self.logger.info("Resuming pipeline after conflict resolution")
+        self.logger.info("Tiếp tục pipeline sau khi giải quyết xung đột")
 
         state = load_checkpoint(self.config.output_dir)
         if not state:
-            self.logger.error("No checkpoint found — cannot resume")
+            self.logger.error("Không tìm thấy checkpoint — không thể tiếp tục")
             return 1
 
         # Apply resolutions to deduplicated atoms
@@ -184,7 +184,7 @@ class PipelineRunner:
 
         for phase_id, phase_name, phase_func in resume_phases:
             if should_skip_phase(state, phase_id):
-                self.logger.info(f"Skipping {phase_name} (already done)")
+                self.logger.info(f"Bỏ qua {phase_name} (đã hoàn thành)")
                 continue
 
             result = phase_func(
@@ -200,7 +200,7 @@ class PipelineRunner:
 
             if result.status == "failed":
                 self.logger.error(
-                    f"Pipeline stopped: {phase_name} failed — {result.error_message}"
+                    f"Pipeline dừng: {phase_name} thất bại — {result.error_message}"
                 )
                 return 1
 
@@ -213,10 +213,10 @@ class PipelineRunner:
                     update_state_with_result(state, p55_result)
                     save_checkpoint(state, self.config.output_dir)
                 except Exception as e:
-                    self.logger.warn(f"Smoke test error (non-fatal): {e}")
+                    self.logger.warn(f"Lỗi smoke test (không nghiêm trọng): {e}")
 
         self.logger.info(
-            f"Pipeline complete! Total cost: ${state.total_cost_usd:.4f}, "
+            f"Pipeline hoàn thành! Tổng chi phí: ${state.total_cost_usd:.4f}, "
             f"Tokens: {state.total_tokens}"
         )
         return 0
@@ -230,7 +230,7 @@ def _apply_resolutions(output_dir: str, resolutions: dict, logger: PipelineLogge
     try:
         data = read_json(dedup_path)
     except FileNotFoundError:
-        logger.warn("atoms_deduplicated.json not found — skipping resolution apply")
+        logger.warn("atoms_deduplicated.json không tìm thấy — bỏ qua áp dụng resolution")
         return
 
     atoms = data.get("atoms", [])
@@ -260,4 +260,4 @@ def _apply_resolutions(output_dir: str, resolutions: dict, logger: PipelineLogge
     data["total_atoms"] = len(resolved_atoms)
     write_json(data, dedup_path)
 
-    logger.info(f"Applied {len(resolutions)} resolutions → {len(resolved_atoms)} atoms remain")
+    logger.info(f"Đã áp dụng {len(resolutions)} resolutions → còn lại {len(resolved_atoms)} atoms")

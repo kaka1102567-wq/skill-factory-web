@@ -191,20 +191,20 @@ def _verify_with_skill_seekers(atoms_to_verify, ss_references, logger):
         verified = strong_count + weak_count
         pct = round(verified / total * 100, 1)
         logger.info(
-            f"Verified {verified}/{total} atoms ({pct}%)",
+            f"Đã xác minh {verified}/{total} atoms ({pct}%)",
             phase=phase_id,
         )
         logger.info(
-            f"  {strong_count} strong evidence (>={int(STRONG_THRESHOLD)}% match)",
+            f"  {strong_count} bằng chứng mạnh (>={int(STRONG_THRESHOLD)}% khớp)",
             phase=phase_id,
         )
         logger.info(
-            f"  {weak_count} weak evidence "
-            f"({int(WEAK_THRESHOLD)}-{int(STRONG_THRESHOLD)}% match)",
+            f"  {weak_count} bằng chứng yếu "
+            f"({int(WEAK_THRESHOLD)}-{int(STRONG_THRESHOLD)}% khớp)",
             phase=phase_id,
         )
         logger.info(
-            f"  {none_count} no evidence (expert insights)",
+            f"  {none_count} không có bằng chứng (kiến thức chuyên gia)",
             phase=phase_id,
         )
 
@@ -224,8 +224,8 @@ def _verify_with_claude_batch(atoms_to_verify, config, claude, lookup, logger):
 
     total_batches = (len(atoms_to_verify) + BATCH_SIZE - 1) // BATCH_SIZE
     logger.info(
-        f"Batch verifying {len(atoms_to_verify)} atoms in "
-        f"{total_batches} batches (light model)",
+        f"Xác minh batch {len(atoms_to_verify)} atoms trong "
+        f"{total_batches} batch (light model)",
         phase=phase_id,
     )
 
@@ -316,7 +316,7 @@ def _verify_with_claude_batch(atoms_to_verify, config, claude, lookup, logger):
             raise
         except Exception as e:
             logger.warn(
-                f"Batch verify failed for batch {batch_num}: {e}",
+                f"Xác minh batch thất bại cho batch {batch_num}: {e}",
                 phase=phase_id,
             )
             for atom in batch:
@@ -355,7 +355,7 @@ def run_p4(config: BuildConfig, claude: ClaudeClient,
 
         all_atoms = dedup_data.get("atoms", [])
         if not all_atoms:
-            logger.warn("No atoms to verify — skipping", phase=phase_id)
+            logger.warn("Không có atoms để xác minh — bỏ qua", phase=phase_id)
             logger.phase_complete(
                 phase_id, phase_name, score=0.0, atoms_count=0,
             )
@@ -382,8 +382,8 @@ def run_p4(config: BuildConfig, claude: ClaudeClient,
 
         total_to_verify = len(atoms_to_verify)
         logger.info(
-            f"Verifying {total_to_verify}/{len(all_atoms)} atoms "
-            f"(tier={config.quality_tier}, sample={sample_pct}%)",
+            f"Xác minh {total_to_verify}/{len(all_atoms)} atoms "
+            f"(tier={config.quality_tier}, mẫu={sample_pct}%)",
             phase=phase_id,
         )
 
@@ -392,7 +392,7 @@ def run_p4(config: BuildConfig, claude: ClaudeClient,
 
         if ss_references:
             logger.info(
-                f"Using Skill Seekers baseline ({len(ss_references)} refs)",
+                f"Sử dụng baseline Skill Seekers ({len(ss_references)} tài liệu tham khảo)",
                 phase=phase_id,
             )
             verified_count, unverified_count, verified_ids = (

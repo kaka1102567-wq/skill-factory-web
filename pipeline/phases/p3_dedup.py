@@ -71,7 +71,7 @@ def run_p3(config: BuildConfig, claude: ClaudeClient,
 
         raw_atoms = raw_data.get("atoms", [])
         if not raw_atoms:
-            logger.warn("No atoms to deduplicate — skipping", phase=phase_id)
+            logger.warn("Không có atoms để loại bỏ trùng lặp — bỏ qua", phase=phase_id)
             logger.phase_complete(phase_id, phase_name, score=0.0, atoms_count=0)
             return PhaseResult(
                 phase_id=phase_id, status="done", started_at=started_at,
@@ -80,14 +80,14 @@ def run_p3(config: BuildConfig, claude: ClaudeClient,
                 quality_score=0.0, atoms_count=0,
             )
 
-        logger.info(f"Deduplicating {len(raw_atoms)} raw atoms", phase=phase_id)
+        logger.info(f"Loại bỏ trùng lặp {len(raw_atoms)} atoms thô", phase=phase_id)
 
         # Normalize empty categories
         for atom in raw_atoms:
             if not atom.get("category", "").strip():
                 atom["category"] = "general"
                 logger.debug(
-                    f"Atom {atom.get('id', '?')} missing category — assigned 'general'",
+                    f"Atom {atom.get('id', '?')} thiếu danh mục — gán 'general'",
                     phase=phase_id,
                 )
 
@@ -95,8 +95,8 @@ def run_p3(config: BuildConfig, claude: ClaudeClient,
         # Use adaptive threshold based on atom count
         adaptive = _get_adaptive_threshold(0.6, len(raw_atoms))
         logger.info(
-            f"Cross-source threshold: 0.6 -> {adaptive} "
-            f"(adaptive, {len(raw_atoms)} atoms)",
+            f"Ngưỡng cross-source: 0.6 -> {adaptive} "
+            f"(tự động điều chỉnh, {len(raw_atoms)} atoms)",
             phase=phase_id,
         )
         cross_result = _cross_source_dedup(raw_atoms, logger, dup_threshold=adaptive)
@@ -106,9 +106,9 @@ def run_p3(config: BuildConfig, claude: ClaudeClient,
 
         if cross_stats["total_actions"] > 0:
             logger.info(
-                f"Cross-source: {cross_stats['duplicates_merged']} merged, "
-                f"{cross_stats['contradictions_flagged']} conflicts, "
-                f"{cross_stats['outdated_replaced']} outdated replaced",
+                f"Cross-source: {cross_stats['duplicates_merged']} đã gộp, "
+                f"{cross_stats['contradictions_flagged']} xung đột, "
+                f"{cross_stats['outdated_replaced']} lỗi thời đã thay thế",
                 phase=phase_id,
             )
 
@@ -139,7 +139,7 @@ def run_p3(config: BuildConfig, claude: ClaudeClient,
         if medium_groups:
             mini_total = sum(len(v) for v in medium_groups.values())
             logger.info(
-                f"Batch dedup {len(medium_groups)} small groups ({mini_total} atoms)",
+                f"Xử lý batch {len(medium_groups)} nhóm nhỏ ({mini_total} atoms)",
                 phase=phase_id,
             )
             combined_atoms = []
@@ -152,8 +152,8 @@ def run_p3(config: BuildConfig, claude: ClaudeClient,
                 batches = _chunk_list(combined_atoms, MAX_ATOMS_PER_API_CALL)
                 batch_sizes = "+".join(str(len(b)) for b in batches)
                 logger.info(
-                    f"Combined batch ({len(combined_atoms)} atoms) split into "
-                    f"{len(batches)} sub-batches: {batch_sizes}",
+                    f"Batch tổng hợp ({len(combined_atoms)} atoms) chia thành "
+                    f"{len(batches)} sub-batch: {batch_sizes}",
                     phase=phase_id,
                 )
                 for bi, batch in enumerate(batches):
@@ -180,14 +180,14 @@ def run_p3(config: BuildConfig, claude: ClaudeClient,
         for gi, (category, atoms) in enumerate(solo_groups.items()):
             progress = int(((gi + 1) / max(total_solo, 1)) * 80)
             logger.phase_progress(phase_id, phase_name, progress)
-            logger.info(f"Dedup group '{category}': {len(atoms)} atoms", phase=phase_id)
+            logger.info(f"Nhóm loại bỏ trùng lặp '{category}': {len(atoms)} atoms", phase=phase_id)
 
             if len(atoms) > MAX_ATOMS_PER_API_CALL:
                 batches = _chunk_list(atoms, MAX_ATOMS_PER_API_CALL)
                 batch_sizes = "+".join(str(len(b)) for b in batches)
                 logger.info(
-                    f"Group '{category}' ({len(atoms)} atoms) split into "
-                    f"{len(batches)} sub-batches: {batch_sizes}",
+                    f"Nhóm '{category}' ({len(atoms)} atoms) chia thành "
+                    f"{len(batches)} sub-batch: {batch_sizes}",
                     phase=phase_id,
                 )
                 for bi, batch in enumerate(batches):
@@ -296,7 +296,7 @@ def run_p3(config: BuildConfig, claude: ClaudeClient,
             )
         detail = ", ".join(parts) if parts else "no changes"
         logger.info(
-            f"Dedup: {input_count} -> {len(all_unique_atoms)} atoms"
+            f"Loại bỏ trùng lặp: {input_count} -> {len(all_unique_atoms)} atoms"
             f" ({detail})",
             phase=phase_id,
         )
@@ -304,8 +304,8 @@ def run_p3(config: BuildConfig, claude: ClaudeClient,
         # Emit conflict event if unresolved conflicts exist → pipeline PAUSES
         if unresolved:
             logger.warn(
-                f"{len(unresolved)} unresolved conflicts detected"
-                " — pausing for review",
+                f"Phát hiện {len(unresolved)} xung đột chưa giải quyết"
+                " — tạm dừng để xem xét",
                 phase=phase_id,
             )
             logger.report_conflicts([c.to_dict() for c in unresolved])
@@ -379,8 +379,8 @@ def _dedup_group(category, atoms, raw_atoms, config, claude, lookup,
         # keep all original atoms rather than losing data
         if not unique_from_claude or len(unique_from_claude) < len(atoms) * 0.3:
             logger.warn(
-                f"Claude dedup too aggressive for '{category}': "
-                f"{len(atoms)}→{len(unique_from_claude)} atoms — keeping all",
+                f"Claude loại bỏ trùng lặp quá mạnh cho '{category}': "
+                f"{len(atoms)}→{len(unique_from_claude)} atoms — giữ tất cả",
                 phase=phase_id,
             )
             for a in atoms:
@@ -438,8 +438,8 @@ def _dedup_group(category, atoms, raw_atoms, config, claude, lookup,
             all_conflicts.append(conflict)
 
         logger.debug(
-            f"Group '{category}': {len(atoms)}->{len(unique_from_claude)} atoms, "
-            f"{len(conflicts)} conflicts",
+            f"Nhóm '{category}': {len(atoms)}->{len(unique_from_claude)} atoms, "
+            f"{len(conflicts)} xung đột",
             phase=phase_id,
         )
 
@@ -447,7 +447,7 @@ def _dedup_group(category, atoms, raw_atoms, config, claude, lookup,
         raise
     except Exception as e:
         logger.warn(
-            f"Claude dedup failed for group '{category}': {e}",
+            f"Claude loại bỏ trùng lặp thất bại cho nhóm '{category}': {e}",
             phase=phase_id,
         )
         for a in atoms:
@@ -627,7 +627,7 @@ def _cross_source_dedup(
                 stats["duplicates_merged"] += 1
                 title = at.get("title", "")[:50]
                 logger.debug(
-                    f"Merged: '{title}' (transcript + baseline)",
+                    f"Đã gộp: '{title}' (transcript + baseline)",
                     phase=phase_id,
                 )
                 break  # transcript atom handled
@@ -646,7 +646,7 @@ def _cross_source_dedup(
                 })
                 stats["contradictions_flagged"] += 1
                 logger.debug(
-                    f"Conflict: '{at.get('title', '')[:40]}' "
+                    f"Xung đột: '{at.get('title', '')[:40]}' "
                     f"vs '{ab.get('title', '')[:40]}'",
                     phase=phase_id,
                 )
@@ -661,8 +661,8 @@ def _cross_source_dedup(
                 })
                 stats["outdated_replaced"] += 1
                 logger.debug(
-                    f"Outdated: '{at.get('title', '')[:50]}'"
-                    " -> using baseline version",
+                    f"Lỗi thời: '{at.get('title', '')[:50]}'"
+                    " -> dùng phiên bản baseline",
                     phase=phase_id,
                 )
                 break  # transcript atom replaced

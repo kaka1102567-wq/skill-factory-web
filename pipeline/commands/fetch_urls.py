@@ -53,15 +53,15 @@ def _parse_urls(urls_str: str) -> list[str]:
         if not u:
             continue
         if not u.startswith(('http://', 'https://')):
-            _log("warn", f"Skipping invalid URL (no http/https): {u}")
+            _log("warn", f"Bỏ qua URL không hợp lệ (thiếu http/https): {u}")
             continue
         try:
             parsed = urlparse(u)
             if not parsed.netloc:
-                _log("warn", f"Skipping invalid URL (no domain): {u}")
+                _log("warn", f"Bỏ qua URL không hợp lệ (thiếu domain): {u}")
                 continue
         except Exception:
-            _log("warn", f"Skipping unparseable URL: {u}")
+            _log("warn", f"Bỏ qua URL không thể phân tích: {u}")
             continue
         valid.append(u)
     return valid
@@ -239,7 +239,7 @@ def fetch_and_convert(url: str, web_client) -> tuple[str | None, str | None]:
     try:
         html = web_client.get(url)
     except Exception as e:
-        _log("warn", f"Failed to fetch {url}: {e}")
+        _log("warn", f"Tải URL thất bại {url}: {e}")
         return None, None
 
     soup = BeautifulSoup(html, 'lxml')
@@ -253,7 +253,7 @@ def fetch_and_convert(url: str, web_client) -> tuple[str | None, str | None]:
         content = content[:MAX_CONTENT_LENGTH] + "\n\n*[Content truncated]*"
 
     if not content or len(content) < 50:
-        _log("warn", f"Extracted content too short for {url}")
+        _log("warn", f"Nội dung trích xuất quá ngắn cho {url}")
         return None, None
 
     return content, title
@@ -268,18 +268,18 @@ def run_fetch_urls(urls_str: str, output_dir: str) -> int:
 
     urls = _parse_urls(urls_str)
     if not urls:
-        _log("error", "No valid URLs provided")
+        _log("error", "Không có URL hợp lệ được cung cấp")
         return 1
 
     os.makedirs(output_dir, exist_ok=True)
-    _log("info", f"Fetching {len(urls)} URLs...")
+    _log("info", f"Đang tải {len(urls)} URLs...")
 
     client = WebClient(rpm=10, timeout=30)
     created_files = []
 
     try:
         for i, url in enumerate(urls):
-            _log("info", f"Fetching {i + 1}/{len(urls)}: {url}")
+            _log("info", f"Đang tải {i + 1}/{len(urls)}: {url}")
             content, title = fetch_and_convert(url, client)
             if content is None:
                 continue
@@ -305,12 +305,12 @@ title: "{title}"
                 f.write(output)
 
             created_files.append(filepath)
-            _log("info", f"Saved {filename} ({len(content)} chars)")
+            _log("info", f"Đã lưu {filename} ({len(content)} ký tự)")
     finally:
         client.close()
 
     if created_files:
-        _log("info", f"Fetched {len(created_files)}/{len(urls)} URLs successfully")
+        _log("info", f"Đã tải thành công {len(created_files)}/{len(urls)} URLs")
         # Print result as JSON for build-runner to parse
         print(json.dumps({
             "event": "fetch-urls-done",
@@ -320,5 +320,5 @@ title: "{title}"
         }, ensure_ascii=False), flush=True)
         return 0
     else:
-        _log("error", "All URL fetches failed")
+        _log("error", "Tất cả URL tải thất bại")
         return 1

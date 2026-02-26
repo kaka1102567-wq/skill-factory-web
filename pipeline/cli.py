@@ -262,9 +262,9 @@ def cmd_discover_baseline(args) -> int:
         web.close()
 
     logger.info(
-        f"Discovery {'succeeded' if result.success else 'failed'}: "
-        f"{result.refs_count} refs, {result.topics_count} topics, "
-        f"cost ${result.total_cost_usd:.4f}",
+        f"Khám phá {'thành công' if result.success else 'thất bại'}: "
+        f"{result.refs_count} tài liệu tham khảo, {result.topics_count} chủ đề, "
+        f"chi phí ${result.total_cost_usd:.4f}",
     )
 
     return 0 if result.success else 1

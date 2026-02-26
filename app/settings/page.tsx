@@ -3,10 +3,11 @@
 import { useState, useEffect } from "react";
 import {
   Key, Terminal, Bell, Trash2, Save, Loader2,
-  Check, AlertCircle, TestTube, HardDrive
+  Check, AlertCircle, TestTube, HardDrive, ScanText
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 
 interface Settings {
@@ -149,6 +150,25 @@ export default function SettingsPage() {
           </select>
           <p className="text-xs text-muted-foreground mt-1">
             Light model used for P3 (Dedup) and P4 (Verify). Haiku saves 67% cost per request.
+          </p>
+        </div>
+      </Section>
+
+      {/* OCR Settings */}
+      <Section icon={ScanText} title="OCR Settings">
+        <div>
+          <label className="text-xs font-medium text-muted-foreground block mb-1">
+            Google Cloud Vision Credentials (JSON)
+          </label>
+          <Textarea
+            value={settings.google_vision_credentials || ""}
+            onChange={(e) => update("google_vision_credentials", e.target.value)}
+            placeholder="Dán nội dung file JSON credentials từ Google Cloud Console..."
+            className="text-sm font-mono min-h-[120px] resize-y"
+            rows={5}
+          />
+          <p className="text-xs text-muted-foreground mt-1">
+            Tải từ Google Cloud Console &gt; APIs &amp; Services &gt; Credentials. Nếu để trống, pipeline sẽ dùng Tesseract OCR.
           </p>
         </div>
       </Section>

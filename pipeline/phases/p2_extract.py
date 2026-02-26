@@ -50,7 +50,7 @@ def run_p2(config: BuildConfig, claude: ClaudeClient,
             raise PhaseError(phase_id, "No valid transcripts to extract from")
 
         logger.info(
-            f"Extracting atoms from {len(valid_transcripts)} transcripts",
+            f"Trích xuất atoms từ {len(valid_transcripts)} transcripts",
             phase=phase_id,
         )
 
@@ -71,7 +71,7 @@ def run_p2(config: BuildConfig, claude: ClaudeClient,
                 })
 
         total_chunks = len(all_chunks)
-        logger.info(f"Total chunks to process: {total_chunks}", phase=phase_id)
+        logger.info(f"Tổng số chunks cần xử lý: {total_chunks}", phase=phase_id)
 
         for i, chunk_info in enumerate(all_chunks):
             progress = int((i / max(total_chunks, 1)) * 70)
@@ -116,7 +116,7 @@ def run_p2(config: BuildConfig, claude: ClaudeClient,
 
                 logger.debug(
                     f"Chunk {chunk_info['chunk_index']}/{chunk_info['total_chunks']} "
-                    f"of {chunk_info['filename']}: {len(raw_atoms)} atoms",
+                    f"của {chunk_info['filename']}: {len(raw_atoms)} atoms",
                     phase=phase_id,
                 )
 
@@ -125,7 +125,7 @@ def run_p2(config: BuildConfig, claude: ClaudeClient,
             except Exception as e:
                 logger.warn(
                     f"Chunk {chunk_info['chunk_index']}/{chunk_info['total_chunks']} "
-                    f"of {chunk_info['filename']} FAILED — skipping. Error: {e}",
+                    f"của {chunk_info['filename']} THẤT BẠI — bỏ qua. Lỗi: {e}",
                     phase=phase_id,
                 )
 
@@ -150,7 +150,7 @@ def run_p2(config: BuildConfig, claude: ClaudeClient,
 
             if gaps and references:
                 logger.info(
-                    f"Filling {len(gaps)} gaps from baseline references",
+                    f"Bổ sung {len(gaps)} khoảng trống từ tài liệu tham khảo baseline",
                     phase=phase_id,
                 )
                 gap_atoms, atom_counter = _extract_gap_atoms(
@@ -174,10 +174,10 @@ def run_p2(config: BuildConfig, claude: ClaudeClient,
         gap_count = len(gap_atoms)
         code_count = len(code_atoms)
         logger.info(
-            f"Extracted: {transcript_count} from transcript"
-            f" + {gap_count} from baseline"
-            f" + {code_count} from codebase"
-            f" = {len(all_atoms)} total",
+            f"Đã trích xuất: {transcript_count} từ transcript"
+            f" + {gap_count} từ baseline"
+            f" + {code_count} từ codebase"
+            f" = {len(all_atoms)} tổng cộng",
             phase=phase_id,
         )
 
@@ -395,7 +395,7 @@ def _extract_code_atoms(
 
     if not code_analysis_path.exists():
         logger.info(
-            "No code_analysis.json found — skipping code extraction",
+            "Không tìm thấy code_analysis.json — bỏ qua trích xuất code",
             phase=phase_id,
         )
         return [], atom_counter
@@ -403,13 +403,13 @@ def _extract_code_atoms(
     try:
         analysis = read_json(str(code_analysis_path))
     except Exception as e:
-        logger.warn(f"Failed to read code_analysis.json: {e}", phase=phase_id)
+        logger.warn(f"Không đọc được code_analysis.json: {e}", phase=phase_id)
         return [], atom_counter
 
     analyzed_files = analysis.get("analyzed_files", [])
     if not analyzed_files:
         logger.info(
-            "No source files in code_analysis.json — skipping code extraction",
+            "Không có file nguồn trong code_analysis.json — bỏ qua trích xuất code",
             phase=phase_id,
         )
         return [], atom_counter
@@ -484,7 +484,7 @@ def _extract_code_atoms(
 
             logger.debug(
                 f"Code chunk {ci+1}/{len(file_chunks)}: "
-                f"extracted {len(raw_atoms)} atoms",
+                f"đã trích xuất {len(raw_atoms)} atoms",
                 phase=phase_id,
             )
 
@@ -492,12 +492,12 @@ def _extract_code_atoms(
             raise
         except Exception as e:
             logger.warn(
-                f"Code extraction failed for chunk {ci+1}: {e}",
+                f"Trích xuất code thất bại cho chunk {ci+1}: {e}",
                 phase=phase_id,
             )
 
     logger.info(
-        f"Code extraction: {len(code_atoms)} atoms from "
+        f"Trích xuất code: {len(code_atoms)} atoms từ "
         f"{len(analyzed_files)} files",
         phase=phase_id,
     )
@@ -518,7 +518,7 @@ def _extract_gap_atoms(
     for gap in gaps:
         if total_gap_atoms >= MAX_GAP_FILL_ATOMS:
             logger.info(
-                f"Gap-fill limit reached ({MAX_GAP_FILL_ATOMS} atoms)",
+                f"Đã đạt giới hạn bổ sung khoảng trống ({MAX_GAP_FILL_ATOMS} atoms)",
                 phase=phase_id,
             )
             break
@@ -530,7 +530,7 @@ def _extract_gap_atoms(
         ref_file, excerpt = _find_reference_excerpt(topic, references)
         if not excerpt:
             logger.debug(
-                f"No reference content for gap topic: {topic}",
+                f"Không có nội dung tham khảo cho chủ đề khoảng trống: {topic}",
                 phase=phase_id,
             )
             continue
@@ -575,7 +575,7 @@ def _extract_gap_atoms(
                 total_gap_atoms += 1
 
             logger.debug(
-                f"Gap '{topic}': {len(raw_atoms)} atoms from {ref_file}",
+                f"Khoảng trống '{topic}': {len(raw_atoms)} atoms từ {ref_file}",
                 phase=phase_id,
             )
 
@@ -583,7 +583,7 @@ def _extract_gap_atoms(
             raise
         except Exception as e:
             logger.warn(
-                f"Gap-fill failed for '{topic}': {e}",
+                f"Bổ sung khoảng trống thất bại cho '{topic}': {e}",
                 phase=phase_id,
             )
 

@@ -12,6 +12,13 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 
+try:
+    from google.cloud import vision as _gv
+    _GOOGLE_VISION_AVAILABLE = True
+except ImportError:
+    _gv = None
+    _GOOGLE_VISION_AVAILABLE = False
+
 # Auto-add Tesseract to PATH on Windows
 if platform.system() == "Windows":
     _tess_dir = r"C:\Program Files\Tesseract-OCR"
@@ -91,6 +98,34 @@ def _check_tesseract() -> bool:
     """Check if Tesseract OCR binary is available."""
     import shutil
     return shutil.which("tesseract") is not None
+
+
+def _ocr_page_google_vision(image_bytes: bytes) -> str:
+    """OCR a single page image using Google Cloud Vision document_text_detection."""
+    if not _GOOGLE_VISION_AVAILABLE or _gv is None:
+        return ""
+    try:
+        client = _gv.ImageAnnotatorClient()
+        image = _gv.Image(content=image_bytes)
+        response = client.document_text_detection(image=image)
+        if response.error.message:
+            _log("warn", f"Lỗi Google Vision API: {response.error.message}")
+            return ""
+        annotation = response.full_text_annotation
+        if annotation:
+            return _clean_ocr_text(annotation.text)
+        return ""
+    except Exception as e:
+        _log("warn", f"OCR Google Vision thất bại cho trang: {e}")
+        return ""
+
+
+def _check_google_vision() -> bool:
+    """Check if Google Vision API is configured and credentials file exists."""
+    if not _GOOGLE_VISION_AVAILABLE:
+        return False
+    creds_path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS", "")
+    return bool(creds_path) and os.path.isfile(creds_path)
 
 
 def _diagnose_text(text: str, label: str = "") -> dict:
@@ -213,14 +248,14 @@ def _ocr_page(page, language: str = "vie+eng", dpi: int = 300) -> str:
         diag_before = _diagnose_text(raw_text, "BEFORE_CLEAN")
         if diag_before["sample_problems"]:
             _log("info", (
-                f"OCR diagnostic BEFORE clean: "
+                f"Chẩn đoán OCR TRƯỚC khi làm sạch: "
                 f"len={diag_before['length']}, "
                 f"null={diag_before['has_null']}, "
                 f"bom={diag_before['has_bom']}, "
                 f"control={len(diag_before['control_chars'])}, "
                 f"non_bmp={diag_before['non_bmp_count']}, "
                 f"pua={diag_before['pua_count']}, "
-                f"problems={diag_before['sample_problems'][:5]}"
+                f"vấn đề={diag_before['sample_problems'][:5]}"
             ))
 
         clean_text = _clean_ocr_text(raw_text)
@@ -229,13 +264,13 @@ def _ocr_page(page, language: str = "vie+eng", dpi: int = 300) -> str:
         diag_after = _diagnose_text(clean_text, "AFTER_CLEAN")
         if diag_after["sample_problems"]:
             _log("warn", (
-                f"OCR diagnostic AFTER clean still has problems: "
+                f"Chẩn đoán OCR SAU khi làm sạch vẫn còn vấn đề: "
                 f"{diag_after['sample_problems'][:5]}"
             ))
 
         return clean_text
     except Exception as e:
-        _log("debug", f"OCR failed for page: {e}")
+        _log("debug", f"OCR thất bại cho trang: {e}")
         return ""
 
 
@@ -273,34 +308,34 @@ def extract_single_pdf(pdf_path: str, output_dir: str) -> str | None:
     try:
         import fitz  # PyMuPDF
     except ImportError:
-        _log("error", "PyMuPDF not installed. Run: pip install PyMuPDF")
+        _log("error", "PyMuPDF chưa được cài đặt. Chạy: pip install PyMuPDF")
         return None
 
     pdf_path = os.path.abspath(pdf_path)
     if not os.path.isfile(pdf_path):
-        _log("error", f"PDF file not found: {pdf_path}")
+        _log("error", f"Không tìm thấy file PDF: {pdf_path}")
         return None
     file_size = os.path.getsize(pdf_path)
 
     if file_size > MAX_FILE_SIZE:
-        _log("error", f"PDF too large: {file_size / 1024 / 1024:.1f}MB (max {MAX_FILE_SIZE // 1024 // 1024}MB)")
+        _log("error", f"PDF quá lớn: {file_size / 1024 / 1024:.1f}MB (tối đa {MAX_FILE_SIZE // 1024 // 1024}MB)")
         return None
 
     try:
         doc = fitz.open(pdf_path)
     except Exception as e:
-        _log("error", f"Cannot open PDF {pdf_path}: {e}")
+        _log("error", f"Không thể mở PDF {pdf_path}: {e}")
         return None
 
     page_count = len(doc)
     if page_count == 0:
-        _log("warn", f"PDF has no pages: {pdf_path}")
+        _log("warn", f"PDF không có trang nào: {pdf_path}")
         doc.close()
         return None
 
     truncated = False
     if page_count > MAX_PAGES:
-        _log("warn", f"PDF has {page_count} pages, truncating to {MAX_PAGES}")
+        _log("warn", f"PDF có {page_count} trang, cắt xuống còn {MAX_PAGES}")
         page_count = MAX_PAGES
         truncated = True
 
@@ -317,34 +352,61 @@ def extract_single_pdf(pdf_path: str, output_dir: str) -> str | None:
     # OCR fallback for scanned/image-based PDFs
     needs_ocr = empty_pages > page_count * 0.5
     if needs_ocr:
-        has_tesseract = _check_tesseract()
-        if has_tesseract:
-            estimated_min = empty_pages * 4  # ~3-5 min per page average
-            _log("warn", (
-                f"Scanned PDF detected. OCR processing ~3-5 min per page. "
-                f"Estimated: {estimated_min} minutes for {empty_pages} pages"
-            ))
+        use_google_vision = _check_google_vision()
+        if use_google_vision:
+            _log("info", "Sử dụng Google Vision OCR (cloud-based, nhanh hơn Tesseract)")
+            from concurrent.futures import ThreadPoolExecutor
+
+            def _ocr_page_gv(page_index: int) -> tuple[int, str]:
+                page = doc[page_index]
+                pix = page.get_pixmap(dpi=300)
+                img_bytes = pix.tobytes("png")
+                text = _ocr_page_google_vision(img_bytes)
+                return page_index, text
+
+            pages_to_ocr = [i for i in range(page_count) if len(pages_text[i].strip()) < MIN_TEXT_LENGTH]
             ocr_count = 0
-            timeout_count = 0
-            for i in range(page_count):
-                if len(pages_text[i].strip()) < MIN_TEXT_LENGTH:
-                    ocr_text = _ocr_page_with_timeout(doc[i])
-                    if ocr_text is None:
-                        timeout_count += 1
-                        _log("warn", f"OCR timeout for page {i+1} (>{OCR_PAGE_TIMEOUT}s) — skipping")
-                    elif ocr_text:
-                        pages_text[i] = ocr_text
-                        ocr_count += 1
-            summary = f"OCR extracted text from {ocr_count}/{empty_pages} pages"
-            if timeout_count:
-                summary += f" ({timeout_count} timed out)"
-            _log("info", summary)
+            with ThreadPoolExecutor(max_workers=5) as executor:
+                futures = {executor.submit(_ocr_page_gv, i): i for i in pages_to_ocr}
+                for future in futures:
+                    try:
+                        idx, ocr_text = future.result(timeout=OCR_PAGE_TIMEOUT)
+                        if ocr_text:
+                            pages_text[idx] = ocr_text
+                            ocr_count += 1
+                    except Exception as e:
+                        _log("warn", f"OCR Google Vision thất bại cho một trang: {e}")
+            _log("info", f"OCR trích xuất văn bản từ {ocr_count}/{len(pages_to_ocr)} trang")
         else:
-            _log("warn",
-                "Scanned PDF requires Tesseract OCR but it is not installed. "
-                "Install: choco install tesseract (Windows) or apt install tesseract-ocr (Linux). "
-                "Skipping OCR — text extraction will be limited."
-            )
+            _log("info", "Google Vision không khả dụng — dùng Tesseract OCR (chậm hơn)")
+            has_tesseract = _check_tesseract()
+            if has_tesseract:
+                estimated_min = empty_pages * 4  # ~3-5 min per page average
+                _log("warn", (
+                    f"Phát hiện PDF scan. OCR mất ~3-5 phút/trang. "
+                    f"Ước tính: {estimated_min} phút cho {empty_pages} trang"
+                ))
+                ocr_count = 0
+                timeout_count = 0
+                for i in range(page_count):
+                    if len(pages_text[i].strip()) < MIN_TEXT_LENGTH:
+                        ocr_text = _ocr_page_with_timeout(doc[i])
+                        if ocr_text is None:
+                            timeout_count += 1
+                            _log("warn", f"OCR hết thời gian cho trang {i+1} (>{OCR_PAGE_TIMEOUT}giây) — bỏ qua")
+                        elif ocr_text:
+                            pages_text[i] = ocr_text
+                            ocr_count += 1
+                summary = f"OCR trích xuất văn bản từ {ocr_count}/{empty_pages} trang"
+                if timeout_count:
+                    summary += f" ({timeout_count} hết thời gian)"
+                _log("info", summary)
+            else:
+                _log("warn",
+                    "PDF scan cần Tesseract OCR nhưng chưa cài đặt. "
+                    "Cài đặt: choco install tesseract (Windows) hoặc apt install tesseract-ocr (Linux). "
+                    "Bỏ qua OCR — trích xuất văn bản sẽ bị giới hạn."
+                )
 
     # Detect title from first page or filename
     basename = Path(pdf_path).stem
@@ -387,7 +449,7 @@ def extract_single_pdf(pdf_path: str, output_dir: str) -> str | None:
 
     content = '\n'.join(md_lines).strip()
     if not content:
-        _log("warn", f"No extractable text from {pdf_path}")
+        _log("warn", f"Không thể trích xuất văn bản từ {pdf_path}")
         return None
 
     if truncated:
@@ -413,7 +475,7 @@ title: "{title}"
     with open(out_path, 'w', encoding='utf-8') as f:
         f.write(output)
 
-    _log("info", f"Extracted {page_count} pages from {os.path.basename(pdf_path)}")
+    _log("info", f"Đã trích xuất {page_count} trang từ {os.path.basename(pdf_path)}")
     return out_path
 
 
@@ -427,23 +489,23 @@ def run_extract_pdf(input_path: str | None, input_dir: str | None,
 
     if input_path:
         if not os.path.isfile(input_path):
-            _log("error", f"PDF file not found: {input_path}")
+            _log("error", f"Không tìm thấy file PDF: {input_path}")
             return 1
         pdf_files.append(input_path)
 
     if input_dir:
         if not os.path.isdir(input_dir):
-            _log("error", f"Directory not found: {input_dir}")
+            _log("error", f"Không tìm thấy thư mục: {input_dir}")
             return 1
         for f in sorted(Path(input_dir).iterdir()):
             if f.suffix.lower() == '.pdf':
                 pdf_files.append(str(f))
 
     if not pdf_files:
-        _log("error", "No PDF files found")
+        _log("error", "Không tìm thấy file PDF nào")
         return 1
 
-    _log("info", f"Extracting {len(pdf_files)} PDF(s)...")
+    _log("info", f"Đang trích xuất {len(pdf_files)} PDF...")
 
     created = []
     for pdf in pdf_files:
@@ -452,7 +514,7 @@ def run_extract_pdf(input_path: str | None, input_dir: str | None,
             created.append(result)
 
     if created:
-        _log("info", f"Extracted {len(created)}/{len(pdf_files)} PDFs successfully")
+        _log("info", f"Đã trích xuất thành công {len(created)}/{len(pdf_files)} PDFs")
         print(json.dumps({
             "event": "extract-pdf-done",
             "files": created,
@@ -461,5 +523,5 @@ def run_extract_pdf(input_path: str | None, input_dir: str | None,
         }, ensure_ascii=False), flush=True)
         return 0
     else:
-        _log("error", "All PDF extractions failed")
+        _log("error", "Tất cả PDF trích xuất thất bại")
         return 1

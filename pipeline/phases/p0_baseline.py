@@ -151,8 +151,8 @@ def _run_p0_skill_seekers(config, logger):
     write_json(baseline, f"{config.output_dir}/baseline_summary.json")
 
     logger.info(
-        f"Skill Seekers baseline: {len(references)} refs, "
-        f"{len(data['topics'])} topics, {total_tokens} tokens",
+        f"Skill Seekers baseline: {len(references)} tài liệu tham khảo, "
+        f"{len(data['topics'])} chủ đề, {total_tokens} tokens",
         phase=phase_id,
     )
 
@@ -184,13 +184,13 @@ def _run_p0_prebuilt(config, logger):
             )
 
             logger.info(
-                f"Pre-built baseline loaded: {refs_count} refs, "
-                f"{topics_count} topics, {total_tokens} tokens",
+                f"Đã tải baseline có sẵn: {refs_count} tài liệu tham khảo, "
+                f"{topics_count} chủ đề, {total_tokens} tokens",
                 phase=phase_id,
             )
             return score, refs_count, data
 
-    logger.warn("No valid baseline JSON files found", phase=phase_id)
+    logger.warn("Không tìm thấy file baseline JSON hợp lệ", phase=phase_id)
     return 50.0, 0, None
 
 
@@ -203,7 +203,7 @@ def _run_p0_legacy(config, cache, logger):
 
     if not sources:
         logger.warn(
-            "No baseline_sources configured — creating empty baseline",
+            "Chưa cấu hình baseline_sources — tạo baseline rỗng",
             phase=phase_id,
         )
         return 50.0, 0, None
@@ -232,18 +232,18 @@ def _run_p0_legacy(config, cache, logger):
             total_entries += len(cached_entries)
             successful_sources += 1
             logger.info(
-                f"Cache hit for {url} ({len(cached_entries)} entries)",
+                f"Cache có sẵn cho {url} ({len(cached_entries)} mục)",
                 phase=phase_id,
             )
             continue
 
-        logger.info(f"Scraping {url}...", phase=phase_id)
+        logger.info(f"Đang thu thập dữ liệu từ {url}...", phase=phase_id)
         try:
             page = scraper.scrape_url(url, source_type)
 
             if page.status == "failed":
                 logger.warn(
-                    f"Scraping failed for {url}: {page.error}",
+                    f"Thu thập dữ liệu thất bại cho {url}: {page.error}",
                     phase=phase_id,
                 )
                 failed_sources += 1
@@ -261,21 +261,21 @@ def _run_p0_legacy(config, cache, logger):
                 total_entries += len(entries)
                 successful_sources += 1
                 logger.info(
-                    f"Parsed {len(entries)} entries from {url}",
+                    f"Phân tích được {len(entries)} mục từ {url}",
                     phase=phase_id,
                 )
             else:
                 logger.warn(
-                    f"No entries parsed from {url}", phase=phase_id,
+                    f"Không phân tích được mục nào từ {url}", phase=phase_id,
                 )
                 failed_sources += 1
 
         except SeekersError as e:
-            logger.warn(f"Seekers error for {url}: {e}", phase=phase_id)
+            logger.warn(f"Lỗi Seekers cho {url}: {e}", phase=phase_id)
             failed_sources += 1
         except Exception as e:
             logger.warn(
-                f"Unexpected error scraping {url}: {e}", phase=phase_id,
+                f"Lỗi không mong đợi khi thu thập dữ liệu {url}: {e}", phase=phase_id,
             )
             failed_sources += 1
 
@@ -332,7 +332,7 @@ def run_p0(config: BuildConfig, claude=None,
 
         if use_skill_seekers:
             logger.info(
-                f"Using Skill Seekers output: {config.seekers_output_dir}",
+                f"Sử dụng output Skill Seekers: {config.seekers_output_dir}",
                 phase=phase_id,
             )
             score, atoms_count, summary = _run_p0_skill_seekers(
@@ -340,7 +340,7 @@ def run_p0(config: BuildConfig, claude=None,
             )
         elif has_prebuilt:
             logger.info(
-                "Loading pre-built baseline (auto-discovery)",
+                "Đang tải baseline có sẵn (auto-discovery)",
                 phase=phase_id,
             )
             score, atoms_count, summary = _run_p0_prebuilt(

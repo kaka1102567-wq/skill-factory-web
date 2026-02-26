@@ -42,7 +42,7 @@ def run_p1(config: BuildConfig, claude: ClaudeClient,
         if not valid_transcripts:
             raise PhaseError(phase_id, "All transcripts are empty or failed to read")
 
-        logger.info(f"Found {len(valid_transcripts)} transcripts to audit", phase=phase_id)
+        logger.info(f"Tìm thấy {len(valid_transcripts)} transcripts cần kiểm tra", phase=phase_id)
 
         categories = get_all_categories(config.domain)
         all_topics = []
@@ -60,7 +60,7 @@ def run_p1(config: BuildConfig, claude: ClaudeClient,
             content = t["content"]
             chunks = chunk_text(content, max_tokens=6000)
 
-            logger.info(f"Auditing {filename} ({len(chunks)} chunks)...", phase=phase_id)
+            logger.info(f"Đang kiểm tra {filename} ({len(chunks)} chunks)...", phase=phase_id)
 
             for chunk in chunks:
                 progress = int((processed_chunks / max(total_chunks, 1)) * 85)
@@ -86,7 +86,7 @@ def run_p1(config: BuildConfig, claude: ClaudeClient,
                 except CreditExhaustedError:
                     raise
                 except Exception as e:
-                    logger.warn(f"Claude call failed for chunk in {filename}: {e}", phase=phase_id)
+                    logger.warn(f"Gọi Claude thất bại cho chunk trong {filename}: {e}", phase=phase_id)
 
                 processed_chunks += 1
 
@@ -100,15 +100,15 @@ def run_p1(config: BuildConfig, claude: ClaudeClient,
         if baseline:
             # Skill-seekers path: build coverage matrix
             logger.info(
-                "Comparing topics against skill-seekers baseline",
+                "So sánh chủ đề với baseline skill-seekers",
                 phase=phase_id,
             )
             coverage_matrix = _build_coverage_matrix(merged, baseline)
             s = coverage_matrix["summary"]
             logger.info(
-                f"Coverage: {s['overlap_count']} overlap, "
-                f"{s['unique_expert_count']} unique expert, "
-                f"{s['gap_count']} gaps to fill",
+                f"Phạm vi: {s['overlap_count']} trùng lặp, "
+                f"{s['unique_expert_count']} chuyên gia riêng, "
+                f"{s['gap_count']} cần bổ sung",
                 phase=phase_id,
             )
 
@@ -230,9 +230,9 @@ def run_p1(config: BuildConfig, claude: ClaudeClient,
                 if gap_ratio > 0.50:
                     balance_score *= 0.5
                     logger.warn(
-                        f"High gap ratio ({gap_ratio:.0%}) — baseline may "
-                        f"not match transcript content. Consider re-running "
-                        f"with better baseline.",
+                        f"Tỷ lệ khoảng trống cao ({gap_ratio:.0%}) — baseline có thể "
+                        f"không khớp với nội dung transcript. Cân nhắc chạy lại "
+                        f"với baseline tốt hơn.",
                         phase=phase_id,
                     )
             else:

@@ -1,6 +1,7 @@
 import { spawn, ChildProcess } from "child_process";
 import path from "path";
 import fs from "fs";
+import os from "os";
 import { updateBuild, insertBuildLog, getBuild, getSetting } from "./db";
 import { sseManager } from "./sse-manager";
 import { notifyBuildComplete } from "./notifications";
@@ -36,6 +37,26 @@ function _resolveApiCredentials(configContent?: string): ApiCredentials {
   const baseUrl = configBaseUrl || getSetting("claude_base_url") || process.env.CLAUDE_BASE_URL || "";
 
   return { apiKey, model, modelLight, baseUrl, apiKeySource };
+}
+
+/** Write Google Vision credentials JSON to a temp file. Returns temp path or null. */
+function _writeGoogleVisionCredsTempFile(): string | null {
+  const credsJson = getSetting("google_vision_credentials") || "";
+  if (!credsJson.trim()) return null;
+  try {
+    const tmpFile = path.join(os.tmpdir(), `gv-creds-${Date.now()}-${Math.random().toString(36).slice(2)}.json`);
+    fs.writeFileSync(tmpFile, credsJson, { encoding: "utf-8", mode: 0o600 });
+    return tmpFile;
+  } catch (err) {
+    console.warn("[BUILD] Failed to write Google Vision credentials temp file:", err);
+    return null;
+  }
+}
+
+/** Safely delete the Google Vision credentials temp file. */
+function _deleteGoogleVisionCredsTempFile(tmpPath: string | null): void {
+  if (!tmpPath) return;
+  try { fs.unlinkSync(tmpPath); } catch { /* ignore */ }
 }
 
 // Chapter detection pattern: "01 ...", "01-...", "01_...", "01. ..."
@@ -356,6 +377,13 @@ function _continuePreProcessInputs(
   const pipelinePath = path.dirname(cliPath);
   const realCliPath = path.join(pipelinePath, "cli.py");
 
+  // Prepare Google Vision credentials for pre-processing steps (PDF extraction)
+  const preGvTempFile = _writeGoogleVisionCredsTempFile();
+  const preStepEnv: NodeJS.ProcessEnv = {
+    ...process.env, PYTHONUNBUFFERED: "1", PYTHONIOENCODING: "utf-8",
+    ...(preGvTempFile ? { GOOGLE_APPLICATION_CREDENTIALS: preGvTempFile } : {}),
+  };
+
   // Chain: fetch URLs → extract PDFs → spawn pipeline
   const runStep = (stepName: string, args: string[], timeoutMs: number): Promise<number> => {
     return new Promise((resolve) => {
@@ -365,7 +393,7 @@ function _continuePreProcessInputs(
 
       const proc = spawn(pythonPath, [realCliPath, ...args], {
         cwd: process.cwd(),
-        env: { ...process.env, PYTHONUNBUFFERED: "1", PYTHONIOENCODING: "utf-8" },
+        env: preStepEnv,
       });
 
       const timer = setTimeout(() => { proc.kill("SIGTERM"); }, timeoutMs);
@@ -434,6 +462,7 @@ function _continuePreProcessInputs(
     insertBuildLog(config.id, { level: "info", message: doneMsg });
     sseManager.broadcast(config.id, "log", { level: "info", phase: "pre", message: doneMsg, timestamp: new Date().toISOString() });
 
+    _deleteGoogleVisionCredsTempFile(preGvTempFile);
     _spawnPipeline(config, pythonPath, cliPath);
   })();
 
@@ -598,6 +627,21 @@ function _spawnPipeline(config: BuildConfig, pythonPath: string, cliPath: string
 
   console.log("[BUILD] pipeline spawn:", { hasApiKey: !!creds.apiKey, apiKeySource: creds.apiKeySource, baseUrl: creds.baseUrl || "(direct)", hasDomainLessons: !!domainLessons });
 
+  const gvTempFile = _writeGoogleVisionCredsTempFile();
+
+  const spawnEnv: NodeJS.ProcessEnv = {
+    ...process.env,
+    PYTHONUNBUFFERED: "1",
+    PYTHONIOENCODING: "utf-8",
+    CLAUDE_API_KEY: creds.apiKey,
+    CLAUDE_MODEL: creds.model,
+    SEEKERS_CACHE_DIR: seekersCacheDir,
+    CLAUDE_BASE_URL: creds.baseUrl,
+    CLAUDE_MODEL_LIGHT: creds.modelLight,
+    DOMAIN_LESSONS: domainLessons,
+    ...(gvTempFile ? { GOOGLE_APPLICATION_CREDENTIALS: gvTempFile } : {}),
+  };
+
   const proc = spawn(pythonPath, [
     cliPath, "build",
     "--config", config.configPath,
@@ -605,17 +649,7 @@ function _spawnPipeline(config: BuildConfig, pythonPath: string, cliPath: string
     "--json-logs",
   ], {
     cwd: process.cwd(),
-    env: {
-      ...process.env,
-      PYTHONUNBUFFERED: "1",
-      PYTHONIOENCODING: "utf-8",
-      CLAUDE_API_KEY: creds.apiKey,
-      CLAUDE_MODEL: creds.model,
-      SEEKERS_CACHE_DIR: seekersCacheDir,
-      CLAUDE_BASE_URL: creds.baseUrl,
-      CLAUDE_MODEL_LIGHT: creds.modelLight,
-      DOMAIN_LESSONS: domainLessons,
-    },
+    env: spawnEnv,
   });
 
   runningProcesses.set(config.id, proc);
@@ -654,6 +688,7 @@ function _spawnPipeline(config: BuildConfig, pythonPath: string, cliPath: string
 
   proc.on("exit", (code, signal) => {
     runningProcesses.delete(config.id);
+    _deleteGoogleVisionCredsTempFile(gvTempFile);
     if (stdoutBuffer.trim()) handlePlainLog(config.id, stdoutBuffer.trim());
     if (stderrBuffer.trim()) handlePlainLog(config.id, stderrBuffer.trim(), "error");
 
@@ -689,6 +724,7 @@ function _spawnPipeline(config: BuildConfig, pythonPath: string, cliPath: string
 
   proc.on("error", (err) => {
     runningProcesses.delete(config.id);
+    _deleteGoogleVisionCredsTempFile(gvTempFile);
     console.error(`[BUILD] Spawn error for ${config.id}:`, err.message);
     updateBuild(config.id, {
       status: "failed",

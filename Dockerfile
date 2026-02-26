@@ -19,7 +19,8 @@ COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/pipeline ./pipeline
-RUN pip install --no-cache-dir --break-system-packages -r /app/pipeline/requirements.txt
+RUN pip install --no-cache-dir --break-system-packages -r /app/pipeline/requirements.txt && \
+    pip install --no-cache-dir --break-system-packages "google-cloud-vision>=3.7.0"
 COPY --from=deps /app/node_modules/better-sqlite3 ./node_modules/better-sqlite3
 COPY --from=deps /app/node_modules/bindings ./node_modules/bindings
 COPY --from=deps /app/node_modules/file-uri-to-path ./node_modules/file-uri-to-path

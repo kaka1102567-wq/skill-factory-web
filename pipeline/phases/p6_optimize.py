@@ -61,7 +61,7 @@ def run_p6(
     logger.phase_start(phase, "Optimize", tool="Claude")
 
     if config.skip_optimize:
-        logger.info("P6 skipped (skip_optimize=True)", phase=phase)
+        logger.info("P6 bỏ qua (skip_optimize=True)", phase=phase)
         return PhaseResult(phase_id=phase, status="skipped")
 
     if not claude:
@@ -89,11 +89,11 @@ def run_p6(
         # Use template pre-optimized description as starting point if available
         if config.template_optimized_description:
             current_description = config.template_optimized_description
-            logger.info("Using template pre-optimized description as starting point", phase=phase)
+            logger.info("Sử dụng description đã tối ưu từ template làm điểm khởi đầu", phase=phase)
 
         logger.info(
-            f"Current description: {len(current_description)} chars, "
-            f"{len(current_description.split())} words", phase=phase,
+            f"Description hiện tại: {len(current_description)} ký tự, "
+            f"{len(current_description.split())} từ", phase=phase,
         )
         logger.phase_progress(phase, "Optimize", 10)
 
@@ -101,18 +101,18 @@ def run_p6(
         topics = _load_topics(config.output_dir)
 
         # Step 3: Generate eval queries
-        logger.info("Generating evaluation queries...", phase=phase)
+        logger.info("Đang tạo truy vấn đánh giá...", phase=phase)
         eval_set = _generate_eval_queries(
             claude, config.name, config.domain, current_description, topics, logger
         )
         pos = sum(1 for e in eval_set if e.get('should_trigger'))
         neg = len(eval_set) - pos
-        logger.info(f"Generated {len(eval_set)} eval queries ({pos} positive, {neg} negative)", phase=phase)
+        logger.info(f"Đã tạo {len(eval_set)} truy vấn đánh giá ({pos} dương tính, {neg} âm tính)", phase=phase)
         logger.phase_progress(phase, "Optimize", 25)
 
         # Step 4: Train/test split (60/40)
         train_set, test_set = _split_eval_set(eval_set, holdout=0.4)
-        logger.info(f"Split: {len(train_set)} train, {len(test_set)} test", phase=phase)
+        logger.info(f"Phân chia: {len(train_set)} train, {len(test_set)} test", phase=phase)
 
         # Step 5: Optimization loop
         max_iters = ITERATIONS_BY_TIER.get(config.quality_tier, 3)
@@ -124,7 +124,7 @@ def run_p6(
         for iteration in range(1, max_iters + 1):
             progress = 25 + int(70 * iteration / max_iters)
             logger.phase_progress(phase, "Optimize", min(progress, 95))
-            logger.info(f"--- Iteration {iteration}/{max_iters} ---", phase=phase)
+            logger.info(f"--- Vòng lặp {iteration}/{max_iters} ---", phase=phase)
 
             # Evaluate on ALL queries in one pass
             all_results = _evaluate_description(
@@ -138,7 +138,7 @@ def run_p6(
 
             train_score = _calc_score(train_results)
             test_score = _calc_score(test_results)
-            logger.info(f"Scores — train: {train_score:.0%}, test: {test_score:.0%}", phase=phase)
+            logger.info(f"Điểm số — train: {train_score:.0%}, test: {test_score:.0%}", phase=phase)
 
             if test_score > best_test_score or (
                 test_score == best_test_score and train_score > best_train_score
@@ -156,23 +156,23 @@ def run_p6(
             })
 
             if train_score >= 1.0:
-                logger.info("Perfect train score — stopping early", phase=phase)
+                logger.info("Điểm train hoàn hảo — dừng sớm", phase=phase)
                 break
 
             if iteration == max_iters:
                 break
 
             # Improve based on TRAIN results only (blinded)
-            logger.info("Improving description...", phase=phase)
+            logger.info("Đang cải thiện description...", phase=phase)
             current_description = _improve_description(
                 claude, config.name, config.domain, current_description,
                 train_score, train_results, history, logger,
             )
-            logger.info(f"New description: {len(current_description)} chars", phase=phase)
+            logger.info(f"Description mới: {len(current_description)} ký tự", phase=phase)
 
         # Step 6: Apply best description
         logger.info(
-            f"Best description (test={best_test_score:.0%}, train={best_train_score:.0%})",
+            f"Description tốt nhất (test={best_test_score:.0%}, train={best_train_score:.0%})",
             phase=phase,
         )
         updated_content = _replace_description(skill_content, best_description)
@@ -293,7 +293,7 @@ def _generate_eval_queries(claude, name, domain, description, topics, logger):
         return result
     if isinstance(result, dict) and "queries" in result:
         return result["queries"]
-    logger.warn("Unexpected eval format — using empty set", phase="p6")
+    logger.warn("Định dạng eval không mong đợi — dùng tập rỗng", phase="p6")
     return []
 
 
@@ -378,7 +378,7 @@ def _improve_description(claude, name, domain, current, score, results, history,
     new_desc = match.group(1).strip().strip('"') if match else response.strip().strip('"')
     if len(new_desc) > 1024:
         new_desc = _truncate_at_sentence(new_desc, 1024)
-        logger.warn("Description truncated to 1024 chars at sentence boundary", phase="p6")
+        logger.warn("Description đã cắt xuống 1024 ký tự tại ranh giới câu", phase="p6")
     return new_desc
 
 
