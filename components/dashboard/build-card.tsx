@@ -101,7 +101,6 @@ export function BuildCard({ build, onDelete }: BuildCardProps) {
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <button
-                onClick={(e) => e.preventDefault()}
                 className="p-1.5 rounded-md bg-zinc-800/80 hover:bg-red-900/80 text-zinc-500 hover:text-red-400 transition-colors backdrop-blur-sm"
                 title="Delete build"
               >

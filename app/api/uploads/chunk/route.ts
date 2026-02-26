@@ -23,7 +23,8 @@ const MAX_FILE_SIZE = 200 * 1024 * 1024; // 200MB per file
  */
 export async function POST(req: Request) {
   try {
-    const fileName = req.headers.get("x-file-name");
+    const rawFileName = req.headers.get("x-file-name");
+    const fileName = rawFileName ? decodeURIComponent(rawFileName) : null;
     const chunkIndex = parseInt(req.headers.get("x-chunk-index") || "", 10);
     const chunkTotal = parseInt(req.headers.get("x-chunk-total") || "", 10);
     const existingDir = req.headers.get("x-upload-dir");

@@ -129,7 +129,7 @@ export function BuildWizard() {
         try {
           const headers: Record<string, string> = {
             "Content-Type": "application/octet-stream",
-            "X-File-Name": file.name,
+            "X-File-Name": encodeURIComponent(file.name),
             "X-Chunk-Index": String(i),
             "X-Chunk-Total": String(totalChunks),
           };
