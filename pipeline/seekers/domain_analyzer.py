@@ -49,7 +49,7 @@ def analyze_domain(domain: str, language: str, claude_client, logger) -> DomainA
     """
     user_msg = _USER_TEMPLATE.format(domain=domain, language=language)
 
-    logger.info(f"Analyzing domain: {domain}", phase="discovery")
+    logger.info(f"Phan tich linh vuc: {domain}", phase="discovery")
 
     try:
         response = claude_client.call(
@@ -69,13 +69,13 @@ def analyze_domain(domain: str, language: str, claude_client, logger) -> DomainA
             notes=data.get("notes", ""),
         )
         logger.info(
-            f"Domain analysis: {len(result.official_sites)} sites, "
-            f"{len(result.search_queries)} queries, difficulty={result.difficulty}",
+            f"Ket qua phan tich: {len(result.official_sites)} trang, "
+            f"{len(result.search_queries)} truy van, do kho={result.difficulty}",
             phase="discovery",
         )
         return result
     except (json.JSONDecodeError, Exception) as e:
-        logger.warn(f"Domain analysis parse error: {e}, using defaults", phase="discovery")
+        logger.warn(f"Loi phan tich domain: {e}, dung gia tri mac dinh", phase="discovery")
         return DomainAnalysis(
             domain=domain,
             search_queries=[

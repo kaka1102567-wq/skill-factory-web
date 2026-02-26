@@ -192,7 +192,7 @@ def run_auto_discovery(domain, language, output_dir, claude_client, web_client,
             discovery_metadata={"error": str(e)},
         )
     except Exception as e:
-        logger.error(f"Discovery failed: {e}", phase="discovery")
+        logger.error(f"Kham pha that bai: {e}", phase="discovery")
         return DiscoveryResult(
             success=False, output_dir=output_dir,
             discovery_metadata={"error": str(e)},
@@ -214,7 +214,7 @@ def _run_steps(domain, language, output_dir, claude_client, web_client,
         inferred = _infer_domain_from_content(input_dir, claude_client, logger)
 
     # Step 1: Analyze domain
-    logger.info("Step 1/5: Analyzing domain...", phase="discovery")
+    logger.info("Buoc 1/5: Phan tich linh vuc...", phase="discovery")
 
     if inferred and inferred.get("search_terms"):
         # Use inferred domain instead of generic name
@@ -249,42 +249,42 @@ def _run_steps(domain, language, output_dir, claude_client, web_client,
         analysis = analyze_domain(domain, language, claude_client, logger)
 
     logger.info(
-        f"Found {len(analysis.official_sites)} sites, "
-        f"{len(analysis.search_queries)} queries",
+        f"Tim thay {len(analysis.official_sites)} trang, "
+        f"{len(analysis.search_queries)} truy van",
         phase="discovery",
     )
     check_timeout("analyze")
 
     # Step 2: Discover URLs
-    logger.info("Step 2/5: Discovering URLs...", phase="discovery")
+    logger.info("Buoc 2/5: Tim kiem URL...", phase="discovery")
     candidates = discover_urls(analysis, web_client, logger, max_candidates=100)
 
     if not candidates:
-        logger.warn("No candidate URLs found", phase="discovery")
+        logger.warn("Khong tim thay URL ung vien nao", phase="discovery")
         return DiscoveryResult(success=False, output_dir=output_dir)
     check_timeout("discover")
 
     # Step 3: Evaluate and rank
-    logger.info("Step 3/5: Evaluating URLs...", phase="discovery")
+    logger.info("Buoc 3/5: Danh gia URL...", phase="discovery")
     ranked = evaluate_urls(candidates, analysis, claude_client, logger, max_refs=max_refs)
 
     if not ranked:
-        logger.warn("No URLs passed evaluation", phase="discovery")
+        logger.warn("Khong co URL nao dat yeu cau danh gia", phase="discovery")
         return DiscoveryResult(success=False, output_dir=output_dir)
     check_timeout("evaluate")
 
     # Step 4: Crawl
-    logger.info("Step 4/5: Crawling...", phase="discovery")
+    logger.info("Buoc 4/5: Dang crawl...", phase="discovery")
     crawled = smart_crawl(ranked, output_dir, web_client, logger)
     ok_refs = [r for r in crawled if r.get("status") == "success"]
 
     if not ok_refs:
-        logger.warn("All crawls failed", phase="discovery")
+        logger.warn("Tat ca crawl deu that bai", phase="discovery")
         return DiscoveryResult(success=False, output_dir=output_dir)
     check_timeout("crawl")
 
     # Step 5: Build baseline_summary.json
-    logger.info("Step 5/5: Building baseline...", phase="discovery")
+    logger.info("Buoc 5/5: Tao baseline...", phase="discovery")
     return _build_summary(
         analysis, output_dir, ok_refs, crawled,
         candidates, ranked, claude_client, logger,
@@ -377,8 +377,8 @@ def _build_summary(analysis, output_dir, ok_refs, crawled, candidates,
         json.dump(summary, f, indent=2, ensure_ascii=False)
 
     logger.info(
-        f"Discovery complete: {len(ok_refs)} refs, "
-        f"{len(analysis.expected_topics)} topics",
+        f"Kham pha hoan tat: {len(ok_refs)} tai lieu, "
+        f"{len(analysis.expected_topics)} chu de",
         phase="discovery",
     )
 

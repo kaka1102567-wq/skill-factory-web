@@ -90,7 +90,7 @@ def analyze_content(samples: list[dict], claude_client, logger=None) -> dict:
         samples_text += f"\n### {s['filename']}\n{s['content']}\n"
 
     if logger:
-        logger.info(f"Analyzing {len(samples)} samples with Claude...", phase="discovery")
+        logger.info(f"Phan tich {len(samples)} mau voi Claude...", phase="discovery")
 
     user_msg = USER_ANALYZE_CONTENT.format(samples_text=samples_text)
 
@@ -113,14 +113,14 @@ def analyze_content(samples: list[dict], claude_client, logger=None) -> dict:
         }
         if logger:
             logger.info(
-                f"Content analysis: domain='{result['domain']}', "
-                f"{len(result['topics'])} topics, {len(result['search_queries'])} queries",
+                f"Ket qua phan tich: domain='{result['domain']}', "
+                f"{len(result['topics'])} chu de, {len(result['search_queries'])} truy van",
                 phase="discovery",
             )
         return result
     except Exception as e:
         if logger:
-            logger.warn(f"Content analysis failed: {e}, using defaults", phase="discovery")
+            logger.warn(f"Phan tich noi dung that bai: {e}, dung gia tri mac dinh", phase="discovery")
         # Extract basic info from first sample filename
         domain = "unknown"
         if samples:
@@ -153,13 +153,13 @@ def search_ddg(queries: list[str], web_client, logger=None) -> list[dict]:
                     seen_urls.add(r["url"])
                     candidates.append(r)
             if logger:
-                logger.info(f"DDG '{query}': {len(results)} results", phase="discovery")
+                logger.info(f"Tim kiem DDG '{query}': {len(results)} ket qua", phase="discovery")
         except Exception as e:
             if logger:
-                logger.warn(f"DDG search failed for '{query}': {e}", phase="discovery")
+                logger.warn(f"Tim kiem DDG that bai '{query}': {e}", phase="discovery")
 
     if logger:
-        logger.info(f"Total unique URL candidates: {len(candidates)}", phase="discovery")
+        logger.info(f"Tong URL ung vien (da loai trung): {len(candidates)}", phase="discovery")
 
     return candidates[:50]
 
@@ -264,12 +264,12 @@ def evaluate_urls(
         top = scored[:MAX_REFS]
 
         if logger:
-            logger.info(f"Evaluated: {len(scored)} URLs, top {len(top)} selected", phase="discovery")
+            logger.info(f"Da danh gia: {len(scored)} URL, chon {len(top)} tot nhat", phase="discovery")
 
         return top
     except Exception as e:
         if logger:
-            logger.warn(f"URL evaluation failed: {e}, using all candidates", phase="discovery")
+            logger.warn(f"Danh gia URL that bai: {e}, dung tat ca ung vien", phase="discovery")
         # Fallback: return first N candidates without scoring
         return [{"url": c["url"], "score": 50} for c in candidates[:MAX_REFS]]
 
@@ -298,7 +298,7 @@ def fetch_references(
             continue
 
         if logger:
-            logger.info(f"Fetching {i+1}/{len(urls)}: {url}", phase="discovery")
+            logger.info(f"Dang tai {i+1}/{len(urls)}: {url}", phase="discovery")
 
         try:
             content, title = fetch_and_convert(url, web_client)
@@ -325,10 +325,10 @@ def fetch_references(
             })
         except Exception as e:
             if logger:
-                logger.warn(f"Failed to fetch {url}: {e}", phase="discovery")
+                logger.warn(f"Tai that bai {url}: {e}", phase="discovery")
 
     if logger:
-        logger.info(f"Fetched {len(references)}/{len(urls)} references", phase="discovery")
+        logger.info(f"Da tai {len(references)}/{len(urls)} tai lieu tham khao", phase="discovery")
 
     return references
 
@@ -429,40 +429,40 @@ def run_discover_from_content(
 
     try:
         # Step 1: Read samples
-        _log("info", "Step 1/5: Reading input samples...")
+        _log("info", "Buoc 1/5: Doc mau input...")
         samples = read_samples(input_dir)
         if not samples:
-            _log("warn", "No readable .md files in input directory")
+            _log("warn", "Khong co file .md doc duoc trong thu muc input")
             return result
 
-        _log("info", f"Read {len(samples)} sample files")
+        _log("info", f"Da doc {len(samples)} file mau")
 
         # Step 2: Analyze content
-        _log("info", "Step 2/5: Analyzing content...")
+        _log("info", "Buoc 2/5: Phan tich noi dung...")
         analysis = analyze_content(samples, claude_client, logger)
         domain = analysis["domain"]
         result["domain"] = domain
 
         # Step 3: Web search
-        _log("info", "Step 3/5: Searching for references...")
+        _log("info", "Buoc 3/5: Tim kiem tai lieu tham khao...")
         queries = analysis.get("search_queries", [])
         if not queries:
-            _log("warn", "No search queries generated")
+            _log("warn", "Khong tao duoc truy van tim kiem")
             return result
 
         candidates = search_ddg(queries, web_client, logger)
         if not candidates:
-            _log("warn", "No URL candidates found via web search")
+            _log("warn", "Khong tim thay URL ung vien qua web search")
             return result
 
         # Step 4: Evaluate & fetch
-        _log("info", "Step 4/5: Evaluating and fetching references...")
+        _log("info", "Buoc 4/5: Danh gia va tai tai lieu...")
         top_urls = evaluate_urls(candidates, domain, analysis.get("topics", []),
                                  claude_client, logger)
         references = fetch_references(top_urls, output_dir, web_client, logger)
 
         # Step 5: Build baseline
-        _log("info", "Step 5/5: Building baseline...")
+        _log("info", "Buoc 5/5: Tao baseline...")
         metadata = {
             "content_type": analysis.get("content_type", "mixed"),
             "language": analysis.get("language", "en"),
@@ -478,7 +478,7 @@ def run_discover_from_content(
         result["summary_path"] = summary_path
         result["refs_count"] = len(references)
 
-        _log("info", f"Baseline created: {domain}, {len(references)} references")
+        _log("info", f"Da tao baseline: {domain}, {len(references)} tai lieu tham khao")
 
         # Report cost
         cost = getattr(claude_client, "total_cost_usd", 0.0)
@@ -489,7 +489,7 @@ def run_discover_from_content(
             logger.report_cost(cost, tokens)
 
     except Exception as e:
-        _log("error", f"Discovery failed: {e}")
+        _log("error", f"Kham pha that bai: {e}")
 
     return result
 
@@ -520,7 +520,7 @@ def run_cmd(input_dir: str, output_dir: str,
             logger=logger,
         )
     except Exception as e:
-        _log("error", f"Failed to initialize Claude client: {e}")
+        _log("error", f"Khoi tao Claude client that bai: {e}")
         return 1
 
     web = WebClient(rpm=10, timeout=30)
@@ -531,14 +531,14 @@ def run_cmd(input_dir: str, output_dir: str,
         web.close()
 
     if result["success"]:
-        _log("info", f"Discovery complete: {result['domain']}, {result['refs_count']} refs")
+        _log("info", f"Kham pha hoan tat: {result['domain']}, {result['refs_count']} tai lieu")
         print(json.dumps({
             "event": "discover-baseline-done",
             **result,
         }, ensure_ascii=False), flush=True)
         return 0
     else:
-        _log("warn", "Discovery did not produce a baseline")
+        _log("warn", "Kham pha khong tao duoc baseline")
         return 1
 
 

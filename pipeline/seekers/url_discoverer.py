@@ -68,27 +68,27 @@ def discover_urls(analysis, web_client, logger, max_candidates=100) -> list[Cand
         try:
             results = _search_duckduckgo(query, web_client)
             candidates.extend(results)
-            logger.info(f"DDG search '{query}': {len(results)} results", phase="discovery")
+            logger.info(f"Tim kiem DDG '{query}': {len(results)} ket qua", phase="discovery")
         except Exception as e:
-            logger.warn(f"DDG search failed for '{query}': {e}", phase="discovery")
+            logger.warn(f"Tim kiem DDG that bai '{query}': {e}", phase="discovery")
 
     # Strategy 2: Sitemap crawl
     for site in analysis.official_sites[:3]:
         try:
             sitemap_urls = _parse_sitemap(site, web_client, analysis.doc_patterns)
             candidates.extend(sitemap_urls)
-            logger.info(f"Sitemap {site}: {len(sitemap_urls)} URLs", phase="discovery")
+            logger.info(f"Sitemap {site}: {len(sitemap_urls)} URL", phase="discovery")
         except Exception as e:
-            logger.warn(f"Sitemap failed for {site}: {e}", phase="discovery")
+            logger.warn(f"Sitemap that bai cho {site}: {e}", phase="discovery")
 
     # Strategy 3: Landing page link crawl
     for site in analysis.official_sites[:2]:
         try:
             linked = _crawl_links(site, web_client, analysis.doc_patterns)
             candidates.extend(linked)
-            logger.info(f"Link crawl {site}: {len(linked)} URLs", phase="discovery")
+            logger.info(f"Crawl link {site}: {len(linked)} URL", phase="discovery")
         except Exception as e:
-            logger.warn(f"Link crawl failed for {site}: {e}", phase="discovery")
+            logger.warn(f"Crawl link that bai cho {site}: {e}", phase="discovery")
 
     # Deduplicate
     seen = set()
@@ -99,7 +99,7 @@ def discover_urls(analysis, web_client, logger, max_candidates=100) -> list[Cand
             seen.add(normalized)
             unique.append(c)
 
-    logger.info(f"Total unique candidates: {len(unique)}", phase="discovery")
+    logger.info(f"Tong URL ung vien (da loai trung): {len(unique)}", phase="discovery")
     return unique[:max_candidates]
 
 

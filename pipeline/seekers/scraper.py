@@ -115,7 +115,7 @@ def smart_crawl(ranked_urls, output_dir, web_client, logger, parser=None):
             )
             results.append({"url": ranked.url, "status": "blacklisted"})
             continue
-        logger.info(f"Crawling [{i + 1}/{len(ranked_urls)}]: {ranked.url}", phase="discovery")
+        logger.info(f"Dang crawl [{i + 1}/{len(ranked_urls)}]: {ranked.url}", phase="discovery")
 
         content = None
         title = ranked.title or ""
@@ -157,11 +157,11 @@ def smart_crawl(ranked_urls, output_dir, web_client, logger, parser=None):
                 "word_count": word_count, "status": "success",
             })
         else:
-            logger.warn(f"All strategies failed: {ranked.url}", phase="discovery")
+            logger.warn(f"Tat ca chien luoc that bai: {ranked.url}", phase="discovery")
             results.append({"url": ranked.url, "status": "failed"})
 
     ok = sum(1 for r in results if r.get("status") == "success")
-    logger.info(f"Crawled {ok}/{len(ranked_urls)} successfully", phase="discovery")
+    logger.info(f"Da crawl {ok}/{len(ranked_urls)} thanh cong", phase="discovery")
     return results
 
 

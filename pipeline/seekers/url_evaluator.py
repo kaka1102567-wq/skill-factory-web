@@ -43,11 +43,11 @@ def evaluate_urls(candidates, analysis, claude_client, logger, max_refs=15) -> l
     """
     filtered = _prefilter(candidates)
     if not filtered:
-        logger.warn("No URLs left after pre-filter", phase="discovery")
+        logger.warn("Khong con URL nao sau khi loc", phase="discovery")
         return []
 
     logger.info(
-        f"Evaluating {len(filtered)} URLs (pre-filtered from {len(candidates)})",
+        f"Danh gia {len(filtered)} URL (da loc tu {len(candidates)})",
         phase="discovery",
     )
 
@@ -90,7 +90,7 @@ def evaluate_urls(candidates, analysis, claude_client, logger, max_refs=15) -> l
                     reason=item.get("reason", ""),
                 ))
         except (json.JSONDecodeError, Exception) as e:
-            logger.warn(f"Evaluation batch {batch_idx} parse error: {e}", phase="discovery")
+            logger.warn(f"Loi phan tich batch {batch_idx}: {e}", phase="discovery")
             for c in batch:
                 all_ranked.append(RankedURL(url=c.url, title=c.title, combined_score=5.0))
 
@@ -99,8 +99,8 @@ def evaluate_urls(candidates, analysis, claude_client, logger, max_refs=15) -> l
 
     if selected:
         logger.info(
-            f"Selected {len(selected)} URLs "
-            f"(scores: {selected[0].combined_score:.1f} - {selected[-1].combined_score:.1f})",
+            f"Chon {len(selected)} URL "
+            f"(diem: {selected[0].combined_score:.1f} - {selected[-1].combined_score:.1f})",
             phase="discovery",
         )
     return selected
