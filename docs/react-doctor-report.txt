@@ -1,0 +1,435 @@
+react-doctor v0.0.29
+
+[32m✔[39m Select projects to scan [2m›[22m skill-factory-web
+[2mScanning C:\Users\Kaka\skill-factory-web...[22m
+
+- Detecting framework. Found [36mNext.js[39m.
+[32m✔[39m Detecting framework. Found [36mNext.js[39m.
+- Detecting React version. Found [36mReact 19.2.3[39m.
+[32m✔[39m Detecting React version. Found [36mReact 19.2.3[39m.
+- Detecting language. Found [36mTypeScript[39m.
+[32m✔[39m Detecting language. Found [36mTypeScript[39m.
+- Detecting React Compiler. Not found.
+[32m✔[39m Detecting React Compiler. Not found.
+- Found [36m196[39m source files.
+[32m✔[39m Found [36m196[39m source files.
+
+- Running lint checks...
+- Running lint checks.
+[32m✔[39m Running lint checks.
+- Detecting dead code...
+[32m✔[39m Detecting dead code.
+  [31m✗[39m fetch() inside useEffect — use a data fetching library (react-query, SWR) or server component[31m (14)[39m
+[2m    Use `useQuery()` from @tanstack/react-query, `useSWR()`, or fetch in a Server Component instead[22m
+[2m    app/build/[id]/page.tsx: 68, 104[22m
+[2m    components/layout/auth-gate.tsx: 14[22m
+[2m    components/build/step-template.tsx: 17[22m
+[2m    components/build/step-review.tsx: 40[22m
+[2m    app/templates/page.tsx: 11[22m
+[2m    app/settings/page.tsx: 26[22m
+[2m    app/library/page.tsx: 14[22m
+[2m    components/build/step-data-sources.tsx: 44[22m
+[2m    components/build/skill-preview.tsx: 23[22m
+[2m    components/build/quality-report.tsx: 27[22m
+[2m    app/baselines/baseline-detail-panel.tsx: 37[22m
+[2m    components/build/eval-trigger-panel.tsx: 31[22m
+[2m    app/compare/page.tsx: 26[22m
+
+  [33m⚠[39m Component "BuildDetailPage" is 313 lines — consider breaking it into smaller focused components[33m (2)[39m
+[2m    Extract logical sections into focused components: `<UserHeader />`, `<UserActions />`, etc.[22m
+[2m    app/build/[id]/page.tsx: 52[22m
+[2m    components/build/build-wizard.tsx: 18[22m
+
+  [33m⚠[39m 3 setState calls in a single useEffect — consider using useReducer or deriving state[33m (8)[39m
+[2m    Combine into useReducer: `const [state, dispatch] = useReducer(reducer, initialState)`[22m
+[2m    app/build/[id]/page.tsx: 68[22m
+[2m    components/build/step-review.tsx: 40[22m
+[2m    app/templates/page.tsx: 11[22m
+[2m    app/settings/page.tsx: 26[22m
+[2m    app/library/page.tsx: 14[22m
+[2m    components/build/step-data-sources.tsx: 44[22m
+[2m    components/build/skill-preview.tsx: 23[22m
+[2m    app/baselines/baseline-detail-panel.tsx: 37[22m
+
+  [33m⚠[39m Client-side redirect in useEffect — use redirect() in a server component or middleware instead[33m (4)[39m
+[2m    Use `redirect('/path')` from 'next/navigation' in a Server Component, or handle in middleware[22m
+[2m    app/build/[id]/page.tsx: 72, 79, 92[22m
+[2m    app/compare/page.tsx: 59[22m
+
+  [33m⚠[39m useEffect simulating an event handler — move logic to an actual event handler instead
+[2m    Move the conditional logic into onClick, onChange, or onSubmit handlers directly[22m
+[2m    app/build/[id]/page.tsx: 104[22m
+
+  [33m⚠[39m The `autoFocus` attribute is found here, which can cause usability issues for sighted and non-sighted users.
+[2m    Remove the `autoFocus` attribute.[22m
+[2m    components/layout/auth-gate.tsx: 73[22m
+
+  [33m⚠[39m Enforce a clickable non-interactive element has at least one keyboard event listener.[33m (6)[39m
+[2m    Visible, non-interactive elements with click handlers must have one of `keyup`, `keydown`, or `keypress` listener.[22m
+[2m    components/build/step-upload.tsx: 87, 148[22m
+[2m    components/build/smoke-test-detail.tsx: 78[22m
+[2m    app/baselines/page.tsx: 163[22m
+[2m    app/baselines/baseline-detail-panel.tsx: 168, 169[22m
+
+  [33m⚠[39m Static HTML elements with event handlers require a role.[33m (6)[39m
+[2m    Add a role attribute to this element, or use a semantic HTML element instead.[22m
+[2m    components/build/step-upload.tsx: 87, 148[22m
+[2m    components/build/smoke-test-detail.tsx: 78[22m
+[2m    app/baselines/page.tsx: 163[22m
+[2m    app/baselines/baseline-detail-panel.tsx: 168, 169[22m
+
+  [33m⚠[39m Array index "i" used as key — causes bugs when list is reordered or filtered[33m (19)[39m
+[2m    Use a stable unique identifier: `key={item.id}` or `key={item.slug}` — index keys break on reorder/filter[22m
+[2m    components/build/step-upload.tsx: 107, 168[22m
+[2m    components/build/step-data-sources.tsx: 209[22m
+[2m    components/build/smoke-test-detail.tsx: 76[22m
+[2m    components/build/skill-preview.tsx: 171, 191, 193, 195, 197, 199, 201, 203, 215, 218[22m
+[2m    app/baselines/page.tsx: 179[22m
+[2m    app/baselines/baseline-detail-panel.tsx: 112, 146[22m
+[2m    components/build/log-viewer.tsx: 88[22m
+[2m    components/build/eval-trigger-panel.tsx: 120[22m
+
+  [33m⚠[39m A form label must be associated with a control.[33m (6)[39m
+[2m    Either give the label a `htmlFor` attribute with the id of the associated control, or wrap the label around the control.[22m
+[2m    app/settings/page.tsx: 120, 142, 160[22m
+[2m    app/baselines/page.tsx: 118, 122, 127[22m
+
+  [33m⚠[39m Component "SettingsPage" has 7 useState calls — consider useReducer for related state[33m (6)[39m
+[2m    Group related state: `const [state, dispatch] = useReducer(reducer, { field1, field2, ... })`[22m
+[2m    app/settings/page.tsx: 17[22m
+[2m    components/build/skill-preview.tsx: 16[22m
+[2m    app/baselines/page.tsx: 34[22m
+[2m    components/build/feedback-widget.tsx: 16[22m
+[2m    app/compare/page.tsx: 14[22m
+[2m    components/build/build-wizard.tsx: 18[22m
+
+  [33m⚠[39m Inline render function "renderInline()" — extract to a separate component for proper reconciliation[33m (5)[39m
+[2m    Extract to a named component: `const ListItem = ({ item }) => <div>{item.name}</div>`[22m
+[2m    components/build/skill-preview.tsx: 191, 193, 195, 197, 203[22m
+
+  [33m⚠[39m Default prop value [] creates a new array reference every render — extract to a module-level constant
+[2m    Move to module scope: `const EMPTY_ITEMS: Item[] = []` then use as the default value[22m
+[2m    components/build/phase-stepper.tsx: 120[22m
+
+  [33m⚠[39m useSearchParams() requires a <Suspense> boundary — without one, the entire page bails out to client-side rendering
+[2m    Wrap the component using useSearchParams: `<Suspense fallback={<Skeleton />}><SearchComponent /></Suspense>`[22m
+[2m    app/compare/page.tsx: 16[22m
+
+  [33m⚠[39m Unused file[33m (278)[39m
+[2m    This file is not imported by any other file in the project.[22m
+[2m    ecosystem.config.js[22m
+[2m    .claude\statusline.cjs[22m
+[2m    hooks\use-auth.ts[22m
+[2m    .claude\hooks\cook-after-plan-reminder.cjs[22m
+[2m    .claude\hooks\descriptive-name.cjs[22m
+[2m    .claude\hooks\dev-rules-reminder.cjs[22m
+[2m    .claude\hooks\post-edit-simplify-reminder.cjs[22m
+[2m    .claude\hooks\privacy-block.cjs[22m
+[2m    .claude\hooks\scout-block.cjs[22m
+[2m    .claude\hooks\session-init.cjs[22m
+[2m    .claude\hooks\skill-dedup.cjs[22m
+[2m    .claude\hooks\subagent-init.cjs[22m
+[2m    .claude\hooks\task-completed-handler.cjs[22m
+[2m    .claude\hooks\team-context-inject.cjs[22m
+[2m    .claude\hooks\teammate-idle-handler.cjs[22m
+[2m    .claude\hooks\usage-context-awareness.cjs[22m
+[2m    .claude\scripts\set-active-plan.cjs[22m
+[2m    .claude\scripts\validate-docs.cjs[22m
+[2m    .claude\scripts\worktree.cjs[22m
+[2m    .claude\scripts\worktree.test.cjs[22m
+[2m    .opencode\plugin\context-injector.ts[22m
+[2m    .opencode\plugin\privacy-block.ts[22m
+[2m    .opencode\plugin\scout-block.ts[22m
+[2m    .opencode\scripts\set-active-plan.cjs[22m
+[2m    .opencode\scripts\validate-docs.cjs[22m
+[2m    .opencode\scripts\worktree.cjs[22m
+[2m    .opencode\scripts\worktree.test.cjs[22m
+[2m    components\build\feedback-widget.tsx[22m
+[2m    components\ui\avatar.tsx[22m
+[2m    components\ui\card.tsx[22m
+[2m    components\ui\dialog.tsx[22m
+[2m    components\ui\dropdown-menu.tsx[22m
+[2m    components\ui\scroll-area.tsx[22m
+[2m    components\ui\select.tsx[22m
+[2m    components\ui\separator.tsx[22m
+[2m    components\ui\sheet.tsx[22m
+[2m    components\ui\sonner.tsx[22m
+[2m    components\ui\tooltip.tsx[22m
+[2m    .claude\hooks\lib\ck-config-utils.cjs[22m
+[2m    .claude\hooks\lib\colors.cjs[22m
+[2m    .claude\hooks\lib\config-counter.cjs[22m
+[2m    .claude\hooks\lib\context-builder.cjs[22m
+[2m    .claude\hooks\lib\git-info-cache.cjs[22m
+[2m    .claude\hooks\lib\hook-logger.cjs[22m
+[2m    .claude\hooks\lib\privacy-checker.cjs[22m
+[2m    .claude\hooks\lib\project-detector.cjs[22m
+[2m    .claude\hooks\lib\scout-checker.cjs[22m
+[2m    .claude\hooks\lib\transcript-parser.cjs[22m
+[2m    .claude\hooks\notifications\notify.cjs[22m
+[2m    .claude\hooks\scout-block\broad-pattern-detector.cjs[22m
+[2m    .claude\hooks\scout-block\error-formatter.cjs[22m
+[2m    .claude\hooks\scout-block\path-extractor.cjs[22m
+[2m    .claude\hooks\scout-block\pattern-matcher.cjs[22m
+[2m    .claude\hooks\tests\test-ckignore.cjs[22m
+[2m    .claude\hooks\tests\test-modularization-hook.cjs[22m
+[2m    .claude\hooks\tests\test-privacy-block.cjs[22m
+[2m    .claude\hooks\tests\test-scout-block.cjs[22m
+[2m    .claude\hooks\__tests__\ck-config-utils.test.cjs[22m
+[2m    .claude\hooks\__tests__\descriptive-name.test.cjs[22m
+[2m    .claude\hooks\__tests__\dev-rules-reminder.test.cjs[22m
+[2m    .claude\hooks\__tests__\privacy-block.test.cjs[22m
+[2m    .claude\hooks\__tests__\session-init.test.cjs[22m
+[2m    .claude\hooks\__tests__\skill-dedup.test.cjs[22m
+[2m    .claude\hooks\__tests__\subagent-init.test.cjs[22m
+[2m    .claude\hooks\__tests__\task-completed-handler.test.cjs[22m
+[2m    .claude\hooks\__tests__\team-context-inject.test.cjs[22m
+[2m    .claude\hooks\__tests__\teammate-idle-handler.test.cjs[22m
+[2m    .opencode\plugin\lib\ck-config-utils.cjs[22m
+[2m    .opencode\plugin\lib\colors.cjs[22m
+[2m    .opencode\plugin\lib\context-builder.cjs[22m
+[2m    .opencode\plugin\lib\privacy-checker.cjs[22m
+[2m    .opencode\plugin\lib\project-detector.cjs[22m
+[2m    .opencode\plugin\lib\scout-checker.cjs[22m
+[2m    .opencode\plugin\scout-block\broad-pattern-detector.cjs[22m
+[2m    .opencode\plugin\scout-block\error-formatter.cjs[22m
+[2m    .opencode\plugin\scout-block\path-extractor.cjs[22m
+[2m    .opencode\plugin\scout-block\pattern-matcher.cjs[22m
+[2m    .claude\hooks\lib\__tests__\ck-config-utils.test.cjs[22m
+[2m    .claude\hooks\lib\__tests__\context-builder.test.cjs[22m
+[2m    .claude\hooks\lib\__tests__\project-detector.test.cjs[22m
+[2m    .claude\hooks\lib\__tests__\statusline-integration.test.cjs[22m
+[2m    .claude\hooks\lib\__tests__\statusline.test.cjs[22m
+[2m    .claude\hooks\notifications\lib\env-loader.cjs[22m
+[2m    .claude\hooks\notifications\lib\sender.cjs[22m
+[2m    .claude\hooks\notifications\providers\discord.cjs[22m
+[2m    .claude\hooks\notifications\providers\slack.cjs[22m
+[2m    .claude\hooks\notifications\providers\telegram.cjs[22m
+[2m    .claude\hooks\scout-block\tests\test-broad-pattern-detector.cjs[22m
+[2m    .claude\hooks\scout-block\tests\test-build-command-allowlist.cjs[22m
+[2m    .claude\hooks\scout-block\tests\test-error-formatter.cjs[22m
+[2m    .claude\hooks\scout-block\tests\test-full-flow-edge-cases.cjs[22m
+[2m    .claude\hooks\scout-block\tests\test-monorepo-scenarios.cjs[22m
+[2m    .claude\hooks\scout-block\tests\test-path-extractor.cjs[22m
+[2m    .claude\hooks\scout-block\tests\test-pattern-matcher.cjs[22m
+[2m    .claude\hooks\scout-block\vendor\ignore.cjs[22m
+[2m    .claude\hooks\tests\scout-block\broad-pattern-detector.test.cjs[22m
+[2m    .claude\hooks\tests\scout-block\path-extractor.test.cjs[22m
+[2m    .claude\hooks\tests\scout-block\pattern-matcher.test.cjs[22m
+[2m    .claude\hooks\tests\scout-block\scout-checker.test.cjs[22m
+[2m    .claude\hooks\__tests__\integration\path-resolution.test.cjs[22m
+[2m    .claude\skills\chrome-devtools\scripts\aria-snapshot.js[22m
+[2m    .claude\skills\chrome-devtools\scripts\click.js[22m
+[2m    .claude\skills\chrome-devtools\scripts\connect-chrome.js[22m
+[2m    .claude\skills\chrome-devtools\scripts\console.js[22m
+[2m    .claude\skills\chrome-devtools\scripts\evaluate.js[22m
+[2m    .claude\skills\chrome-devtools\scripts\fill.js[22m
+[2m    .claude\skills\chrome-devtools\scripts\import-cookies.js[22m
+[2m    .claude\skills\chrome-devtools\scripts\inject-auth.js[22m
+[2m    .claude\skills\chrome-devtools\scripts\navigate.js[22m
+[2m    .claude\skills\chrome-devtools\scripts\network.js[22m
+[2m    .claude\skills\chrome-devtools\scripts\performance.js[22m
+[2m    .claude\skills\chrome-devtools\scripts\screenshot.js[22m
+[2m    .claude\skills\chrome-devtools\scripts\select-ref.js[22m
+[2m    .claude\skills\chrome-devtools\scripts\snapshot.js[22m
+[2m    .claude\skills\chrome-devtools\scripts\ws-debug.js[22m
+[2m    .claude\skills\chrome-devtools\scripts\ws-full-debug.js[22m
+[2m    .claude\skills\docs-seeker\scripts\analyze-llms-txt.js[22m
+[2m    .claude\skills\docs-seeker\scripts\detect-topic.js[22m
+[2m    .claude\skills\docs-seeker\scripts\fetch-docs.js[22m
+[2m    .claude\skills\markdown-novel-viewer\assets\directory-browser.css[22m
+[2m    .claude\skills\markdown-novel-viewer\assets\novel-theme.css[22m
+[2m    .claude\skills\markdown-novel-viewer\assets\reader.js[22m
+[2m    .claude\skills\markdown-novel-viewer\scripts\server.cjs[22m
+[2m    .claude\skills\markdown-novel-viewer\tests\dashboard-assets.test.cjs[22m
+[2m    .claude\skills\markdown-novel-viewer\tests\dashboard-renderer.test.cjs[22m
+[2m    .claude\skills\markdown-novel-viewer\tests\http-server.test.cjs[22m
+[2m    .claude\skills\markdown-novel-viewer\tests\run-tests.cjs[22m
+[2m    .claude\skills\markdown-novel-viewer\tests\test-framework.cjs[22m
+[2m    .claude\skills\markdown-novel-viewer\tests\verify-xss.cjs[22m
+[2m    .claude\skills\mcp-management\scripts\cli.ts[22m
+[2m    .claude\skills\mcp-management\scripts\mcp-client.ts[22m
+[2m    .claude\skills\media-processing\scripts\remove-bg-node.js[22m
+[2m    .claude\skills\payment-integration\scripts\checkout-helper.js[22m
+[2m    .claude\skills\payment-integration\scripts\polar-webhook-verify.js[22m
+[2m    .claude\skills\payment-integration\scripts\sepay-webhook-verify.js[22m
+[2m    .claude\skills\payment-integration\scripts\test-scripts.js[22m
+[2m    .claude\skills\plans-kanban\assets\dashboard.css[22m
+[2m    .claude\skills\plans-kanban\assets\dashboard.js[22m
+[2m    .claude\skills\plans-kanban\scripts\server.cjs[22m
+[2m    .claude\skills\sequential-thinking\scripts\format-thought.js[22m
+[2m    .claude\skills\sequential-thinking\scripts\process-thought.js[22m
+[2m    .claude\skills\sequential-thinking\tests\format-thought.test.js[22m
+[2m    .claude\skills\sequential-thinking\tests\process-thought.test.js[22m
+[2m    .claude\skills\web-testing\scripts\analyze-test-results.js[22m
+[2m    .claude\skills\web-testing\scripts\init-playwright.js[22m
+[2m    .opencode\plugin\scout-block\tests\test-broad-pattern-detector.cjs[22m
+[2m    .opencode\plugin\scout-block\tests\test-build-command-allowlist.cjs[22m
+[2m    .opencode\plugin\scout-block\tests\test-error-formatter.cjs[22m
+[2m    .opencode\plugin\scout-block\tests\test-full-flow-edge-cases.cjs[22m
+[2m    .opencode\plugin\scout-block\tests\test-monorepo-scenarios.cjs[22m
+[2m    .opencode\plugin\scout-block\tests\test-path-extractor.cjs[22m
+[2m    .opencode\plugin\scout-block\tests\test-pattern-matcher.cjs[22m
+[2m    .opencode\plugin\scout-block\vendor\ignore.cjs[22m
+[2m    .opencode\skills\chrome-devtools\scripts\aria-snapshot.js[22m
+[2m    .opencode\skills\chrome-devtools\scripts\click.js[22m
+[2m    .opencode\skills\chrome-devtools\scripts\connect-chrome.js[22m
+[2m    .opencode\skills\chrome-devtools\scripts\console.js[22m
+[2m    .opencode\skills\chrome-devtools\scripts\evaluate.js[22m
+[2m    .opencode\skills\chrome-devtools\scripts\fill.js[22m
+[2m    .opencode\skills\chrome-devtools\scripts\import-cookies.js[22m
+[2m    .opencode\skills\chrome-devtools\scripts\inject-auth.js[22m
+[2m    .opencode\skills\chrome-devtools\scripts\navigate.js[22m
+[2m    .opencode\skills\chrome-devtools\scripts\network.js[22m
+[2m    .opencode\skills\chrome-devtools\scripts\performance.js[22m
+[2m    .opencode\skills\chrome-devtools\scripts\screenshot.js[22m
+[2m    .opencode\skills\chrome-devtools\scripts\select-ref.js[22m
+[2m    .opencode\skills\chrome-devtools\scripts\snapshot.js[22m
+[2m    .opencode\skills\chrome-devtools\scripts\ws-debug.js[22m
+[2m    .opencode\skills\chrome-devtools\scripts\ws-full-debug.js[22m
+[2m    .opencode\skills\docs-seeker\scripts\analyze-llms-txt.js[22m
+[2m    .opencode\skills\docs-seeker\scripts\detect-topic.js[22m
+[2m    .opencode\skills\docs-seeker\scripts\fetch-docs.js[22m
+[2m    .opencode\skills\markdown-novel-viewer\assets\directory-browser.css[22m
+[2m    .opencode\skills\markdown-novel-viewer\assets\novel-theme.css[22m
+[2m    .opencode\skills\markdown-novel-viewer\assets\reader.js[22m
+[2m    .opencode\skills\markdown-novel-viewer\scripts\server.cjs[22m
+[2m    .opencode\skills\markdown-novel-viewer\tests\dashboard-assets.test.cjs[22m
+[2m    .opencode\skills\markdown-novel-viewer\tests\dashboard-renderer.test.cjs[22m
+[2m    .opencode\skills\markdown-novel-viewer\tests\http-server.test.cjs[22m
+[2m    .opencode\skills\markdown-novel-viewer\tests\run-tests.cjs[22m
+[2m    .opencode\skills\markdown-novel-viewer\tests\test-framework.cjs[22m
+[2m    .opencode\skills\markdown-novel-viewer\tests\verify-xss.cjs[22m
+[2m    .opencode\skills\mcp-management\scripts\cli.ts[22m
+[2m    .opencode\skills\mcp-management\scripts\mcp-client.ts[22m
+[2m    .opencode\skills\media-processing\scripts\remove-bg-node.js[22m
+[2m    .opencode\skills\payment-integration\scripts\checkout-helper.js[22m
+[2m    .opencode\skills\payment-integration\scripts\polar-webhook-verify.js[22m
+[2m    .opencode\skills\payment-integration\scripts\sepay-webhook-verify.js[22m
+[2m    .opencode\skills\payment-integration\scripts\test-scripts.js[22m
+[2m    .opencode\skills\plans-kanban\assets\dashboard.css[22m
+[2m    .opencode\skills\plans-kanban\assets\dashboard.js[22m
+[2m    .opencode\skills\plans-kanban\scripts\server.cjs[22m
+[2m    .opencode\skills\sequential-thinking\scripts\format-thought.js[22m
+[2m    .opencode\skills\sequential-thinking\scripts\process-thought.js[22m
+[2m    .opencode\skills\sequential-thinking\tests\format-thought.test.js[22m
+[2m    .opencode\skills\sequential-thinking\tests\process-thought.test.js[22m
+[2m    .opencode\skills\web-testing\scripts\analyze-test-results.js[22m
+[2m    .opencode\skills\web-testing\scripts\init-playwright.js[22m
+[2m    .claude\skills\chrome-devtools\scripts\lib\browser.js[22m
+[2m    .claude\skills\chrome-devtools\scripts\lib\selector.js[22m
+[2m    .claude\skills\chrome-devtools\scripts\__tests__\error-handling.test.js[22m
+[2m    .claude\skills\chrome-devtools\scripts\__tests__\selector.test.js[22m
+[2m    .claude\skills\docs-seeker\scripts\tests\run-tests.js[22m
+[2m    .claude\skills\docs-seeker\scripts\tests\test-analyze-llms.js[22m
+[2m    .claude\skills\docs-seeker\scripts\tests\test-detect-topic.js[22m
+[2m    .claude\skills\docs-seeker\scripts\tests\test-fetch-docs.js[22m
+[2m    .claude\skills\docs-seeker\scripts\utils\env-loader.js[22m
+[2m    .claude\skills\document-skills\pptx\scripts\html2pptx.js[22m
+[2m    .claude\skills\markdown-novel-viewer\assets\styles\novel-theme-base.css[22m
+[2m    .claude\skills\markdown-novel-viewer\assets\styles\novel-theme-components.css[22m
+[2m    .claude\skills\markdown-novel-viewer\assets\styles\novel-theme-content.css[22m
+[2m    .claude\skills\markdown-novel-viewer\assets\styles\novel-theme-header.css[22m
+[2m    .claude\skills\markdown-novel-viewer\assets\styles\novel-theme-mermaid.css[22m
+[2m    .claude\skills\markdown-novel-viewer\assets\styles\novel-theme-overlays.css[22m
+[2m    .claude\skills\markdown-novel-viewer\assets\styles\novel-theme-responsive.css[22m
+[2m    .claude\skills\markdown-novel-viewer\assets\styles\novel-theme-sidebar.css[22m
+[2m    .claude\skills\markdown-novel-viewer\assets\styles\novel-theme-variables.css[22m
+[2m    .claude\skills\markdown-novel-viewer\scripts\lib\http-server.cjs[22m
+[2m    .claude\skills\markdown-novel-viewer\scripts\lib\markdown-renderer.cjs[22m
+[2m    .claude\skills\markdown-novel-viewer\scripts\lib\plan-navigator.cjs[22m
+[2m    .claude\skills\markdown-novel-viewer\scripts\lib\port-finder.cjs[22m
+[2m    .claude\skills\markdown-novel-viewer\scripts\lib\process-mgr.cjs[22m
+[2m    .claude\skills\markdown-novel-viewer\scripts\tests\server.test.cjs[22m
+[2m    .claude\skills\mcp-management\scripts\dist\analyze-tools.js[22m
+[2m    .claude\skills\mcp-management\scripts\dist\cli.js[22m
+[2m    .claude\skills\mcp-management\scripts\dist\mcp-client.js[22m
+[2m    .claude\skills\plans-kanban\scripts\lib\dashboard-renderer.cjs[22m
+[2m    .claude\skills\plans-kanban\scripts\lib\http-server.cjs[22m
+[2m    .claude\skills\plans-kanban\scripts\lib\plan-metadata-extractor.cjs[22m
+[2m    .claude\skills\plans-kanban\scripts\lib\plan-parser.cjs[22m
+[2m    .claude\skills\plans-kanban\scripts\lib\plan-scanner.cjs[22m
+[2m    .claude\skills\plans-kanban\scripts\lib\port-finder.cjs[22m
+[2m    .claude\skills\plans-kanban\scripts\lib\process-mgr.cjs[22m
+[2m    .claude\skills\remotion\rules\assets\charts-bar-chart.tsx[22m
+[2m    .claude\skills\remotion\rules\assets\text-animations-typewriter.tsx[22m
+[2m    .claude\skills\remotion\rules\assets\text-animations-word-highlight.tsx[22m
+[2m    .opencode\skills\chrome-devtools\scripts\lib\browser.js[22m
+[2m    .opencode\skills\chrome-devtools\scripts\lib\selector.js[22m
+[2m    .opencode\skills\chrome-devtools\scripts\__tests__\error-handling.test.js[22m
+[2m    .opencode\skills\chrome-devtools\scripts\__tests__\selector.test.js[22m
+[2m    .opencode\skills\docs-seeker\scripts\tests\run-tests.js[22m
+[2m    .opencode\skills\docs-seeker\scripts\tests\test-analyze-llms.js[22m
+[2m    .opencode\skills\docs-seeker\scripts\tests\test-detect-topic.js[22m
+[2m    .opencode\skills\docs-seeker\scripts\tests\test-fetch-docs.js[22m
+[2m    .opencode\skills\docs-seeker\scripts\utils\env-loader.js[22m
+[2m    .opencode\skills\markdown-novel-viewer\assets\styles\novel-theme-base.css[22m
+[2m    .opencode\skills\markdown-novel-viewer\assets\styles\novel-theme-components.css[22m
+[2m    .opencode\skills\markdown-novel-viewer\assets\styles\novel-theme-content.css[22m
+[2m    .opencode\skills\markdown-novel-viewer\assets\styles\novel-theme-header.css[22m
+[2m    .opencode\skills\markdown-novel-viewer\assets\styles\novel-theme-mermaid.css[22m
+[2m    .opencode\skills\markdown-novel-viewer\assets\styles\novel-theme-overlays.css[22m
+[2m    .opencode\skills\markdown-novel-viewer\assets\styles\novel-theme-responsive.css[22m
+[2m    .opencode\skills\markdown-novel-viewer\assets\styles\novel-theme-sidebar.css[22m
+[2m    .opencode\skills\markdown-novel-viewer\assets\styles\novel-theme-variables.css[22m
+[2m    .opencode\skills\markdown-novel-viewer\scripts\lib\http-server.cjs[22m
+[2m    .opencode\skills\markdown-novel-viewer\scripts\lib\markdown-renderer.cjs[22m
+[2m    .opencode\skills\markdown-novel-viewer\scripts\lib\plan-navigator.cjs[22m
+[2m    .opencode\skills\markdown-novel-viewer\scripts\lib\port-finder.cjs[22m
+[2m    .opencode\skills\markdown-novel-viewer\scripts\lib\process-mgr.cjs[22m
+[2m    .opencode\skills\markdown-novel-viewer\scripts\tests\server.test.cjs[22m
+[2m    .opencode\skills\mcp-management\scripts\dist\analyze-tools.js[22m
+[2m    .opencode\skills\mcp-management\scripts\dist\cli.js[22m
+[2m    .opencode\skills\mcp-management\scripts\dist\mcp-client.js[22m
+[2m    .opencode\skills\plans-kanban\scripts\lib\dashboard-renderer.cjs[22m
+[2m    .opencode\skills\plans-kanban\scripts\lib\http-server.cjs[22m
+[2m    .opencode\skills\plans-kanban\scripts\lib\plan-metadata-extractor.cjs[22m
+[2m    .opencode\skills\plans-kanban\scripts\lib\plan-parser.cjs[22m
+[2m    .opencode\skills\plans-kanban\scripts\lib\plan-scanner.cjs[22m
+[2m    .opencode\skills\plans-kanban\scripts\lib\port-finder.cjs[22m
+[2m    .opencode\skills\plans-kanban\scripts\lib\process-mgr.cjs[22m
+[2m    .opencode\skills\remotion\rules\assets\charts-bar-chart.tsx[22m
+[2m    .opencode\skills\remotion\rules\assets\text-animations-typewriter.tsx[22m
+[2m    .opencode\skills\remotion\rules\assets\text-animations-word-highlight.tsx[22m
+[2m    .claude\skills\.venv\Lib\site-packages\coverage\htmlfiles\coverage_html.js[22m
+[2m    .claude\skills\.venv\Lib\site-packages\coverage\htmlfiles\style.css[22m
+[2m    .claude\skills\.venv\Lib\site-packages\win32com\test\testPyScriptlet.js[22m
+[2m    .claude\skills\.venv\Lib\site-packages\win32com\test\testxslt.js[22m
+[2m    .claude\skills\.venv\Lib\site-packages\urllib3\contrib\emscripten\emscripten_fetch_worker.js[22m
+
+  [33m⚠[39m Unused export: buttonVariants[33m (16)[39m
+[2m    components\ui\button.tsx[22m
+[2m    lib\auth.ts[22m
+[2m    lib\db.ts[22m
+[2m    lib\build-queue.ts[22m
+[2m    lib\config-generator.ts[22m
+[2m    components\ui\badge.tsx[22m
+[2m    components\ui\alert-dialog.tsx[22m
+[2m    components\ui\tabs.tsx[22m
+[2m    lib\notifications.ts[22m
+
+  [33m⚠[39m Unused type: PhaseInfo[33m (7)[39m
+[2m    types\build.ts[22m
+[2m    lib\config-generator.ts[22m
+[2m    lib\build-runner.ts[22m
+[2m    hooks\use-build-stream.ts[22m
+[2m    lib\baseline-registry.ts[22m
+[2m    hooks\use-wizard-state.ts[22m
+
+  [2m┌────────────────────────────────────────────────────────────┐[22m
+  [2m│[22m [32m┌─────┐[39m                                                    [2m│[22m
+  [2m│[22m [32m│ ◠ ◠ │[39m                                                    [2m│[22m
+  [2m│[22m [32m│  ▽  │[39m                                                    [2m│[22m
+  [2m│[22m [32m└─────┘[39m                                                    [2m│[22m
+  [2m│[22m React Doctor [2m(www.react.doctor)[22m                            [2m│[22m
+  [2m│[22m                                                            [2m│[22m
+  [2m│[22m [32m87[39m / 100  [32mGreat[39m                                            [2m│[22m
+  [2m│[22m                                                            [2m│[22m
+  [2m│[22m [32m████████████████████████████████████████████[39m[2m░░░░░░[22m         [2m│[22m
+  [2m│[22m                                                            [2m│[22m
+  [2m│[22m [31m✗ 14 errors[39m  [33m⚠ 367 warnings[39m  [2macross 312/196 files[22m  [2min 1.3s[22m [2m│[22m
+  [2m└────────────────────────────────────────────────────────────┘[22m
+
+[2m  Full diagnostics written to C:\Users\Kaka\AppData\Local\Temp\react-doctor-a1a6244f-7202-484b-9472-882549bb256d[22m
+
+[2m  Share your results: [36mhttps://www.react.doctor/share?p=skill-factory-web&s=87&e=14&w=367&f=312[39m[22m
+
