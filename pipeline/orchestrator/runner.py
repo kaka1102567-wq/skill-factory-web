@@ -1,11 +1,13 @@
 """Main pipeline runner — sequences P0 through P6."""
 
+import json
 import os
 import uuid
 from datetime import datetime
 
 from ..core.types import BuildConfig, PipelineState, PHASE_MODEL_MAP
 from ..core.logger import PipelineLogger
+from ..core.utils import read_json
 from ..clients.claude_client import ClaudeClient, CreditExhaustedError
 from ..seekers.cache import SeekersCache
 from ..seekers.lookup import SeekersLookup
@@ -152,6 +154,9 @@ class PipelineRunner:
             save_checkpoint(state, self.config.output_dir)
             return 1
 
+        # Compute and emit final score after all phases
+        _emit_final_score(self.config, state, self.logger)
+
         # All phases complete
         self.logger.info(
             f"Pipeline hoàn thành! Tổng chi phí: ${state.total_cost_usd:.4f}, "
@@ -214,6 +219,8 @@ class PipelineRunner:
                 except Exception as e:
                     self.logger.warn(f"Lỗi smoke test (không nghiêm trọng): {e}")
 
+        _emit_final_score(self.config, state, self.logger)
+
         self.logger.info(
             f"Pipeline hoàn thành! Tổng chi phí: ${state.total_cost_usd:.4f}, "
             f"Tokens: {state.total_tokens}"
@@ -260,3 +267,52 @@ def _apply_resolutions(output_dir: str, resolutions: dict, logger: PipelineLogge
     write_json(data, dedup_path)
 
     logger.info(f"Đã áp dụng {len(resolutions)} resolutions → còn lại {len(resolved_atoms)} atoms")
+
+
+def _emit_final_score(config: BuildConfig, state: PipelineState,
+                      logger: PipelineLogger) -> None:
+    """Compute final score: Pipeline×0.6 + SmokeTestAvg×0.3 + TriggerTest×0.1
+
+    Reads P5 quality_score, smoke_test_report.json, and p6_optimization_report.json
+    from the output directory. Emits a 'final_score' log event for build-runner.ts.
+    """
+    out = config.output_dir
+
+    # Pipeline score from P5 result
+    p5_data = state.phase_results.get("p5", {})
+    pipeline_score = p5_data.get("quality_score", 0.0)
+
+    # Smoke test average score (0-100 scale)
+    smoke_avg = 0.0
+    try:
+        smoke = read_json(os.path.join(out, "smoke_test_report.json"))
+        smoke_avg = float(smoke.get("score", 0)) * 100  # stored as 0-1
+    except Exception:
+        pass
+
+    # Trigger test score from P6 (use best_test_score, 0-100 scale)
+    trigger_score = 0.0
+    try:
+        p6 = read_json(os.path.join(out, "p6_optimization_report.json"))
+        trigger_score = float(p6.get("best_test_score", 0)) * 100  # stored as 0-1
+    except Exception:
+        pass
+
+    final = pipeline_score * 0.6 + smoke_avg * 0.3 + trigger_score * 0.1
+    final = min(100.0, max(0.0, round(final, 1)))
+
+    logger.info(
+        f"Final Score: pipeline={pipeline_score:.1f}*0.6 + "
+        f"smoke={smoke_avg:.1f}*0.3 + trigger={trigger_score:.1f}*0.1 "
+        f"= {final}",
+        phase="final",
+    )
+
+    # Emit structured event for build-runner.ts to parse
+    logger._emit({
+        "event": "final_score",
+        "final_score": final,
+        "pipeline_score": round(pipeline_score, 1),
+        "smoke_test_avg": round(smoke_avg, 1),
+        "trigger_test_score": round(trigger_score, 1),
+    })

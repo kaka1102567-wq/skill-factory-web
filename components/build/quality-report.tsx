@@ -13,6 +13,12 @@ interface P6Report {
   iterations?: number;
 }
 
+interface FinalScoreBreakdown {
+  pipeline_score: number;
+  smoke_test_avg: number;
+  trigger_test_score: number;
+}
+
 export function QualityReport({
   build,
   phases,
@@ -23,13 +29,18 @@ export function QualityReport({
   const phasesWithScores = phases.filter((p) => p.score !== null);
   const [smokeReport, setSmokeReport] = useState<SmokeReport | null>(null);
   const [p6Report, setP6Report] = useState<P6Report | null>(null);
+  const [breakdown, setBreakdown] = useState<FinalScoreBreakdown | null>(null);
 
   useEffect(() => {
     if (!build.id || build.status !== "completed") return;
     const base = `/api/builds/${build.id}/reports`;
     fetch(`${base}?file=smoke_test_report.json`)
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => setSmokeReport(d))
+      .then((d) => {
+        setSmokeReport(d);
+        // Derive breakdown from available data
+        if (d) computeBreakdown(d);
+      })
       .catch(() => {});
     fetch(`${base}?file=p6_optimization_report.json`)
       .then((r) => (r.ok ? r.json() : null))
@@ -37,37 +48,89 @@ export function QualityReport({
       .catch(() => {});
   }, [build.id, build.status]);
 
+  // Compute breakdown from smoke + p6 + pipeline phases
+  function computeBreakdown(smoke: SmokeReport | null) {
+    // Pipeline score: from P5 phase result
+    const p5Phase = phases.find((p) => p.id === "p5");
+    const pipelineScore = p5Phase?.score ?? build.quality_score ?? 0;
+    const smokeAvg = smoke?.score != null ? smoke.score * 100 : 0;
+    // trigger score computed when p6Report is available (via separate effect)
+    setBreakdown({ pipeline_score: pipelineScore, smoke_test_avg: smokeAvg, trigger_test_score: 0 });
+  }
+
+  // Update trigger score when p6Report loads
+  useEffect(() => {
+    if (!p6Report || !breakdown) return;
+    const triggerScore = (p6Report.best_test_score ?? 0) * 100;
+    if (triggerScore !== breakdown.trigger_test_score) {
+      setBreakdown((prev) => prev ? { ...prev, trigger_test_score: triggerScore } : prev);
+    }
+  }, [p6Report, breakdown]);
+
   return (
     <div className="space-y-4">
-      {/* Overall Score */}
+      {/* Final Score */}
       {build.quality_score && (
-        <div className="flex items-center gap-4 p-4 rounded-xl bg-card border border-border">
-          <div
-            className={cn(
-              "w-16 h-16 rounded-full flex items-center justify-center border-4",
-              build.quality_score >= 90
-                ? "border-emerald-500 text-emerald-400"
-                : build.quality_score >= 70
-                  ? "border-amber-500 text-amber-400"
-                  : "border-red-500 text-red-400"
-            )}
-          >
-            <span className="text-xl font-bold">
-              {Math.round(build.quality_score)}
-            </span>
+        <div className="p-4 rounded-xl bg-card border border-border">
+          <div className="flex items-center gap-4">
+            <div
+              className={cn(
+                "w-16 h-16 rounded-full flex items-center justify-center border-4 shrink-0",
+                build.quality_score >= 90
+                  ? "border-emerald-500 text-emerald-400"
+                  : build.quality_score >= 70
+                    ? "border-amber-500 text-amber-400"
+                    : "border-red-500 text-red-400"
+              )}
+            >
+              <span className="text-xl font-bold">
+                {Math.round(build.quality_score)}
+              </span>
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-foreground">
+                Final Score
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {build.quality_score >= 90
+                  ? "Excellent — Ready for production"
+                  : build.quality_score >= 70
+                    ? "Good — Usable, review recommended"
+                    : "Needs improvement — Review carefully"}
+              </p>
+            </div>
           </div>
-          <div>
-            <p className="text-sm font-semibold text-foreground">
-              Quality Score
-            </p>
-            <p className="text-xs text-muted-foreground">
-              {build.quality_score >= 90
-                ? "Excellent — Ready for production"
-                : build.quality_score >= 70
-                  ? "Good — Usable, review recommended"
-                  : "Needs improvement — Review carefully"}
-            </p>
-          </div>
+          {/* Breakdown bar */}
+          {breakdown && (
+            <div className="mt-3 pt-3 border-t border-border">
+              <p className="text-[10px] text-muted-foreground mb-2 font-mono">
+                Pipeline×0.6 + Smoke×0.3 + Trigger×0.1
+              </p>
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div>
+                  <p className="text-[10px] text-muted-foreground">Pipeline</p>
+                  <p className="text-sm font-bold text-foreground">
+                    {Math.round(breakdown.pipeline_score)}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground">×0.6</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-muted-foreground">Smoke Test</p>
+                  <p className="text-sm font-bold text-foreground">
+                    {Math.round(breakdown.smoke_test_avg)}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground">×0.3</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-muted-foreground">Trigger</p>
+                  <p className="text-sm font-bold text-foreground">
+                    {Math.round(breakdown.trigger_test_score)}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground">×0.1</p>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

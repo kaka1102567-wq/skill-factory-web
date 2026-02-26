@@ -819,6 +819,21 @@ function handleParsedLog(buildId: string, parsed: Record<string, unknown>): void
     if (parsed.compression_ratio) updateBuild(buildId, { compression_ratio: parsed.compression_ratio as number });
   }
 
+  // Final Score: Pipeline×0.6 + SmokeTestAvg×0.3 + TriggerTest×0.1
+  if (event === "final_score") {
+    const finalScore = parsed.final_score as number;
+    if (finalScore) {
+      updateBuild(buildId, { quality_score: finalScore });
+      sseManager.broadcast(buildId, "final_score", {
+        final_score: finalScore,
+        pipeline_score: parsed.pipeline_score,
+        smoke_test_avg: parsed.smoke_test_avg,
+        trigger_test_score: parsed.trigger_test_score,
+        timestamp,
+      });
+    }
+  }
+
   if (event === "cost" || parsed.api_cost_usd) {
     updateBuild(buildId, {
       api_cost_usd: parsed.api_cost_usd as number,
