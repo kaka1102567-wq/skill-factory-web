@@ -60,29 +60,52 @@ export function BuildWizard() {
     }
   };
 
-  // Upload a single file, with retry on failure
+  // Upload a single file with timeout + retry. Returns error reason on failure.
   const uploadSingleFile = async (
     file: File, uploadDir: string | null,
-  ): Promise<{ path: string; uploadDir: string } | null> => {
+  ): Promise<{ ok: true; path: string; uploadDir: string } | { ok: false; reason: string }> => {
+    const TIMEOUT_MS = 120_000; // 120s per file
+
     for (let attempt = 0; attempt < 2; attempt++) {
+      if (attempt > 0) await new Promise((r) => setTimeout(r, 2000)); // 2s delay before retry
+
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+
       try {
         const formData = new FormData();
-        formData.append("files", file);
+        // upload_dir MUST be before files so server can read it first (streaming)
         if (uploadDir) formData.append("upload_dir", uploadDir);
+        formData.append("files", file);
 
-        const res = await fetch("/api/uploads", { method: "POST", body: formData });
+        const res = await fetch("/api/uploads", {
+          method: "POST",
+          body: formData,
+          signal: controller.signal,
+        });
+
         if (!res.ok) {
-          if (attempt === 0) continue; // retry once
-          return null;
+          const errData = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+          const reason = errData.error || `HTTP ${res.status}`;
+          console.warn(`[Upload] ${file.name} attempt ${attempt + 1} failed: ${reason}`);
+          if (attempt === 0) continue;
+          return { ok: false, reason };
         }
+
         const data = await res.json();
-        return { path: data.files[0].path, uploadDir: data.upload_dir };
-      } catch {
+        return { ok: true, path: data.files[0].path, uploadDir: data.upload_dir };
+      } catch (err) {
+        const reason = err instanceof DOMException && err.name === "AbortError"
+          ? "timeout (>120s)"
+          : err instanceof Error ? err.message : "network error";
+        console.warn(`[Upload] ${file.name} attempt ${attempt + 1} error: ${reason}`);
         if (attempt === 0) continue;
-        return null;
+        return { ok: false, reason };
+      } finally {
+        clearTimeout(timer);
       }
     }
-    return null;
+    return { ok: false, reason: "unknown" };
   };
 
   // Submit build — saves pending state before navigating away
@@ -114,12 +137,12 @@ export function BuildWizard() {
           });
 
           const result = await uploadSingleFile(file, uploadDir);
-          if (result) {
+          if (result.ok) {
             uploadedPaths.push(result.path);
             if (!uploadDir) uploadDir = result.uploadDir;
             uploadedBytes += file.size;
           } else {
-            warnings.push(file.name);
+            warnings.push(`${file.name} (${result.reason})`);
             uploadedBytes += file.size;
           }
         }
