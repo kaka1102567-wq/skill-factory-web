@@ -60,57 +60,119 @@ export function BuildWizard() {
     }
   };
 
-  // Upload a single file with dynamic timeout + retry. Returns error reason on failure.
-  const uploadSingleFile = async (
+  type UploadOk = { ok: true; path: string; uploadDir: string };
+  type UploadFail = { ok: false; reason: string };
+  type UploadResult = UploadOk | UploadFail;
+
+  const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB chunks
+  const CHUNK_THRESHOLD = 8 * 1024 * 1024; // files >8MB use chunked upload
+
+  // Small file upload (≤8MB) — single multipart POST via busboy
+  const uploadSmallFile = async (
     file: File, uploadDir: string | null,
-  ): Promise<{ ok: true; path: string; uploadDir: string } | { ok: false; reason: string }> => {
-    // Dynamic timeout: 60s base + 5s per MB (50MB → 310s, 100MB → 560s)
-    const fileMB = file.size / (1024 * 1024);
-    const timeoutMs = Math.max(60_000, Math.round(60_000 + fileMB * 5_000));
+  ): Promise<UploadResult> => {
+    const timeoutMs = 60_000; // 60s for small files
 
     for (let attempt = 0; attempt < 2; attempt++) {
       if (attempt > 0) await new Promise((r) => setTimeout(r, 2000));
-
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), timeoutMs);
 
       try {
         const formData = new FormData();
-        // upload_dir MUST be before files so server can read it first (streaming)
         if (uploadDir) formData.append("upload_dir", uploadDir);
         formData.append("files", file);
 
         const res = await fetch("/api/uploads", {
-          method: "POST",
-          body: formData,
-          signal: controller.signal,
+          method: "POST", body: formData, signal: controller.signal,
         });
-
         if (!res.ok) {
           const errData = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
-          let reason = errData.error || `HTTP ${res.status}`;
-          if (reason.includes("stream interrupted") || reason.includes("Unexpected end of form")) {
-            reason = "upload interrupted — slow network or proxy timeout";
-          }
+          const reason = errData.error || `HTTP ${res.status}`;
           console.warn(`[Upload] ${file.name} attempt ${attempt + 1} failed: ${reason}`);
           if (attempt === 0) continue;
           return { ok: false, reason };
         }
-
         const data = await res.json();
         return { ok: true, path: data.files[0].path, uploadDir: data.upload_dir };
       } catch (err) {
         const reason = err instanceof DOMException && err.name === "AbortError"
-          ? `timeout (>${Math.round(timeoutMs / 1000)}s)`
-          : err instanceof Error ? err.message : "network error";
+          ? "timeout (>60s)" : err instanceof Error ? err.message : "network error";
         console.warn(`[Upload] ${file.name} attempt ${attempt + 1} error: ${reason}`);
         if (attempt === 0) continue;
         return { ok: false, reason };
-      } finally {
-        clearTimeout(timer);
-      }
+      } finally { clearTimeout(timer); }
     }
     return { ok: false, reason: "unknown" };
+  };
+
+  // Large file upload (>8MB) — chunked binary POST, 5MB per chunk
+  const uploadLargeFile = async (
+    file: File, uploadDir: string | null,
+  ): Promise<UploadResult> => {
+    const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+    const chunkTimeoutMs = 60_000; // 60s per 5MB chunk
+    let currentDir = uploadDir;
+
+    for (let i = 0; i < totalChunks; i++) {
+      const start = i * CHUNK_SIZE;
+      const end = Math.min(start + CHUNK_SIZE, file.size);
+      const chunk = file.slice(start, end);
+      let chunkOk = false;
+
+      // Retry each chunk up to 2 times
+      for (let attempt = 0; attempt < 2; attempt++) {
+        if (attempt > 0) await new Promise((r) => setTimeout(r, 2000));
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), chunkTimeoutMs);
+
+        try {
+          const headers: Record<string, string> = {
+            "Content-Type": "application/octet-stream",
+            "X-File-Name": file.name,
+            "X-Chunk-Index": String(i),
+            "X-Chunk-Total": String(totalChunks),
+          };
+          if (currentDir) headers["X-Upload-Dir"] = currentDir;
+
+          const res = await fetch("/api/uploads/chunk", {
+            method: "POST", body: chunk, signal: controller.signal, headers,
+          });
+
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+            console.warn(`[Upload] ${file.name} chunk ${i + 1}/${totalChunks} attempt ${attempt + 1}: ${errData.error}`);
+            if (attempt === 0) continue;
+            return { ok: false, reason: errData.error || `chunk ${i + 1} failed` };
+          }
+
+          const data = await res.json();
+          if (!currentDir && data.upload_dir) currentDir = data.upload_dir;
+
+          // Last chunk returns the final file info
+          if (data.files) {
+            return { ok: true, path: data.files[0].path, uploadDir: data.upload_dir };
+          }
+          chunkOk = true;
+          break; // chunk succeeded, move to next
+        } catch (err) {
+          const reason = err instanceof DOMException && err.name === "AbortError"
+            ? "chunk timeout" : err instanceof Error ? err.message : "network error";
+          console.warn(`[Upload] ${file.name} chunk ${i + 1}/${totalChunks} attempt ${attempt + 1}: ${reason}`);
+          if (attempt === 0) continue;
+          return { ok: false, reason: `chunk ${i + 1}/${totalChunks} — ${reason}` };
+        } finally { clearTimeout(timer); }
+      }
+      if (!chunkOk) return { ok: false, reason: `chunk ${i + 1}/${totalChunks} failed` };
+    }
+    return { ok: false, reason: "no final response from server" };
+  };
+
+  // Route to small or chunked upload based on file size
+  const uploadSingleFile = (file: File, uploadDir: string | null): Promise<UploadResult> => {
+    return file.size > CHUNK_THRESHOLD
+      ? uploadLargeFile(file, uploadDir)
+      : uploadSmallFile(file, uploadDir);
   };
 
   // Submit build — saves pending state before navigating away
@@ -309,7 +371,11 @@ export function BuildWizard() {
           <div className="flex items-center justify-between text-xs">
             <span className="text-foreground">
               {uploadProgress.current < uploadProgress.total
-                ? <>Uploading <span className="font-medium">{uploadProgress.currentFile}</span></>
+                ? <>Uploading <span className="font-medium">{uploadProgress.currentFile}</span>
+                    {uploadProgress.currentFile && files[uploadProgress.current]?.size > 8 * 1024 * 1024 && (
+                      <span className="text-muted-foreground ml-1">(chunked)</span>
+                    )}
+                  </>
                 : "Upload complete"}
             </span>
             <span className="text-muted-foreground">
