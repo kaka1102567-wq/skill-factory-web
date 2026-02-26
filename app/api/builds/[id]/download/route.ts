@@ -10,11 +10,11 @@ export async function GET(
   const { id } = await params;
   const build = getBuild(id);
   if (!build) {
-    return NextResponse.json({ error: "Build not found" }, { status: 404 });
+    return NextResponse.json({ error: "Không tìm thấy build" }, { status: 404 });
   }
 
   if (build.status !== "completed") {
-    return NextResponse.json({ error: "Build not completed yet" }, { status: 400 });
+    return NextResponse.json({ error: "Build chưa hoàn thành" }, { status: 400 });
   }
 
   // Try package_path first (resolve relative paths), then scan output dir
@@ -41,7 +41,7 @@ export async function GET(
   }
 
   if (!zipPath || !fs.existsSync(zipPath)) {
-    return NextResponse.json({ error: "Package .zip not found" }, { status: 404 });
+    return NextResponse.json({ error: "Không tìm thấy file .zip" }, { status: 404 });
   }
 
   const fileBuffer = fs.readFileSync(zipPath);

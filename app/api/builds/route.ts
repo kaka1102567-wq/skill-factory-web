@@ -29,7 +29,7 @@ export async function POST(req: Request) {
     } = body;
 
     if (!name) {
-      return NextResponse.json({ error: "Build name is required" }, { status: 400 });
+      return NextResponse.json({ error: "Tên build là bắt buộc" }, { status: 400 });
     }
 
     let finalConfigYaml = config_yaml;
@@ -62,14 +62,14 @@ export async function POST(req: Request) {
       status: position === 0 ? "running" : "queued",
       queue_position: position,
       message: position === 0
-        ? "Build is running"
-        : `Build queued (position #${position})`,
+        ? "Build đang chạy"
+        : `Build đang xếp hàng (vị trí #${position})`,
     }, { status: 201 });
 
   } catch (error) {
-    console.error("[API] Error creating build:", error);
+    console.error("[API] Lỗi tạo build:", error);
     return NextResponse.json(
-      { error: "Failed to create build", detail: String(error) },
+      { error: "Không thể tạo build", detail: String(error) },
       { status: 500 }
     );
   }

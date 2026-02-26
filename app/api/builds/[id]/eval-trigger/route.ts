@@ -11,7 +11,7 @@ export async function GET(
   const { id } = await params;
   const build = getBuild(id);
   if (!build) {
-    return NextResponse.json({ error: "Build not found" }, { status: 404 });
+    return NextResponse.json({ error: "Không tìm thấy build" }, { status: 404 });
   }
 
   const outputDir =
@@ -19,7 +19,7 @@ export async function GET(
     path.join(process.cwd(), "data", "builds", id, "output");
 
   if (!isInsideBuildDir(outputDir)) {
-    return NextResponse.json({ error: "Invalid build path" }, { status: 403 });
+    return NextResponse.json({ error: "Đường dẫn build không hợp lệ" }, { status: 403 });
   }
 
   const reportPath = path.join(outputDir, "p6_optimization_report.json");

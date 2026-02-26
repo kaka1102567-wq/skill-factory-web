@@ -12,7 +12,7 @@ export async function GET(
   const { id } = await params;
   const build = getBuild(id);
   if (!build) {
-    return new Response("Build not found", { status: 404 });
+    return new Response("Không tìm thấy build", { status: 404 });
   }
 
   const encoder = new TextEncoder();

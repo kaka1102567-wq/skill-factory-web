@@ -9,21 +9,21 @@ export async function POST(
   const { id } = await params;
   const build = getBuild(id);
   if (!build) {
-    return NextResponse.json({ error: "Build not found" }, { status: 404 });
+    return NextResponse.json({ error: "Không tìm thấy build" }, { status: 404 });
   }
 
   let body: { rating: number; feedback?: string; issues?: string[] };
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    return NextResponse.json({ error: "JSON body không hợp lệ" }, { status: 400 });
   }
 
   const { rating, feedback = "", issues = [] } = body;
 
   if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
     return NextResponse.json(
-      { error: "rating must be an integer between 1 and 5" },
+      { error: "rating phải là số nguyên từ 1 đến 5" },
       { status: 422 }
     );
   }

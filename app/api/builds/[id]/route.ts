@@ -12,7 +12,7 @@ export async function GET(
   const { id } = await params;
   const build = getBuild(id);
   if (!build) {
-    return NextResponse.json({ error: "Build not found" }, { status: 404 });
+    return NextResponse.json({ error: "Không tìm thấy build" }, { status: 404 });
   }
 
   const url = new URL(req.url);
@@ -22,7 +22,7 @@ export async function GET(
   if (content === "skill") {
     const outputDir = build.output_path || path.join(process.cwd(), "data", "builds", id, "output");
     if (!isInsideBuildDir(outputDir)) {
-      return NextResponse.json({ error: "Invalid build path" }, { status: 403 });
+      return NextResponse.json({ error: "Đường dẫn build không hợp lệ" }, { status: 403 });
     }
     const candidates = [
       path.join(outputDir, "SKILL.md"),
@@ -40,7 +40,7 @@ export async function GET(
   if (content === "knowledge") {
     const outputDir = build.output_path || path.join(process.cwd(), "data", "builds", id, "output");
     if (!isInsideBuildDir(outputDir)) {
-      return NextResponse.json({ error: "Invalid build path" }, { status: 403 });
+      return NextResponse.json({ error: "Đường dẫn build không hợp lệ" }, { status: 403 });
     }
     const candidates = [
       path.join(outputDir, "knowledge"),
@@ -76,12 +76,12 @@ export async function DELETE(
   const { id } = await params;
   const build = getBuild(id);
   if (!build) {
-    return NextResponse.json({ error: "Build not found" }, { status: 404 });
+    return NextResponse.json({ error: "Không tìm thấy build" }, { status: 404 });
   }
 
   if (isBuildRunning(id)) {
     return NextResponse.json(
-      { error: "Cannot delete a running build. Stop it first." },
+      { error: "Không thể xoá build đang chạy. Hãy dừng build trước." },
       { status: 409 }
     );
   }
@@ -93,5 +93,5 @@ export async function DELETE(
 
   deleteBuild(id);
 
-  return NextResponse.json({ ok: true, message: "Build deleted" });
+  return NextResponse.json({ ok: true, message: "Đã xoá build" });
 }

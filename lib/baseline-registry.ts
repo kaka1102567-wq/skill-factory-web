@@ -66,7 +66,7 @@ function parseSourceLabel(sourceUrlsJson: string | null): string {
  */
 export function getBaselineForDomain(domain: string): BaselineInfo {
   if (!domain) {
-    return { status: "none", domain, name: "", path: "", refs_count: 0, source: "", message: "No domain specified" };
+    return { status: "none", domain, name: "", path: "", refs_count: 0, source: "", message: "Chưa chỉ định domain" };
   }
 
   const baselines: Baseline[] = getBaselines(domain);
@@ -94,7 +94,7 @@ export function getBaselineForDomain(domain: string): BaselineInfo {
       path: bl.seekers_output_dir || "",
       refs_count: 0,
       source: parseSourceLabel(bl.source_urls),
-      message: "Baseline will be auto-scraped during build",
+      message: "Baseline sẽ được tự động scrape trong quá trình build",
     };
   }
 
@@ -105,6 +105,6 @@ export function getBaselineForDomain(domain: string): BaselineInfo {
     path: "",
     refs_count: 0,
     source: "",
-    message: "No baseline available for this domain",
+    message: "Không có baseline cho domain này",
   };
 }

@@ -48,7 +48,7 @@ function _writeGoogleVisionCredsTempFile(): string | null {
     fs.writeFileSync(tmpFile, credsJson, { encoding: "utf-8", mode: 0o600 });
     return tmpFile;
   } catch (err) {
-    console.warn("[BUILD] Failed to write Google Vision credentials temp file:", err);
+    console.warn("[BUILD] Không thể ghi file tạm Google Vision credentials:", err);
     return null;
   }
 }
@@ -85,7 +85,7 @@ export function startBuild(config: BuildConfig): ChildProcess {
   const cliScript = useReal ? "cli.py" : "mock_cli.py";
   const cliPath = path.join(pipelinePath, cliScript);
 
-  console.log(`[BUILD] Starting build ${config.id}: ${pythonPath} ${cliPath} (real=${useReal})`);
+  console.log(`[BUILD] Bắt đầu build ${config.id}: ${pythonPath} ${cliPath} (real=${useReal})`);
   console.log(`[BUILD] Config: ${config.configPath}, Output: ${config.outputDir}`);
 
   updateBuild(config.id, {
@@ -96,7 +96,7 @@ export function startBuild(config: BuildConfig): ChildProcess {
   const startLog = {
     level: "info",
     phase: null,
-    message: `Build started: ${config.name}`,
+    message: `Bắt đầu build: ${config.name}`,
   };
   insertBuildLog(config.id, startLog);
   sseManager.broadcast(config.id, "log", { ...startLog, timestamp: new Date().toISOString() });
@@ -112,7 +112,7 @@ export function startBuild(config: BuildConfig): ChildProcess {
       const bl = getBaselineForDomain(domain);
       if (bl.status === "ready" && bl.path) {
         seekersDir = bl.path;
-        const msg = `Auto-detected baseline for "${domain}": ${bl.refs_count} reference(s)`;
+        const msg = `Tự động phát hiện baseline cho "${domain}": ${bl.refs_count} tài liệu tham khảo`;
         insertBuildLog(config.id, { level: "info", message: msg });
         sseManager.broadcast(config.id, "log", { level: "info", message: msg, timestamp: new Date().toISOString() });
       }
@@ -121,7 +121,7 @@ export function startBuild(config: BuildConfig): ChildProcess {
     const seekersConfig = seekersDir && !baselineExists(seekersDir) ? findSeekersConfig(domain) : null;
 
     if (seekersConfig) {
-      const scrapeMsg = `Pre-scraping baseline for domain "${domain}"...`;
+      const scrapeMsg = `Đang scrape baseline cho domain "${domain}"...`;
       insertBuildLog(config.id, { level: "info", message: scrapeMsg });
       sseManager.broadcast(config.id, "log", { level: "info", message: scrapeMsg, timestamp: new Date().toISOString() });
 
@@ -140,15 +140,15 @@ export function startBuild(config: BuildConfig): ChildProcess {
       scrapeProc.on("exit", (code) => {
         const ok = code === 0 && baselineExists(seekersDir);
         const msg = ok
-          ? "Baseline scraped successfully"
-          : `Baseline scrape ${code === 0 ? "produced no output" : `failed (code ${code})`}, continuing without pre-scraped baseline...`;
+          ? "Scrape baseline thành công"
+          : `Scrape baseline ${code === 0 ? "không có kết quả" : `thất bại (mã ${code})`}, tiếp tục không có baseline...`;
         insertBuildLog(config.id, { level: ok ? "info" : "warn", message: msg });
         sseManager.broadcast(config.id, "log", { level: ok ? "info" : "warn", message: msg, timestamp: new Date().toISOString() });
         _preProcessInputs(config, pythonPath, cliPath);
       });
 
       scrapeProc.on("error", (err) => {
-        const msg = `Baseline scrape error: ${err.message}, continuing...`;
+        const msg = `Lỗi scrape baseline: ${err.message}, tiếp tục...`;
         insertBuildLog(config.id, { level: "warn", message: msg });
         sseManager.broadcast(config.id, "log", { level: "warn", message: msg, timestamp: new Date().toISOString() });
         _preProcessInputs(config, pythonPath, cliPath);
@@ -157,7 +157,7 @@ export function startBuild(config: BuildConfig): ChildProcess {
       return scrapeProc;
     }
   } catch (err) {
-    const msg = `Pre-scrape check failed: ${err instanceof Error ? err.message : err}, continuing...`;
+    const msg = `Kiểm tra pre-scrape thất bại: ${err instanceof Error ? err.message : err}, tiếp tục...`;
     console.warn(`[BUILD] ${msg}`);
     insertBuildLog(config.id, { level: "warn", message: msg });
   }
@@ -196,14 +196,24 @@ function _preProcessInputs(config: BuildConfig, pythonPath: string, cliPath: str
     hasApiKey: !!creds.apiKey, apiKeySource: creds.apiKeySource,
     seekersDir: seekersDir || "(empty)",
   };
-  console.log("[BUILD] discover check:", discoverInfo);
+  console.log("[BUILD] Kiểm tra khám phá:", discoverInfo);
 
   // Log discovery decision to build logs so user can see it in the UI
-  const diagMsg = `Discovery check: baseline=${hasBaseline}, autoDiscover=${autoDiscover}, domain=${domain || "(empty)"}, apiKey=${creds.apiKeySource}`;
+  const diagMsg = `Kiểm tra khám phá: baseline=${hasBaseline}, autoDiscover=${autoDiscover}, domain=${domain || "(trống)"}, apiKey=${creds.apiKeySource}`;
   insertBuildLog(config.id, { level: "debug", phase: null, message: diagMsg });
 
+  // Determine effective domain: use build name when domain is generic
+  const isGenericDomain = !domain || domain === "custom";
+  const effectiveDomain = isGenericDomain ? config.name : domain;
+
+  if (isGenericDomain && domain) {
+    const gMsg = `Domain '${domain}' quá chung — dùng tên build '${config.name}' để khám phá`;
+    insertBuildLog(config.id, { level: "info", phase: null, message: gMsg });
+    sseManager.broadcast(config.id, "log", { level: "info", phase: "discovery", message: gMsg, timestamp: new Date().toISOString() });
+  }
+
   if (!hasBaseline && autoDiscover && domain && !creds.apiKey) {
-    const msg = "Auto-discovery skipped: no API key configured (set in Settings or CLAUDE_API_KEY env var)";
+    const msg = "Bỏ qua khám phá tự động: chưa cấu hình API key (đặt trong Cài đặt hoặc biến môi trường CLAUDE_API_KEY)";
     console.warn(`[BUILD] ${msg}`);
     insertBuildLog(config.id, { level: "warn", phase: null, message: msg });
     sseManager.broadcast(config.id, "log", { level: "warn", phase: "discovery", message: msg, timestamp: new Date().toISOString() });
@@ -214,13 +224,13 @@ function _preProcessInputs(config: BuildConfig, pythonPath: string, cliPath: str
     const pipelinePath = path.dirname(cliPath);
     const realCliPath = path.join(pipelinePath, "cli.py");
 
-    const discoverMsg = `Auto-discovering baseline for: ${domain} (key: ${creds.apiKeySource}, url: ${creds.baseUrl || "direct"})`;
+    const discoverMsg = `Đang tự động khám phá baseline cho: ${effectiveDomain} (key: ${creds.apiKeySource}, url: ${creds.baseUrl || "direct"})`;
     insertBuildLog(config.id, { level: "info", phase: null, message: discoverMsg });
     sseManager.broadcast(config.id, "log", { level: "info", phase: "discovery", message: discoverMsg, timestamp: new Date().toISOString() });
 
     const discoverArgs = [
       realCliPath, "discover-baseline",
-      "--domain", domain,
+      "--domain", effectiveDomain,
       "--language", language,
       "--output", discoveryDir,
       "--max-refs", "15",
@@ -264,8 +274,8 @@ function _preProcessInputs(config: BuildConfig, pythonPath: string, cliPath: str
       const summaryPath = path.join(discoveryDir, "baseline_summary.json");
       const ok = code === 0 && fs.existsSync(summaryPath);
       const msg = ok
-        ? "Auto-discovery complete — baseline ready"
-        : "Auto-discovery did not find baseline — continuing without";
+        ? "Khám phá tự động hoàn tất — baseline sẵn sàng"
+        : "Khám phá tự động không tìm thấy baseline — tiếp tục không có baseline";
       insertBuildLog(config.id, { level: ok ? "info" : "warn", message: msg });
       sseManager.broadcast(config.id, "log", { level: ok ? "info" : "warn", phase: "discovery", message: msg, timestamp: new Date().toISOString() });
 
@@ -297,7 +307,7 @@ function _preProcessInputs(config: BuildConfig, pythonPath: string, cliPath: str
     });
 
     discoverProc.on("error", (err) => {
-      const msg = `Auto-discovery error: ${err.message} — continuing without baseline`;
+      const msg = `Lỗi khám phá tự động: ${err.message} — tiếp tục không có baseline`;
       insertBuildLog(config.id, { level: "warn", message: msg });
       sseManager.broadcast(config.id, "log", { level: "warn", phase: "discovery", message: msg, timestamp: new Date().toISOString() });
       _continuePreProcessInputs(config, pythonPath, cliPath, inputDir);
@@ -312,11 +322,11 @@ function _preProcessInputs(config: BuildConfig, pythonPath: string, cliPath: str
 
 const DISCOVERY_STEP_RE = /^Step (\d)\/5:\s*(.+?)\.{0,3}$/;
 const DISCOVERY_STEP_LABELS: Record<number, string> = {
-  1: "Analyzing domain",
-  2: "Discovering URLs",
-  3: "Evaluating URLs",
-  4: "Crawling references",
-  5: "Building baseline",
+  1: "Đang phân tích domain",
+  2: "Đang khám phá URL",
+  3: "Đang đánh giá URL",
+  4: "Đang thu thập tài liệu tham khảo",
+  5: "Đang xây dựng baseline",
 };
 
 function _emitDiscoveryStep(buildId: string, message: string): void {
@@ -387,7 +397,7 @@ function _continuePreProcessInputs(
   // Chain: fetch URLs → extract PDFs → spawn pipeline
   const runStep = (stepName: string, args: string[], timeoutMs: number): Promise<number> => {
     return new Promise((resolve) => {
-      const msg = `Pre-processing: ${stepName}...`;
+      const msg = `Tiền xử lý: ${stepName}...`;
       insertBuildLog(config.id, { level: "info", phase: null, message: msg });
       sseManager.broadcast(config.id, "log", { level: "info", phase: "pre", message: msg, timestamp: new Date().toISOString() });
 
@@ -414,26 +424,26 @@ function _continuePreProcessInputs(
   // Run async chain, then spawn pipeline
   (async () => {
     if (hasUrls) {
-      sseManager.broadcast(config.id, "pre-step", { id: "pre_urls", label: `Fetching ${urls.length} URLs`, status: "running" });
+      sseManager.broadcast(config.id, "pre-step", { id: "pre_urls", label: `Đang tải ${urls.length} URL`, status: "running" });
       const urlStr = urls.join(",");
-      const code = await runStep(`fetching ${urls.length} URLs`, ["fetch-urls", "--urls", urlStr, "--output-dir", inputDir], 60_000);
+      const code = await runStep(`đang tải ${urls.length} URL`, ["fetch-urls", "--urls", urlStr, "--output-dir", inputDir], 60_000);
       const lvl = code === 0 ? "info" : "warn";
-      const msg = code === 0 ? `Fetched ${urls.length} URLs` : `URL fetch exited with code ${code}, continuing...`;
+      const msg = code === 0 ? `Đã tải ${urls.length} URL` : `Tải URL kết thúc với mã ${code}, tiếp tục...`;
       insertBuildLog(config.id, { level: lvl, message: msg });
       sseManager.broadcast(config.id, "log", { level: lvl, phase: "pre", message: msg, timestamp: new Date().toISOString() });
-      sseManager.broadcast(config.id, "pre-step", { id: "pre_urls", label: `Fetching ${urls.length} URLs`, status: code === 0 ? "done" : "failed" });
+      sseManager.broadcast(config.id, "pre-step", { id: "pre_urls", label: `Đang tải ${urls.length} URL`, status: code === 0 ? "done" : "failed" });
     }
 
     if (hasPdfs) {
-      sseManager.broadcast(config.id, "pre-step", { id: "pre_pdfs", label: `Extracting ${pdfFiles.length} PDFs`, status: "running" });
+      sseManager.broadcast(config.id, "pre-step", { id: "pre_pdfs", label: `Đang trích xuất ${pdfFiles.length} file PDF`, status: "running" });
       // OCR can take ~10s/page, 50 pages × 14 files = ~7000s worst case
       const pdfTimeout = Math.max(300_000, pdfFiles.length * 120_000);
-      const code = await runStep(`extracting ${pdfFiles.length} PDFs`, ["extract-pdf", "--input-dir", inputDir, "--output-dir", inputDir], pdfTimeout);
+      const code = await runStep(`đang trích xuất ${pdfFiles.length} file PDF`, ["extract-pdf", "--input-dir", inputDir, "--output-dir", inputDir], pdfTimeout);
       const lvl = code === 0 ? "info" : "warn";
-      const msg = code === 0 ? `Extracted ${pdfFiles.length} PDFs` : `PDF extraction exited with code ${code}, continuing...`;
+      const msg = code === 0 ? `Đã trích xuất ${pdfFiles.length} file PDF` : `Trích xuất PDF kết thúc với mã ${code}, tiếp tục...`;
       insertBuildLog(config.id, { level: lvl, message: msg });
       sseManager.broadcast(config.id, "log", { level: lvl, phase: "pre", message: msg, timestamp: new Date().toISOString() });
-      sseManager.broadcast(config.id, "pre-step", { id: "pre_pdfs", label: `Extracting ${pdfFiles.length} PDFs`, status: code === 0 ? "done" : "failed" });
+      sseManager.broadcast(config.id, "pre-step", { id: "pre_pdfs", label: `Đang trích xuất ${pdfFiles.length} file PDF`, status: code === 0 ? "done" : "failed" });
 
       // Auto-merge chapter PDFs after extraction
       if (code === 0) {
@@ -442,23 +452,23 @@ function _continuePreProcessInputs(
     }
 
     if (hasGithub) {
-      sseManager.broadcast(config.id, "pre-step", { id: "pre_github", label: "Analyzing GitHub repo", status: "running" });
+      sseManager.broadcast(config.id, "pre-step", { id: "pre_github", label: "Đang phân tích GitHub repo", status: "running" });
       const repoArgs = ["analyze-repo", "--repo", githubRepo, "--output-dir", inputDir];
       if (!analyzeCode) repoArgs.push("--no-code");
-      const code = await runStep(`analyzing GitHub repo`, repoArgs, 180_000);
+      const code = await runStep(`đang phân tích GitHub repo`, repoArgs, 180_000);
       const lvl = code === 0 ? "info" : "warn";
       const msg = code === 0
-        ? "GitHub repo analysis complete"
-        : `Repo analysis exited with code ${code}, continuing without code analysis...`;
+        ? "Phân tích GitHub repo hoàn tất"
+        : `Phân tích repo kết thúc với mã ${code}, tiếp tục không có phân tích code...`;
       insertBuildLog(config.id, { level: lvl, message: msg });
       sseManager.broadcast(config.id, "log", { level: lvl, phase: "pre", message: msg, timestamp: new Date().toISOString() });
-      sseManager.broadcast(config.id, "pre-step", { id: "pre_github", label: "Analyzing GitHub repo", status: code === 0 ? "done" : "failed" });
+      sseManager.broadcast(config.id, "pre-step", { id: "pre_github", label: "Đang phân tích GitHub repo", status: code === 0 ? "done" : "failed" });
     }
 
     // ★ Content-based baseline discovery (fallback when no baseline exists)
     await _maybeDiscoverFromContent(config, pythonPath, cliPath, inputDir, runStep);
 
-    const doneMsg = "Pre-processing complete";
+    const doneMsg = "Tiền xử lý hoàn tất";
     insertBuildLog(config.id, { level: "info", message: doneMsg });
     sseManager.broadcast(config.id, "log", { level: "info", phase: "pre", message: doneMsg, timestamp: new Date().toISOString() });
 
@@ -483,24 +493,24 @@ async function _maybeDiscoverFromContent(
   const latestConfig = fs.readFileSync(config.configPath, "utf-8");
   const seekersDir = parseYamlValue(latestConfig, "seekers_output_dir");
   if (seekersDir) {
-    insertBuildLog(config.id, { level: "debug", message: `Content-discovery skipped: seekers_output_dir already set (${seekersDir})` });
+    insertBuildLog(config.id, { level: "debug", message: `Bỏ qua khám phá nội dung: seekers_output_dir đã được đặt (${seekersDir})` });
     return;
   }
 
   // Check if baseline_sources has a .json entry
   if (latestConfig.includes("baseline_summary.json")) {
-    insertBuildLog(config.id, { level: "debug", message: "Content-discovery skipped: baseline_summary.json already in config" });
+    insertBuildLog(config.id, { level: "debug", message: "Bỏ qua khám phá nội dung: baseline_summary.json đã có trong config" });
     return;
   }
 
   // Check if input dir has text files to analyze (.md from URLs, .txt from PDFs)
   if (!fs.existsSync(inputDir)) {
-    insertBuildLog(config.id, { level: "debug", message: "Content-discovery skipped: input directory does not exist" });
+    insertBuildLog(config.id, { level: "debug", message: "Bỏ qua khám phá nội dung: thư mục input không tồn tại" });
     return;
   }
   const textFiles = fs.readdirSync(inputDir).filter(f => f.endsWith(".md") || f.endsWith(".txt"));
   if (textFiles.length === 0) {
-    insertBuildLog(config.id, { level: "debug", message: "Content-discovery skipped: no .md or .txt files in input directory" });
+    insertBuildLog(config.id, { level: "debug", message: "Bỏ qua khám phá nội dung: không có file .md hoặc .txt trong thư mục input" });
     return;
   }
 
@@ -515,7 +525,7 @@ async function _maybeDiscoverFromContent(
     }
   }
   if (!creds.apiKey) {
-    const msg = "Content-discovery skipped: no API key available";
+    const msg = "Bỏ qua khám phá nội dung: không có API key";
     console.warn(`[BUILD] ${msg}`);
     insertBuildLog(config.id, { level: "warn", message: msg });
     return;
@@ -524,10 +534,10 @@ async function _maybeDiscoverFromContent(
   const buildDir = path.dirname(config.outputDir);
   const baselineDir = path.join(buildDir, "baseline");
 
-  const discoverMsg = `Auto-discovering baseline from ${textFiles.length} input files... (key: ${creds.apiKeySource})`;
+  const discoverMsg = `Đang khám phá baseline từ ${textFiles.length} file đầu vào... (key: ${creds.apiKeySource})`;
   insertBuildLog(config.id, { level: "info", message: discoverMsg });
   sseManager.broadcast(config.id, "log", { level: "info", phase: "discovery", message: discoverMsg, timestamp: new Date().toISOString() });
-  sseManager.broadcast(config.id, "pre-step", { id: "pre_content_discover", label: "Analyzing content for baseline", status: "running" });
+  sseManager.broadcast(config.id, "pre-step", { id: "pre_content_discover", label: "Đang phân tích nội dung cho baseline", status: "running" });
 
   const discoverArgs = [
     "discover-from-content",
@@ -540,17 +550,17 @@ async function _maybeDiscoverFromContent(
   if (creds.baseUrl) discoverArgs.push("--base-url", creds.baseUrl);
 
   // runStep spawns: pythonPath realCliPath ...args
-  const code = await runStep("analyzing content for baseline", discoverArgs, 180_000);
+  const code = await runStep("đang phân tích nội dung cho baseline", discoverArgs, 180_000);
   const summaryPath = path.join(baselineDir, "baseline_summary.json");
   const ok = code === 0 && fs.existsSync(summaryPath);
 
   const lvl = ok ? "info" : "warn";
   const msg = ok
-    ? "Content-based baseline discovery complete"
-    : "Content-based discovery did not produce baseline — continuing without";
+    ? "Khám phá baseline từ nội dung hoàn tất"
+    : "Khám phá từ nội dung không tạo được baseline — tiếp tục không có baseline";
   insertBuildLog(config.id, { level: lvl, message: msg });
   sseManager.broadcast(config.id, "log", { level: lvl, phase: "discovery", message: msg, timestamp: new Date().toISOString() });
-  sseManager.broadcast(config.id, "pre-step", { id: "pre_content_discover", label: "Analyzing content for baseline", status: ok ? "done" : "failed" });
+  sseManager.broadcast(config.id, "pre-step", { id: "pre_content_discover", label: "Đang phân tích nội dung cho baseline", status: ok ? "done" : "failed" });
 
   // Update config so P0 uses the discovered baseline
   if (ok) {
@@ -603,7 +613,7 @@ function _detectAndMergeChapters(
   const mergedFile = "merged-chapters.txt";
   fs.writeFileSync(path.join(inputDir, mergedFile), mergedParts.join("\n\n").trim(), "utf-8");
 
-  const msg = `Auto-merged ${chapters.length} chapter PDFs → ${mergedFile}`;
+  const msg = `Tự động gộp ${chapters.length} file PDF chương → ${mergedFile}`;
   insertBuildLog(buildId, { level: "info", message: msg });
   sseManager.broadcast(buildId, "log", {
     level: "info", phase: "pre", message: msg, timestamp: new Date().toISOString(),
@@ -625,7 +635,7 @@ function _spawnPipeline(config: BuildConfig, pythonPath: string, cliPath: string
     ? rawLessons.slice(0, rawLessons.lastIndexOf("\n", 8000) || 8000)
     : rawLessons;
 
-  console.log("[BUILD] pipeline spawn:", { hasApiKey: !!creds.apiKey, apiKeySource: creds.apiKeySource, baseUrl: creds.baseUrl || "(direct)", hasDomainLessons: !!domainLessons });
+  console.log("[BUILD] Khởi chạy pipeline:", { hasApiKey: !!creds.apiKey, apiKeySource: creds.apiKeySource, baseUrl: creds.baseUrl || "(direct)", hasDomainLessons: !!domainLessons });
 
   const gvTempFile = _writeGoogleVisionCredsTempFile();
 
@@ -694,17 +704,17 @@ function _spawnPipeline(config: BuildConfig, pythonPath: string, cliPath: string
 
     const status = code === 0 ? "completed" : "failed";
     const now = new Date().toISOString();
-    console.log(`[BUILD] Build ${config.id} exited: code=${code}, signal=${signal}`);
+    console.log(`[BUILD] Build ${config.id} kết thúc: code=${code}, signal=${signal}`);
 
     updateBuild(config.id, {
       status,
       completed_at: now,
-      error_message: code !== 0 ? `Process exited with code ${code}${signal ? `, signal ${signal}` : ""}` : null,
+      error_message: code !== 0 ? `Tiến trình kết thúc với mã ${code}${signal ? `, signal ${signal}` : ""}` : null,
     });
 
     const finalLog = {
       level: status === "completed" ? "info" : "error",
-      message: `Build ${status}${code !== 0 ? ` (exit code: ${code})` : ""}`,
+      message: `Build ${status === "completed" ? "hoàn thành" : "thất bại"}${code !== 0 ? ` (exit code: ${code})` : ""}`,
     };
     insertBuildLog(config.id, finalLog);
 
@@ -725,13 +735,13 @@ function _spawnPipeline(config: BuildConfig, pythonPath: string, cliPath: string
   proc.on("error", (err) => {
     runningProcesses.delete(config.id);
     _deleteGoogleVisionCredsTempFile(gvTempFile);
-    console.error(`[BUILD] Spawn error for ${config.id}:`, err.message);
+    console.error(`[BUILD] Lỗi khởi chạy cho ${config.id}:`, err.message);
     updateBuild(config.id, {
       status: "failed",
       completed_at: new Date().toISOString(),
-      error_message: `Spawn error: ${err.message}`,
+      error_message: `Lỗi khởi chạy: ${err.message}`,
     });
-    insertBuildLog(config.id, { level: "error", message: `Failed to start build: ${err.message}` });
+    insertBuildLog(config.id, { level: "error", message: `Không thể khởi chạy build: ${err.message}` });
     sseManager.broadcast(config.id, "error", { message: err.message, retryable: true });
   });
 
@@ -858,7 +868,7 @@ export function resumeAfterResolve(config: ResolveConfig): ChildProcess {
   const creds = _resolveApiCredentials();
   const seekersCacheDir = getSetting("seekers_cache_dir") || process.env.SEEKERS_CACHE_DIR || "./data/cache";
 
-  console.log(`[BUILD] Resuming build ${config.id} after conflict resolution (key: ${creds.apiKeySource})`);
+  console.log(`[BUILD] Tiếp tục build ${config.id} sau giải quyết xung đột (key: ${creds.apiKeySource})`);
 
   const proc = spawn(pythonPath, [
     cliPath,
@@ -921,17 +931,17 @@ export function resumeAfterResolve(config: ResolveConfig): ChildProcess {
 
     const status = code === 0 ? "completed" : "failed";
     const now = new Date().toISOString();
-    console.log(`[BUILD] Resolve ${config.id} exited: code=${code}, signal=${signal}`);
+    console.log(`[BUILD] Resolve ${config.id} kết thúc: code=${code}, signal=${signal}`);
 
     updateBuild(config.id, {
       status,
       completed_at: now,
-      error_message: code !== 0 ? `Resolve exited with code ${code}` : null,
+      error_message: code !== 0 ? `Resolve kết thúc với mã ${code}` : null,
     });
 
     insertBuildLog(config.id, {
       level: status === "completed" ? "info" : "error",
-      message: `Build ${status} after conflict resolution`,
+      message: `Build ${status === "completed" ? "hoàn thành" : "thất bại"} sau giải quyết xung đột`,
     });
 
     const build = getBuild(config.id);
@@ -950,13 +960,13 @@ export function resumeAfterResolve(config: ResolveConfig): ChildProcess {
 
   proc.on("error", (err) => {
     runningProcesses.delete(config.id);
-    console.error(`[BUILD] Resolve spawn error for ${config.id}:`, err.message);
+    console.error(`[BUILD] Lỗi khởi chạy resolve cho ${config.id}:`, err.message);
     updateBuild(config.id, {
       status: "failed",
       completed_at: new Date().toISOString(),
-      error_message: `Resolve spawn error: ${err.message}`,
+      error_message: `Lỗi khởi chạy resolve: ${err.message}`,
     });
-    insertBuildLog(config.id, { level: "error", message: `Failed to resume: ${err.message}` });
+    insertBuildLog(config.id, { level: "error", message: `Không thể tiếp tục: ${err.message}` });
     sseManager.broadcast(config.id, "error", { message: err.message, retryable: true });
   });
 
@@ -969,12 +979,12 @@ export function stopBuild(buildId: string): boolean {
   const proc = runningProcesses.get(buildId);
   if (!proc) return false;
 
-  console.log(`[BUILD] Stopping build ${buildId}`);
+  console.log(`[BUILD] Đang dừng build ${buildId}`);
   proc.kill("SIGTERM");
 
   setTimeout(() => {
     if (runningProcesses.has(buildId)) {
-      console.log(`[BUILD] Force killing build ${buildId}`);
+      console.log(`[BUILD] Buộc dừng build ${buildId}`);
       proc.kill("SIGKILL");
     }
   }, 5000);

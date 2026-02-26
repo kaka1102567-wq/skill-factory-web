@@ -32,7 +32,7 @@ export async function GET(
   const { id } = await params;
   const build = getBuild(id);
   if (!build)
-    return NextResponse.json({ error: "Build not found" }, { status: 404 });
+    return NextResponse.json({ error: "Không tìm thấy build" }, { status: 404 });
 
   // Read real conflicts.json from disk
   const conflictsPath = path.join(DATA_DIR, "builds", id, "output", "conflicts.json");
@@ -86,7 +86,7 @@ export async function POST(
   const { id } = await params;
   const build = getBuild(id);
   if (!build)
-    return NextResponse.json({ error: "Build not found" }, { status: 404 });
+    return NextResponse.json({ error: "Không tìm thấy build" }, { status: 404 });
 
   const { resolutions } = await req.json();
 
@@ -98,7 +98,7 @@ export async function POST(
 
   insertBuildLog(id, {
     level: "info",
-    message: `Conflict review completed: ${Object.keys(resolutions).length} resolved`,
+    message: `Đã xử lý xung đột: ${Object.keys(resolutions).length} đã giải quyết`,
   });
 
   // 2. Write resolutions.json to disk
@@ -112,7 +112,7 @@ export async function POST(
 
   sseManager.broadcast(id, "log", {
     level: "info",
-    message: "Build resumed after conflict review",
+    message: "Build tiếp tục sau khi xử lý xung đột",
     timestamp: new Date().toISOString(),
   });
 

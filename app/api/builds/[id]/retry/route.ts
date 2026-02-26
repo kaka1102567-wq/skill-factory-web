@@ -9,7 +9,7 @@ export async function POST(
   const { id } = await params;
   const build = getBuild(id);
   if (!build)
-    return NextResponse.json({ error: "Build not found" }, { status: 404 });
+    return NextResponse.json({ error: "Không tìm thấy build" }, { status: 404 });
 
   const { buildId, position } = enqueueBuild({
     name: `${build.name} (retry)`,
