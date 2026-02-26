@@ -1,0 +1,104 @@
+               
+               
+┌─────────────┐
+│ Scan Status │
+└─────────────┘
+  Scanning 2195 files tracked by git with 271 Code rules:
+                                                                                                                        
+  Language      Rules   Files          Origin      Rules                                                                
+ ─────────────────────────────        ───────────────────                                                               
+  <multilang>      36    2195          Community     271                                                                
+  python          151     182                                                                                           
+  js               68     174                                                                                           
+  ts               74      89                                                                                           
+  yaml              1       4                                                                                           
+                                                                                                                        
+                
+                
+┌──────────────┐
+│ Scan Summary │
+└──────────────┘
+✅ Scan completed successfully.
+ • Findings: 10 (10 blocking)
+ • Rules run: 262
+ • Targets scanned: 2195
+ • Parsed lines: ~100.0%
+ • Scan skipped: 
+   ◦ Files matching .semgrepignore patterns: 165
+ • Scan was limited to files tracked by git
+ • For a detailed list of skipped files and lines, run semgrep with the --verbose flag
+Ran 262 rules on 2195 files: 10 findings.
+                    
+                    
+┌──────────────────┐
+│ 10 Code Findings │
+└──────────────────┘
+                                                                             
+    .claude\skills\document-skills\docx\ooxml\scripts\validation\redlining.py
+   ❯❯❱ python.lang.security.use-defused-xml-parse.use-defused-xml-parse
+          ❰❰ Blocking ❱❱
+          The native Python `xml` library is vulnerable to XML External Entity (XXE) attacks.  These attacks
+          can leak confidential data and "XML bombs" can cause denial of service. Do not use this library to
+          parse untrusted input. Instead  the Python documentation recommends using `defusedxml`.           
+          Details: https://sg.run/n3jG                                                                      
+                                                                                                            
+           ▶▶┆ Autofix ▶ defusedxml.etree.ElementTree.parse(modified_file)
+           34┆ tree = ET.parse(modified_file)
+            ⋮┆----------------------------------------
+           ▶▶┆ Autofix ▶ defusedxml.etree.ElementTree.parse(modified_file)
+           86┆ modified_tree = ET.parse(modified_file)
+            ⋮┆----------------------------------------
+           ▶▶┆ Autofix ▶ defusedxml.etree.ElementTree.parse(original_file)
+           88┆ original_tree = ET.parse(original_file)
+                                                                             
+    .claude\skills\document-skills\pptx\ooxml\scripts\validation\redlining.py
+   ❯❯❱ python.lang.security.use-defused-xml-parse.use-defused-xml-parse
+          ❰❰ Blocking ❱❱
+          The native Python `xml` library is vulnerable to XML External Entity (XXE) attacks.  These attacks
+          can leak confidential data and "XML bombs" can cause denial of service. Do not use this library to
+          parse untrusted input. Instead  the Python documentation recommends using `defusedxml`.           
+          Details: https://sg.run/n3jG                                                                      
+                                                                                                            
+           ▶▶┆ Autofix ▶ defusedxml.etree.ElementTree.parse(modified_file)
+           34┆ tree = ET.parse(modified_file)
+            ⋮┆----------------------------------------
+           ▶▶┆ Autofix ▶ defusedxml.etree.ElementTree.parse(modified_file)
+           86┆ modified_tree = ET.parse(modified_file)
+            ⋮┆----------------------------------------
+           ▶▶┆ Autofix ▶ defusedxml.etree.ElementTree.parse(original_file)
+           88┆ original_tree = ET.parse(original_file)
+                                                    
+    .claude\skills\mcp-builder\scripts\evaluation.py
+   ❯❯❱ python.lang.security.use-defused-xml-parse.use-defused-xml-parse
+          ❰❰ Blocking ❱❱
+          The native Python `xml` library is vulnerable to XML External Entity (XXE) attacks.  These attacks
+          can leak confidential data and "XML bombs" can cause denial of service. Do not use this library to
+          parse untrusted input. Instead  the Python documentation recommends using `defusedxml`.           
+          Details: https://sg.run/n3jG                                                                      
+                                                                                                            
+           ▶▶┆ Autofix ▶ defusedxml.etree.ElementTree.parse(file_path)
+           67┆ tree = ET.parse(file_path)
+                                                      
+    .opencode\skills\mcp-builder\scripts\evaluation.py
+   ❯❯❱ python.lang.security.use-defused-xml-parse.use-defused-xml-parse
+          ❰❰ Blocking ❱❱
+          The native Python `xml` library is vulnerable to XML External Entity (XXE) attacks.  These attacks
+          can leak confidential data and "XML bombs" can cause denial of service. Do not use this library to
+          parse untrusted input. Instead  the Python documentation recommends using `defusedxml`.           
+          Details: https://sg.run/n3jG                                                                      
+                                                                                                            
+           ▶▶┆ Autofix ▶ defusedxml.etree.ElementTree.parse(file_path)
+           67┆ tree = ET.parse(file_path)
+                              
+    pipeline\seekers\parser.py
+    ❯❱ python.lang.security.insecure-hash-algorithms-md5.insecure-hash-algorithm-md5
+          ❰❰ Blocking ❱❱
+          Detected MD5 hash algorithm which is considered insecure. MD5 is not collision resistant and is
+          therefore not suitable as a cryptographic signature. Use SHA256 or SHA3 instead.               
+          Details: https://sg.run/vYrY                                                                   
+                                                                                                         
+           36┆ entry_id = hashlib.md5((url + sec['title']).encode()).hexdigest()[:10]
+            ⋮┆----------------------------------------
+          119┆ eid = hashlib.md5((url + sec['title']).encode()).hexdigest()[:10]
+
+--- SEMGREP EXIT CODE: ---

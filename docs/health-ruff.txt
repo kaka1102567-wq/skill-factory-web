@@ -1,0 +1,659 @@
+F841 Local variable `code_path` is assigned to but never used
+   --> pipeline\commands\analyze_repo.py:290:13
+    |
+288 |         # Step 4: Analyze code (optional)
+289 |         if analyze_code_flag and scan["source_files"]:
+290 |             code_path = analyze_code(repo_dir, repo_url, scan, output_dir)
+    |             ^^^^^^^^^
+291 |             file_count = len(scan["source_files"][:MAX_SOURCE_FILES])
+292 |             _log("info", f"Đã phân tích {file_count} file nguồn -> code_analysis.json")
+    |
+help: Remove assignment to unused variable `code_path`
+
+E741 Ambiguous variable name: `l`
+  --> pipeline\commands\extract_pdf.py:62:32
+   |
+60 |     last_lines = []
+61 |     for pt in pages_text:
+62 |         lines = [l.strip() for l in pt.split('\n') if l.strip()]
+   |                                ^
+63 |         if lines:
+64 |             first_lines.append(lines[0])
+   |
+
+E741 Ambiguous variable name: `l`
+   --> pipeline\commands\extract_pdf.py:416:38
+    |
+414 |     # Try to find a better title from first page large text
+415 |     if pages_text and pages_text[0].strip():
+416 |         first_lines = [l.strip() for l in pages_text[0].split('\n') if l.strip()]
+    |                                      ^
+417 |         if first_lines:
+418 |             candidate = first_lines[0]
+    |
+
+F401 [*] `sys` imported but unused
+  --> pipeline\commands\fetch_urls.py:9:8
+   |
+ 7 | import os
+ 8 | import re
+ 9 | import sys
+   |        ^^^
+10 | from datetime import datetime, timezone
+11 | from urllib.parse import urlparse
+   |
+help: Remove unused import: `sys`
+
+F401 [*] `sys` imported but unused
+ --> pipeline\core\logger.py:4:8
+  |
+3 | import json
+4 | import sys
+  |        ^^^
+5 | import time
+6 | from typing import Optional
+  |
+help: Remove unused import: `sys`
+
+F401 [*] `typing.Any` imported but unused
+ --> pipeline\core\types.py:4:30
+  |
+3 | from dataclasses import dataclass, field, asdict
+4 | from typing import Optional, Any
+  |                              ^^^
+5 | from enum import Enum
+6 | import json
+  |
+help: Remove unused import: `typing.Any`
+
+F401 [*] `sys` imported but unused
+  --> pipeline\mock_cli.py:9:8
+   |
+ 8 | import json
+ 9 | import sys
+   |        ^^^
+10 | import time
+11 | import random
+   |
+help: Remove unused import: `sys`
+
+F541 [*] f-string without any placeholders
+  --> pipeline\mock_cli.py:40:13
+   |
+38 |             f"Analyzing content with {tool}...",
+39 |             f"Found {random.randint(5, 30)} knowledge atoms",
+40 |             f"Validating extracted data...",
+   |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+41 |             f"Cross-referencing with baseline...",
+42 |             f"Deduplicating similar entries...",
+   |
+help: Remove extraneous `f` prefix
+
+F541 [*] f-string without any placeholders
+  --> pipeline\mock_cli.py:41:13
+   |
+39 |             f"Found {random.randint(5, 30)} knowledge atoms",
+40 |             f"Validating extracted data...",
+41 |             f"Cross-referencing with baseline...",
+   |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+42 |             f"Deduplicating similar entries...",
+43 |             f"Scoring quality metrics...",
+   |
+help: Remove extraneous `f` prefix
+
+F541 [*] f-string without any placeholders
+  --> pipeline\mock_cli.py:42:13
+   |
+40 |             f"Validating extracted data...",
+41 |             f"Cross-referencing with baseline...",
+42 |             f"Deduplicating similar entries...",
+   |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+43 |             f"Scoring quality metrics...",
+44 |         ]
+   |
+help: Remove extraneous `f` prefix
+
+F541 [*] f-string without any placeholders
+  --> pipeline\mock_cli.py:43:13
+   |
+41 |             f"Cross-referencing with baseline...",
+42 |             f"Deduplicating similar entries...",
+43 |             f"Scoring quality metrics...",
+   |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+44 |         ]
+   |
+help: Remove extraneous `f` prefix
+
+F401 [*] `datetime.timezone` imported but unused
+ --> pipeline\orchestrator\runner.py:5:32
+  |
+3 | import os
+4 | import uuid
+5 | from datetime import datetime, timezone
+  |                                ^^^^^^^^
+6 |
+7 | from ..core.types import BuildConfig, PipelineState, PHASE_MODEL_MAP
+  |
+help: Remove unused import: `datetime.timezone`
+
+F401 [*] `..core.errors.PipelineError` imported but unused
+  --> pipeline\orchestrator\runner.py:9:27
+   |
+ 7 | from ..core.types import BuildConfig, PipelineState, PHASE_MODEL_MAP
+ 8 | from ..core.logger import PipelineLogger
+ 9 | from ..core.errors import PipelineError
+   |                           ^^^^^^^^^^^^^
+10 | from ..clients.claude_client import ClaudeClient, CreditExhaustedError
+11 | from ..seekers.cache import SeekersCache
+   |
+help: Remove unused import: `..core.errors.PipelineError`
+
+F841 Local variable `phase_name` is assigned to but never used
+   --> pipeline\phases\p0_baseline.py:120:5
+    |
+118 |     """Load baseline from skill-seekers output directory."""
+119 |     phase_id = "p0"
+120 |     phase_name = "Baseline"
+    |     ^^^^^^^^^^
+121 |
+122 |     adapter = SkillSeekersAdapter(logger=logger)
+    |
+help: Remove assignment to unused variable `phase_name`
+
+F401 [*] `..core.types.InventoryItem` imported but unused
+  --> pipeline\phases\p1_audit.py:9:52
+   |
+ 7 | from datetime import datetime, timezone
+ 8 |
+ 9 | from ..core.types import BuildConfig, PhaseResult, InventoryItem
+   |                                                    ^^^^^^^^^^^^^
+10 | from ..core.logger import PipelineLogger
+11 | from ..core.utils import read_all_transcripts, chunk_text, write_json, read_json
+   |
+help: Remove unused import: `..core.types.InventoryItem`
+
+F401 [*] `collections.Counter` imported but unused
+ --> pipeline\phases\p3_dedup.py:6:25
+  |
+4 | import re
+5 | import time
+6 | from collections import Counter
+  |                         ^^^^^^^
+7 | from datetime import datetime, timezone
+  |
+help: Remove unused import: `collections.Counter`
+
+F401 [*] `..core.types.KnowledgeAtom` imported but unused
+  --> pipeline\phases\p3_dedup.py:9:52
+   |
+ 7 | from datetime import datetime, timezone
+ 8 |
+ 9 | from ..core.types import BuildConfig, PhaseResult, KnowledgeAtom, Conflict
+   |                                                    ^^^^^^^^^^^^^
+10 | from ..core.logger import PipelineLogger
+11 | from ..core.utils import read_json, write_json
+   |
+help: Remove unused import: `..core.types.KnowledgeAtom`
+
+F401 [*] `..core.types.KnowledgeAtom` imported but unused
+  --> pipeline\phases\p4_verify.py:9:52
+   |
+ 7 | from datetime import datetime, timezone
+ 8 |
+ 9 | from ..core.types import BuildConfig, PhaseResult, KnowledgeAtom
+   |                                                    ^^^^^^^^^^^^^
+10 | from ..core.logger import PipelineLogger
+11 | from ..core.config import get_tier_params
+   |
+help: Remove unused import: `..core.types.KnowledgeAtom`
+
+F401 [*] `..prompts.p4_verify_prompts.P4_SYSTEM` imported but unused
+  --> pipeline\phases\p4_verify.py:18:5
+   |
+16 | from ..seekers.lookup import SeekersLookup
+17 | from ..prompts.p4_verify_prompts import (
+18 |     P4_SYSTEM, P4_USER_TEMPLATE,
+   |     ^^^^^^^^^
+19 |     P4_BATCH_VERIFY_SYSTEM, P4_BATCH_VERIFY_USER_TEMPLATE,
+20 | )
+   |
+help: Remove unused import
+
+F401 [*] `..prompts.p4_verify_prompts.P4_USER_TEMPLATE` imported but unused
+  --> pipeline\phases\p4_verify.py:18:16
+   |
+16 | from ..seekers.lookup import SeekersLookup
+17 | from ..prompts.p4_verify_prompts import (
+18 |     P4_SYSTEM, P4_USER_TEMPLATE,
+   |                ^^^^^^^^^^^^^^^^
+19 |     P4_BATCH_VERIFY_SYSTEM, P4_BATCH_VERIFY_USER_TEMPLATE,
+20 | )
+   |
+help: Remove unused import
+
+F401 [*] `..core.errors.PhaseError` imported but unused
+  --> pipeline\phases\p55_smoke_test.py:21:27
+   |
+19 | from ..core.types import BuildConfig, PhaseResult
+20 | from ..core.logger import PipelineLogger
+21 | from ..core.errors import PhaseError
+   |                           ^^^^^^^^^^
+22 | from ..core.utils import read_json, write_json
+23 | from ..clients.claude_client import ClaudeClient
+   |
+help: Remove unused import: `..core.errors.PhaseError`
+
+F541 [*] f-string without any placeholders
+   --> pipeline\phases\p5_build.py:232:9
+    |
+230 |         'version: "1.0"',
+231 |         "metadata:",
+232 |         f"  author: Skill Factory",
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^
+233 |         f"  domain: {config.domain}",
+234 |         f"  atoms: {len(build_atoms)}",
+    |
+help: Remove extraneous `f` prefix
+
+F541 [*] f-string without any placeholders
+   --> pipeline\phases\p5_build.py:622:9
+    |
+620 |         "```",
+621 |         f"{slug}/",
+622 |         f"├── SKILL.md              # Entry point",
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+623 |         f"├── knowledge/            # {len(knowledge_files)} knowledge pillars",
+624 |     ]
+    |
+help: Remove extraneous `f` prefix
+
+F541 [*] f-string without any placeholders
+   --> pipeline\phases\p5_build.py:661:9
+    |
+659 |         "",
+660 |         f"1. **Baseline** — Loaded {len(ref_files)} reference documents",
+661 |         f"2. **Audit** — Mapped expert topics against baseline coverage",
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+662 |         f"3. **Extract** — Extracted {total_atoms} knowledge atoms",
+663 |         "4. **Dedup** — Removed duplicates and detected conflicts",
+    |
+help: Remove extraneous `f` prefix
+
+F841 Local variable `refs_copied` is assigned to but never used
+   --> pipeline\phases\p5_build.py:741:13
+    |
+739 |                 phase=phase_id,
+740 |             )
+741 |             refs_copied = _copy_seekers_references(baseline, config.output_dir, logger)
+    |             ^^^^^^^^^^^
+742 |
+743 |         # ── Step 1: Generate knowledge files per pillar (chunked if large) ──
+    |
+help: Remove assignment to unused variable `refs_copied`
+
+F401 [*] `json` imported but unused
+  --> pipeline\phases\p6_optimize.py:20:8
+   |
+18 | import os
+19 | import re
+20 | import json
+   |        ^^^^
+21 | import time
+22 | import random
+   |
+help: Remove unused import: `json`
+
+F841 Local variable `use_light` is assigned to but never used
+  --> pipeline\phases\p6_optimize.py:72:5
+   |
+70 |                            error_message="Claude client required for P6")
+71 |
+72 |     use_light = config.phase_model_hints.get("p6", False)
+   |     ^^^^^^^^^
+73 |     cost_before = claude.total_cost_usd
+74 |     tokens_before = claude.total_input_tokens + claude.total_output_tokens
+   |
+help: Remove assignment to unused variable `use_light`
+
+F401 `.adapter.SkillSeekersAdapter` imported but unused; consider removing, adding to `__all__`, or using a redundant alias
+ --> pipeline\seekers\__init__.py:1:22
+  |
+1 | from .adapter import SkillSeekersAdapter
+  |                      ^^^^^^^^^^^^^^^^^^^
+  |
+help: Use an explicit re-export: `SkillSeekersAdapter as SkillSeekersAdapter`
+
+F401 [*] `signal` imported but unused
+ --> pipeline\seekers\auto_discovery.py:6:8
+  |
+4 | import os
+5 | import re
+6 | import signal
+  |        ^^^^^^
+7 | import time
+8 | from dataclasses import dataclass, field
+  |
+help: Remove unused import: `signal`
+
+F401 [*] `..core.errors.SeekersError` imported but unused
+  --> pipeline\seekers\scraper.py:11:27
+   |
+ 9 | from ..clients.web_client import WebClient
+10 | from ..core.logger import PipelineLogger
+11 | from ..core.errors import SeekersError
+   |                           ^^^^^^^^^^^^
+12 | from .url_discoverer import is_blacklisted_domain
+   |
+help: Remove unused import: `..core.errors.SeekersError`
+
+F401 [*] `pipeline.core.types.KnowledgeAtom` imported but unused
+  --> pipeline\tests\conftest.py:10:46
+   |
+ 8 | import pytest
+ 9 |
+10 | from pipeline.core.types import BuildConfig, KnowledgeAtom
+   |                                              ^^^^^^^^^^^^^
+11 | from pipeline.core.logger import PipelineLogger
+12 | from pipeline.seekers.cache import SeekersCache
+   |
+help: Remove unused import: `pipeline.core.types.KnowledgeAtom`
+
+F401 [*] `unittest.mock.MagicMock` imported but unused
+ --> pipeline\tests\test_adapter.py:7:34
+  |
+5 | import tempfile
+6 | from pathlib import Path
+7 | from unittest.mock import patch, MagicMock
+  |                                  ^^^^^^^^^
+8 |
+9 | import pytest
+  |
+help: Remove unused import: `unittest.mock.MagicMock`
+
+F401 [*] `pipeline.seekers.url_evaluator.RankedURL` imported but unused
+  --> pipeline\tests\test_auto_discovery.py:12:59
+   |
+10 |     _extract_ddg_url, is_blacklisted_domain, CRAWL_BLACKLIST_DOMAINS,
+11 | )
+12 | from pipeline.seekers.url_evaluator import evaluate_urls, RankedURL, _prefilter
+   |                                                           ^^^^^^^^^
+13 | from pipeline.seekers.scraper import smart_crawl, _url_to_safe_filename, _fetch_and_parse
+14 | from pipeline.seekers.auto_discovery import (
+   |
+help: Remove unused import: `pipeline.seekers.url_evaluator.RankedURL`
+
+F401 [*] `pipeline.seekers.scraper._fetch_and_parse` imported but unused
+  --> pipeline\tests\test_auto_discovery.py:13:74
+   |
+11 | )
+12 | from pipeline.seekers.url_evaluator import evaluate_urls, RankedURL, _prefilter
+13 | from pipeline.seekers.scraper import smart_crawl, _url_to_safe_filename, _fetch_and_parse
+   |                                                                          ^^^^^^^^^^^^^^^^
+14 | from pipeline.seekers.auto_discovery import (
+15 |     run_auto_discovery, DiscoveryResult, DiscoveryTimeoutError,
+   |
+help: Remove unused import: `pipeline.seekers.scraper._fetch_and_parse`
+
+F841 Local variable `result` is assigned to but never used
+   --> pipeline\tests\test_auto_discovery.py:336:13
+    |
+334 |         try:
+335 |             # Will fail at DDG search but should infer domain first
+336 |             result = run_auto_discovery(
+    |             ^^^^^^
+337 |                 domain="custom", language="vi",
+338 |                 output_dir=str(tmp_path / "out"),
+    |
+help: Remove assignment to unused variable `result`
+
+F841 Local variable `result` is assigned to but never used
+   --> pipeline\tests\test_auto_discovery.py:353:13
+    |
+351 |         web = WebClient(rpm=60, timeout=5)
+352 |         try:
+353 |             result = run_auto_discovery(
+    |             ^^^^^^
+354 |                 domain="facebook-ads", language="en",
+355 |                 output_dir=str(tmp_path / "out"),
+    |
+help: Remove assignment to unused variable `result`
+
+F401 [*] `pytest` imported but unused
+ --> pipeline\tests\test_discover_baseline.py:6:8
+  |
+4 | import os
+5 |
+6 | import pytest
+  |        ^^^^^^
+7 |
+8 | from pipeline.commands.discover_baseline import (
+  |
+help: Remove unused import: `pytest`
+
+F401 [*] `pipeline.commands.discover_baseline.search_ddg` imported but unused
+  --> pipeline\tests\test_discover_baseline.py:11:5
+   |
+ 9 |     read_samples,
+10 |     analyze_content,
+11 |     search_ddg,
+   |     ^^^^^^^^^^
+12 |     evaluate_urls,
+13 |     fetch_references,
+   |
+help: Remove unused import
+
+F401 [*] `pipeline.commands.discover_baseline.fetch_references` imported but unused
+  --> pipeline\tests\test_discover_baseline.py:13:5
+   |
+11 |     search_ddg,
+12 |     evaluate_urls,
+13 |     fetch_references,
+   |     ^^^^^^^^^^^^^^^^
+14 |     build_baseline_summary,
+15 |     run_discover_from_content,
+   |
+help: Remove unused import
+
+F401 [*] `io` imported but unused
+ --> pipeline\tests\test_e2e_dry.py:3:8
+  |
+1 | """End-to-end dry-run test — full pipeline P0→P5 with MockClaudeClient."""
+2 |
+3 | import io
+  |        ^^
+4 | import json
+5 | import os
+  |
+help: Remove unused import: `io`
+
+F401 [*] `sys` imported but unused
+ --> pipeline\tests\test_e2e_dry.py:7:8
+  |
+5 | import os
+6 | import shutil
+7 | import sys
+  |        ^^^
+8 | import tempfile
+  |
+help: Remove unused import: `sys`
+
+F401 [*] `tempfile` imported but unused
+  --> pipeline\tests\test_e2e_dry.py:8:8
+   |
+ 6 | import shutil
+ 7 | import sys
+ 8 | import tempfile
+   |        ^^^^^^^^
+ 9 |
+10 | import pytest
+   |
+help: Remove unused import: `tempfile`
+
+E741 Ambiguous variable name: `l`
+   --> pipeline\tests\test_e2e_dry.py:198:24
+    |
+196 |         self._run_full_pipeline()
+197 |         captured = capsys.readouterr()
+198 |         lines = [l for l in captured.out.strip().split("\n") if l.strip()]
+    |                        ^
+199 |         assert len(lines) > 0, "No stdout output captured"
+    |
+
+F401 [*] `pytest` imported but unused
+ --> pipeline\tests\test_fetch_urls.py:4:8
+  |
+3 | import os
+4 | import pytest
+  |        ^^^^^^
+5 | from unittest.mock import MagicMock, patch
+  |
+help: Remove unused import: `pytest`
+
+F401 [*] `pipeline.commands.discover_baseline.search_ddg` imported but unused
+  --> pipeline\tests\test_integration_features.py:19:5
+   |
+17 |     read_samples,
+18 |     analyze_content,
+19 |     search_ddg,
+   |     ^^^^^^^^^^
+20 |     evaluate_urls,
+21 |     fetch_references,
+   |
+help: Remove unused import
+
+F401 [*] `pipeline.commands.discover_baseline.fetch_references` imported but unused
+  --> pipeline\tests\test_integration_features.py:21:5
+   |
+19 |     search_ddg,
+20 |     evaluate_urls,
+21 |     fetch_references,
+   |     ^^^^^^^^^^^^^^^^
+22 |     build_baseline_summary,
+23 |     run_discover_from_content,
+   |
+help: Remove unused import
+
+F401 [*] `pipeline.core.logger.PipelineLogger` imported but unused
+  --> pipeline\tests\test_integration_features.py:26:34
+   |
+24 |     _is_valid_url,
+25 | )
+26 | from pipeline.core.logger import PipelineLogger
+   |                                  ^^^^^^^^^^^^^^
+   |
+help: Remove unused import: `pipeline.core.logger.PipelineLogger`
+
+F401 [*] `pytest` imported but unused
+ --> pipeline\tests\test_jina_client.py:4:8
+  |
+3 | import httpx
+4 | import pytest
+  |        ^^^^^^
+5 | from unittest.mock import MagicMock, patch, PropertyMock
+  |
+help: Remove unused import: `pytest`
+
+F401 [*] `unittest.mock.patch` imported but unused
+ --> pipeline\tests\test_jina_client.py:5:38
+  |
+3 | import httpx
+4 | import pytest
+5 | from unittest.mock import MagicMock, patch, PropertyMock
+  |                                      ^^^^^
+6 |
+7 | from pipeline.clients.jina_client import (
+  |
+help: Remove unused import
+
+F401 [*] `unittest.mock.PropertyMock` imported but unused
+ --> pipeline\tests\test_jina_client.py:5:45
+  |
+3 | import httpx
+4 | import pytest
+5 | from unittest.mock import MagicMock, patch, PropertyMock
+  |                                             ^^^^^^^^^^^^
+6 |
+7 | from pipeline.clients.jina_client import (
+  |
+help: Remove unused import
+
+F401 [*] `pipeline.clients.jina_client.FREE_MIN_INTERVAL` imported but unused
+  --> pipeline\tests\test_jina_client.py:10:5
+   |
+ 8 |     JinaClient, _parse_search_results,
+ 9 |     JINA_READER_BASE, JINA_SEARCH_BASE,
+10 |     FREE_MIN_INTERVAL, PAID_MIN_INTERVAL,
+   |     ^^^^^^^^^^^^^^^^^
+11 | )
+   |
+help: Remove unused import
+
+F401 [*] `pipeline.clients.jina_client.PAID_MIN_INTERVAL` imported but unused
+  --> pipeline\tests\test_jina_client.py:10:24
+   |
+ 8 |     JinaClient, _parse_search_results,
+ 9 |     JINA_READER_BASE, JINA_SEARCH_BASE,
+10 |     FREE_MIN_INTERVAL, PAID_MIN_INTERVAL,
+   |                        ^^^^^^^^^^^^^^^^^
+11 | )
+   |
+help: Remove unused import
+
+E741 Ambiguous variable name: `l`
+  --> pipeline\tests\test_logger.py:18:20
+   |
+16 |     finally:
+17 |         sys.stdout = old_stdout
+18 |     lines = [l for l in buf.getvalue().strip().split("\n") if l.strip()]
+   |                    ^
+19 |     return [json.loads(l) for l in lines]
+   |
+
+E741 Ambiguous variable name: `l`
+  --> pipeline\tests\test_logger.py:19:31
+   |
+17 |         sys.stdout = old_stdout
+18 |     lines = [l for l in buf.getvalue().strip().split("\n") if l.strip()]
+19 |     return [json.loads(l) for l in lines]
+   |                               ^
+   |
+
+E401 [*] Multiple imports on one line
+  --> pipeline\tests\test_phases.py:80:9
+   |
+78 |         """P2 extracts code atoms when code_analysis.json exists in input/."""
+79 |         # Use realistic build layout: build_dir/output/ + build_dir/input/
+80 |         import tempfile, shutil
+   |         ^^^^^^^^^^^^^^^^^^^^^^^
+81 |         build_dir = tempfile.mkdtemp(prefix="sf_build_")
+82 |         output_dir = os.path.join(build_dir, "output")
+   |
+help: Split imports
+
+E401 [*] Multiple imports on one line
+   --> pipeline\tests\test_phases.py:126:9
+    |
+124 |         """P2 works normally when no code_analysis.json exists."""
+125 |         # Use realistic build layout without code_analysis.json
+126 |         import tempfile, shutil
+    |         ^^^^^^^^^^^^^^^^^^^^^^^
+127 |         build_dir = tempfile.mkdtemp(prefix="sf_build_")
+128 |         output_dir = os.path.join(build_dir, "output")
+    |
+help: Split imports
+
+F841 Local variable `original_atoms` is assigned to but never used
+   --> pipeline\tests\test_phases.py:217:9
+    |
+215 |     def test_p3_preserves_original_fields(self, build_config, mock_claude, logger, seekers_cache, seekers_lookup):
+216 |         """Atoms after dedup still have category, tags, source_video, full content."""
+217 |         original_atoms = self._setup_p2_with_rich_atoms(build_config.output_dir)
+    |         ^^^^^^^^^^^^^^
+218 |         result = run_p3(build_config, mock_claude, seekers_cache, seekers_lookup, logger)
+219 |         assert result.status == "done"
+    |
+help: Remove assignment to unused variable `original_atoms`
+
+Found 57 errors.
+[*] 44 fixable with the `--fix` option (7 hidden fixes can be enabled with the `--unsafe-fixes` option).
+--- RUFF EXIT CODE: ---
