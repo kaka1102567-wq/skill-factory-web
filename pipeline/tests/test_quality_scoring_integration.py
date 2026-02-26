@@ -5,9 +5,13 @@ across all pipeline phases (P0-P5).
 """
 
 import inspect
+import os
 import re
 
 import pytest
+
+# Resolve paths relative to pipeline/ package root
+_PIPELINE_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 # ── Category A: P0 Score Differentiation ──
@@ -325,7 +329,7 @@ class TestSourceDetectionConsistency:
     ])
     def test_source_detection(self, module_path):
         """Each phase should recognize all three source types."""
-        with open(module_path, "r", encoding="utf-8") as f:
+        with open(os.path.join(_PIPELINE_ROOT, module_path), "r", encoding="utf-8") as f:
             content = f.read()
 
         for source in self.REQUIRED_SOURCES:
@@ -343,7 +347,7 @@ class TestDiscoveryScore:
     def test_auto_discovery_no_count_formula(self):
         """auto_discovery.py should NOT use count-based scoring."""
         with open(
-            "seekers/auto_discovery.py", "r", encoding="utf-8",
+            os.path.join(_PIPELINE_ROOT, "seekers/auto_discovery.py"), "r", encoding="utf-8",
         ) as f:
             content = f.read()
         assert "60.0 + len(ok_refs) * 2.5" not in content, (
@@ -356,7 +360,7 @@ class TestDiscoveryScore:
     def test_discover_baseline_no_count_formula(self):
         """discover_baseline.py should NOT use count-based scoring."""
         with open(
-            "commands/discover_baseline.py", "r", encoding="utf-8",
+            os.path.join(_PIPELINE_ROOT, "commands/discover_baseline.py"), "r", encoding="utf-8",
         ) as f:
             content = f.read()
         assert "60.0 + len(references) * 3.0" not in content, (
