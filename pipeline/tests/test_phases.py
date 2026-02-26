@@ -77,7 +77,8 @@ class TestP2Extract:
     def test_extract_with_code_analysis(self, build_config, mock_claude, logger, seekers_cache, seekers_lookup):
         """P2 extracts code atoms when code_analysis.json exists in input/."""
         # Use realistic build layout: build_dir/output/ + build_dir/input/
-        import tempfile, shutil
+        import tempfile
+        import shutil
         build_dir = tempfile.mkdtemp(prefix="sf_build_")
         output_dir = os.path.join(build_dir, "output")
         input_dir = os.path.join(build_dir, "input")
@@ -123,7 +124,8 @@ class TestP2Extract:
     def test_extract_without_code_analysis(self, build_config, mock_claude, logger, seekers_cache, seekers_lookup):
         """P2 works normally when no code_analysis.json exists."""
         # Use realistic build layout without code_analysis.json
-        import tempfile, shutil
+        import tempfile
+        import shutil
         build_dir = tempfile.mkdtemp(prefix="sf_build_")
         output_dir = os.path.join(build_dir, "output")
         os.makedirs(output_dir, exist_ok=True)

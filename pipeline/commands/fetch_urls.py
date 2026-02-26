@@ -6,7 +6,6 @@ Usage: cli.py fetch-urls --urls "url1,url2" --output-dir ./input
 import json
 import os
 import re
-import sys
 from datetime import datetime, timezone
 from urllib.parse import urlparse
 

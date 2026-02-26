@@ -3,10 +3,9 @@
 import json
 import re
 import time
-from collections import Counter
 from datetime import datetime, timezone
 
-from ..core.types import BuildConfig, PhaseResult, KnowledgeAtom, Conflict
+from ..core.types import BuildConfig, PhaseResult, Conflict
 from ..core.logger import PipelineLogger
 from ..core.utils import read_json, write_json
 from ..core.errors import PhaseError

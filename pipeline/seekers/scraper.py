@@ -8,7 +8,6 @@ from typing import Optional
 
 from ..clients.web_client import WebClient
 from ..core.logger import PipelineLogger
-from ..core.errors import SeekersError
 from .url_discoverer import is_blacklisted_domain
 
 

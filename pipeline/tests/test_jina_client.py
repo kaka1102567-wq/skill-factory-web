@@ -1,13 +1,11 @@
 """Tests for JinaClient — all mocked, no real API calls."""
 
 import httpx
-import pytest
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock
 
 from pipeline.clients.jina_client import (
     JinaClient, _parse_search_results,
     JINA_READER_BASE, JINA_SEARCH_BASE,
-    FREE_MIN_INTERVAL, PAID_MIN_INTERVAL,
 )
 
 

@@ -6,7 +6,7 @@ import time
 from collections import Counter
 from datetime import datetime, timezone
 
-from ..core.types import BuildConfig, PhaseResult, InventoryItem
+from ..core.types import BuildConfig, PhaseResult
 from ..core.logger import PipelineLogger
 from ..core.utils import read_all_transcripts, chunk_text, write_json, read_json
 from ..core.errors import PhaseError

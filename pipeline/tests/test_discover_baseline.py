@@ -3,14 +3,11 @@
 import json
 import os
 
-import pytest
 
 from pipeline.commands.discover_baseline import (
     read_samples,
     analyze_content,
-    search_ddg,
     evaluate_urls,
-    fetch_references,
     build_baseline_summary,
     run_discover_from_content,
     _extract_ddg_url,

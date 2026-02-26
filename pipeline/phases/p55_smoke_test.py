@@ -18,7 +18,6 @@ from typing import Optional
 
 from ..core.types import BuildConfig, PhaseResult
 from ..core.logger import PipelineLogger
-from ..core.errors import PhaseError
 from ..core.utils import read_json, write_json
 from ..clients.claude_client import ClaudeClient
 from ..seekers.cache import SeekersCache

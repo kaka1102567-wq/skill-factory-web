@@ -6,7 +6,6 @@ Usage: python mock_cli.py build --config config.yaml --output ./output --json-lo
 """
 
 import json
-import sys
 import time
 import random
 import os
@@ -37,10 +36,10 @@ def simulate_phase(phase_id, phase_name, tool, duration_range=(3, 8)):
             f"Processing document chunk {i+1}/{steps}...",
             f"Analyzing content with {tool}...",
             f"Found {random.randint(5, 30)} knowledge atoms",
-            f"Validating extracted data...",
-            f"Cross-referencing with baseline...",
-            f"Deduplicating similar entries...",
-            f"Scoring quality metrics...",
+            "Validating extracted data...",
+            "Cross-referencing with baseline...",
+            "Deduplicating similar entries...",
+            "Scoring quality metrics...",
         ]
 
         log("log", level="info", phase=phase_id,

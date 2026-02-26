@@ -33,7 +33,7 @@ class SeekersParser:
         for sec in sections:
             if len(sec['content'].strip()) < 50:
                 continue
-            entry_id = hashlib.md5((url + sec['title']).encode()).hexdigest()[:10]
+            entry_id = hashlib.sha256((url + sec['title']).encode()).hexdigest()[:10]
             entries.append(BaselineEntry(
                 id=f"bl_{entry_id}",
                 title=sec['title'],
@@ -116,7 +116,7 @@ class SeekersParser:
         for sec in sections:
             if len(sec['content']) < 50:
                 continue
-            eid = hashlib.md5((url + sec['title']).encode()).hexdigest()[:10]
+            eid = hashlib.sha256((url + sec['title']).encode()).hexdigest()[:10]
             entries.append(BaselineEntry(
                 id=f"bl_{eid}", title=sec['title'], content=sec['content'],
                 source_url=url, source_type="markdown", section_path=sec['path'],

@@ -9,8 +9,8 @@ from pipeline.seekers.url_discoverer import (
     CandidateURL, _normalize_url, _is_valid_doc_url, _matches_patterns,
     _extract_ddg_url, is_blacklisted_domain, CRAWL_BLACKLIST_DOMAINS,
 )
-from pipeline.seekers.url_evaluator import evaluate_urls, RankedURL, _prefilter
-from pipeline.seekers.scraper import smart_crawl, _url_to_safe_filename, _fetch_and_parse
+from pipeline.seekers.url_evaluator import evaluate_urls, _prefilter
+from pipeline.seekers.scraper import smart_crawl, _url_to_safe_filename
 from pipeline.seekers.auto_discovery import (
     run_auto_discovery, DiscoveryResult, DiscoveryTimeoutError,
     _is_generic_domain, _infer_domain_from_content,

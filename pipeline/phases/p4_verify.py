@@ -6,7 +6,7 @@ import random
 import time
 from datetime import datetime, timezone
 
-from ..core.types import BuildConfig, PhaseResult, KnowledgeAtom
+from ..core.types import BuildConfig, PhaseResult
 from ..core.logger import PipelineLogger
 from ..core.config import get_tier_params
 from ..core.utils import read_json, write_json
@@ -15,7 +15,6 @@ from ..clients.claude_client import ClaudeClient, CreditExhaustedError
 from ..seekers.cache import SeekersCache
 from ..seekers.lookup import SeekersLookup
 from ..prompts.p4_verify_prompts import (
-    P4_SYSTEM, P4_USER_TEMPLATE,
     P4_BATCH_VERIFY_SYSTEM, P4_BATCH_VERIFY_USER_TEMPLATE,
 )
 

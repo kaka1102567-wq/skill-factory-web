@@ -1,7 +1,6 @@
 """Tests for the fetch-urls CLI command."""
 
 import os
-import pytest
 from unittest.mock import MagicMock, patch
 
 from pipeline.commands.fetch_urls import (

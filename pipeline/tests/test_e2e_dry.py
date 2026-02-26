@@ -1,11 +1,8 @@
 """End-to-end dry-run test — full pipeline P0→P5 with MockClaudeClient."""
 
-import io
 import json
 import os
 import shutil
-import sys
-import tempfile
 
 import pytest
 

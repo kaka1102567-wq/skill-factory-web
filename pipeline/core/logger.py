@@ -1,7 +1,6 @@
 """JSON stdout logger compatible with Next.js build-runner.ts SSE streaming."""
 
 import json
-import sys
 import time
 from typing import Optional
 

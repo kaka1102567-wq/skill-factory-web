@@ -2,11 +2,10 @@
 
 import os
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime
 
 from ..core.types import BuildConfig, PipelineState, PHASE_MODEL_MAP
 from ..core.logger import PipelineLogger
-from ..core.errors import PipelineError
 from ..clients.claude_client import ClaudeClient, CreditExhaustedError
 from ..seekers.cache import SeekersCache
 from ..seekers.lookup import SeekersLookup

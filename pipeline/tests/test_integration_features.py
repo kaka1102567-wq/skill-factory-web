@@ -16,14 +16,11 @@ from pipeline.commands.extract_pdf import _clean_ocr_text
 from pipeline.commands.discover_baseline import (
     read_samples,
     analyze_content,
-    search_ddg,
     evaluate_urls,
-    fetch_references,
     build_baseline_summary,
     run_discover_from_content,
     _is_valid_url,
 )
-from pipeline.core.logger import PipelineLogger
 
 
 # =====================================================

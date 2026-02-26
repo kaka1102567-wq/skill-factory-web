@@ -7,7 +7,7 @@ import tempfile
 
 import pytest
 
-from pipeline.core.types import BuildConfig, KnowledgeAtom
+from pipeline.core.types import BuildConfig
 from pipeline.core.logger import PipelineLogger
 from pipeline.seekers.cache import SeekersCache
 from pipeline.seekers.lookup import SeekersLookup
