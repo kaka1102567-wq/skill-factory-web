@@ -19,7 +19,7 @@ DISCOVERY_TIMEOUT_SECONDS = 300  # 5 minutes
 GENERIC_DOMAINS = frozenset({
     "custom", "unknown", "general", "other", "misc", "test", "default",
 })
-MAX_INFER_FILES = 3
+MAX_INFER_FILES = 5
 MAX_INFER_CHARS = 2000
 
 
@@ -44,7 +44,11 @@ def _is_generic_domain(domain: str) -> bool:
 
 
 def _infer_domain_from_content(input_dir: str, claude_client, logger) -> dict | None:
-    """Read input files and use Claude to infer the real domain/topic.
+    """Read input files (and PDF file names) to infer the real domain/topic.
+
+    Scans input_dir for:
+    - .md/.txt files: reads content samples (up to MAX_INFER_FILES)
+    - .pdf files: reads FILE NAMES only (very informative for chapter titles)
 
     Returns dict with inferred_domain, display_name, key_topics, search_terms
     or None if inference fails.
@@ -57,14 +61,29 @@ def _infer_domain_from_content(input_dir: str, claude_client, logger) -> dict | 
     if not input_path.is_dir():
         return None
 
+    # Collect PDF file names (available even before extraction)
+    pdf_names = sorted(
+        f.name for f in input_path.iterdir()
+        if f.suffix.lower() == ".pdf" and f.is_file()
+    )
+
     text_files = sorted(
         f for f in input_path.iterdir()
         if f.suffix in (".md", ".txt") and f.is_file()
     )
-    if not text_files:
+
+    # Need at least some signal: either text files or PDF names
+    if not text_files and not pdf_names:
         return None
 
-    # Read up to MAX_INFER_FILES, each truncated to MAX_INFER_CHARS
+    # Build file names list (PDFs are especially informative)
+    file_names = ""
+    if pdf_names:
+        file_names = "\n".join(f"- {name}" for name in pdf_names)
+    elif text_files:
+        file_names = "\n".join(f"- {f.name}" for f in text_files[:MAX_INFER_FILES])
+
+    # Read text content samples (may be empty if only PDFs exist)
     content_samples = ""
     for f in text_files[:MAX_INFER_FILES]:
         try:
@@ -81,14 +100,16 @@ def _infer_domain_from_content(input_dir: str, claude_client, logger) -> dict | 
         except Exception:
             pass
 
-    if not content_samples:
-        return None
-
-    logger.info("Inferring domain from input content...", phase="discovery")
+    logger.info(
+        f"Dang suy luan chu de tu noi dung input ({len(pdf_names)} PDF, "
+        f"{len(text_files)} text files)...",
+        phase="discovery",
+    )
 
     try:
         user_msg = INFER_DOMAIN_USER_TEMPLATE.format(
-            content_samples=content_samples,
+            file_names=file_names,
+            content_samples=content_samples or "(Chua co noi dung text — chi co ten file)",
         )
         raw = claude_client.call(
             system=INFER_DOMAIN_SYSTEM,
@@ -104,13 +125,14 @@ def _infer_domain_from_content(input_dir: str, claude_client, logger) -> dict | 
             "search_terms": data.get("search_terms", []),
         }
         logger.info(
-            f"Inferred domain: '{inferred['display_name']}' "
-            f"({len(inferred['search_terms'])} search terms)",
+            f"Xac dinh chu de: '{inferred['display_name']}' — "
+            f"{len(inferred['key_topics'])} chu de, "
+            f"{len(inferred['search_terms'])} cau tim kiem",
             phase="discovery",
         )
         return inferred
     except Exception as e:
-        logger.warn(f"Content inference failed: {e}", phase="discovery")
+        logger.warn(f"Suy luan chu de that bai: {e}", phase="discovery")
         return None
 
 
@@ -186,7 +208,7 @@ def _run_steps(domain, language, output_dir, claude_client, web_client,
     inferred = None
     if _is_generic_domain(domain) and input_dir:
         logger.info(
-            f"Domain '{domain}' is generic — inferring from input content",
+            f"Domain '{domain}' qua chung — phan tich noi dung input de xac dinh chu de that",
             phase="discovery",
         )
         inferred = _infer_domain_from_content(input_dir, claude_client, logger)
@@ -203,17 +225,17 @@ def _run_steps(domain, language, output_dir, claude_client, web_client,
             expected_topics=inferred.get("key_topics", []),
         )
         logger.info(
-            f"Using inferred domain '{effective_domain}' with "
-            f"{len(analysis.search_queries)} content-based queries",
+            f"Su dung chu de suy luan '{effective_domain}' voi "
+            f"{len(analysis.search_queries)} cau tim kiem tu noi dung",
             phase="discovery",
         )
     elif _is_generic_domain(domain):
         # Generic domain + inference failed → ABORT discovery
         # Let _maybeDiscoverFromContent (runs AFTER PDF extraction) handle it
         logger.warn(
-            f"Domain '{domain}' is generic and content inference failed "
-            f"(no .md/.txt files in input yet?) — aborting discovery. "
-            f"Content-based discovery will retry after pre-processing.",
+            f"Domain '{domain}' qua chung va khong suy luan duoc chu de "
+            f"(chua co file .md/.txt trong input?) — huy kham pha. "
+            f"Kham pha dua tren noi dung se thu lai sau tien xu ly.",
             phase="discovery",
         )
         return DiscoveryResult(

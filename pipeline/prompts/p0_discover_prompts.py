@@ -2,34 +2,43 @@
 
 # ── Domain inference from input content (used by auto_discovery) ──
 
-INFER_DOMAIN_SYSTEM = """You are a content analyst. Given text samples from uploaded documents,
-determine the actual domain/topic. Return ONLY valid JSON."""
+INFER_DOMAIN_SYSTEM = """Ban la chuyen gia phan tich noi dung. Nhiem vu: xac dinh chu de/linh vuc chinh xac tu ten file va noi dung mau.
+Tra ve CHI JSON hop le, khong co markdown hay text khac."""
 
-INFER_DOMAIN_USER_TEMPLATE = """Analyze these content samples and determine the real domain/topic.
+INFER_DOMAIN_USER_TEMPLATE = """Phan tich noi dung sau va xac dinh chu de chinh xac.
 
-Content samples:
+## Ten files:
+{file_names}
+
+## Noi dung mau:
 {content_samples}
 
-Return JSON:
+## Yeu cau:
+Tra ve JSON:
 {{
-  "inferred_domain": "short-kebab-case-domain",
-  "display_name": "Human readable name",
+  "inferred_domain": "slug-tieng-anh-khong-dau",
+  "display_name": "Ten chu de day du",
   "key_topics": ["topic1", "topic2", "topic3", "topic4", "topic5"],
   "search_terms": [
-    "specific search query 1",
-    "specific search query 2",
-    "specific search query 3",
-    "specific search query 4",
-    "specific search query 5",
-    "specific search query 6"
+    "cau tim kiem Google 1",
+    "cau tim kiem Google 2",
+    "cau tim kiem Google 3",
+    "cau tim kiem Google 4",
+    "English search query 5",
+    "English search query 6",
+    "cau tim kiem Google 7",
+    "English search query 8"
   ]
 }}
 
-Rules:
-- search_terms should be Google-friendly queries (3-6 words each)
-- Include 6-8 search_terms covering different aspects
-- key_topics should be 5-8 specific topics from the content
-- inferred_domain should be a short identifier like "ai-agent-retail" or "machine-learning-nlp"
+Luu y:
+- Ten file rat co gia tri — "CHUONG 5 AI Agent Cham soc suc khoe.pdf" cho thay chu de la AI Agent trong y te
+- search_terms phai la cau tim kiem THUC TE tren Google, mix tieng Viet + Anh
+- Vi du: neu noi dung ve AI Agent -> queries: "ung dung AI agent doanh nghiep", "AI agent customer service guide", "LLM agent tutorial"
+- KHONG search tu khoa generic nhu "documentation" hay "guide" hay "custom"
+- Uu tien trang chinh thong: docs, tutorials, research papers
+- key_topics la 5-8 chu de cu the tu noi dung
+- inferred_domain la slug ngan nhu "ai-agent-ung-dung" hoac "machine-learning-nlp"
 """
 
 

@@ -263,6 +263,18 @@ class TestContentInference:
         assert len(result["search_terms"]) >= 1
         assert "custom" not in result["inferred_domain"].lower()
 
+    def test_infer_domain_from_pdf_names_only(self, mock_claude, tmp_path):
+        """Content inference works with only PDF file names (no text content)."""
+        # Create empty PDF files — only names matter for inference
+        (tmp_path / "01 LOI NOI DAU.pdf").write_bytes(b"%PDF-1.4")
+        (tmp_path / "06 CHUONG 5 AI Agent Cham soc suc khoe.pdf").write_bytes(b"%PDF-1.4")
+        (tmp_path / "10 CHUONG 9 AI AGENT TRONG CSKH.pdf").write_bytes(b"%PDF-1.4")
+        logger = PipelineLogger("test")
+        result = _infer_domain_from_content(str(tmp_path), mock_claude, logger)
+        assert result is not None
+        assert "inferred_domain" in result
+        assert len(result["search_terms"]) >= 1
+
     def test_infer_domain_empty_dir(self, mock_claude, tmp_path):
         """Content inference returns None for empty directory."""
         logger = PipelineLogger("test")

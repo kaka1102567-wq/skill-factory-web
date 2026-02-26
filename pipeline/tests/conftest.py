@@ -58,7 +58,7 @@ class MockClaudeClient:
             })
 
         # Domain inference from content (auto_discovery)
-        if "content analyst" in system.lower():
+        if "chuyen gia phan tich" in system.lower() or "content analyst" in system.lower():
             return json.dumps({
                 "inferred_domain": "ai-agent-retail",
                 "display_name": "AI Agent trong Ban le",

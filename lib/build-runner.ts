@@ -202,16 +202,6 @@ function _preProcessInputs(config: BuildConfig, pythonPath: string, cliPath: str
   const diagMsg = `Kiểm tra khám phá: baseline=${hasBaseline}, autoDiscover=${autoDiscover}, domain=${domain || "(trống)"}, apiKey=${creds.apiKeySource}`;
   insertBuildLog(config.id, { level: "debug", phase: null, message: diagMsg });
 
-  // Determine effective domain: use build name when domain is generic
-  const isGenericDomain = !domain || domain === "custom";
-  const effectiveDomain = isGenericDomain ? config.name : domain;
-
-  if (isGenericDomain && domain) {
-    const gMsg = `Domain '${domain}' quá chung — dùng tên build '${config.name}' để khám phá`;
-    insertBuildLog(config.id, { level: "info", phase: null, message: gMsg });
-    sseManager.broadcast(config.id, "log", { level: "info", phase: "discovery", message: gMsg, timestamp: new Date().toISOString() });
-  }
-
   if (!hasBaseline && autoDiscover && domain && !creds.apiKey) {
     const msg = "Bỏ qua khám phá tự động: chưa cấu hình API key (đặt trong Cài đặt hoặc biến môi trường CLAUDE_API_KEY)";
     console.warn(`[BUILD] ${msg}`);
@@ -224,13 +214,13 @@ function _preProcessInputs(config: BuildConfig, pythonPath: string, cliPath: str
     const pipelinePath = path.dirname(cliPath);
     const realCliPath = path.join(pipelinePath, "cli.py");
 
-    const discoverMsg = `Đang tự động khám phá baseline cho: ${effectiveDomain} (key: ${creds.apiKeySource}, url: ${creds.baseUrl || "direct"})`;
+    const discoverMsg = `Đang tự động khám phá baseline cho domain: ${domain} (key: ${creds.apiKeySource}, url: ${creds.baseUrl || "direct"})`;
     insertBuildLog(config.id, { level: "info", phase: null, message: discoverMsg });
     sseManager.broadcast(config.id, "log", { level: "info", phase: "discovery", message: discoverMsg, timestamp: new Date().toISOString() });
 
     const discoverArgs = [
       realCliPath, "discover-baseline",
-      "--domain", effectiveDomain,
+      "--domain", domain,
       "--language", language,
       "--output", discoveryDir,
       "--max-refs", "15",
