@@ -21,14 +21,29 @@ Your task is to create a SKILL.md with TWO critical sections:
 
 2. SKILL.md BODY must include these sections IN THIS ORDER:
    a. Purpose statement (1-2 sentences explaining what this skill contains)
-   b. "When to Use This Skill" — list 3-6 specific trigger scenarios
-   c. "Workflow" — numbered steps the AI should follow when using this skill
-   d. "Routing Logic" — which knowledge/*.md or references/ file to read for which topic
-   e. "Knowledge Pillars" — list all pillars with atom counts and file references
+   b. "Agent Instructions" section with subsections:
+      - "Scope": IN SCOPE (from domain + categories) and OUT OF SCOPE (infer from domain boundaries)
+      - "Decision Tree": Intent-based routing tree using actual knowledge pillars. Format:
+        User hỏi về [domain]?
+        ├─ Hỏi KHÁI NIỆM → [pillar].md §Core
+        ├─ Hỏi THỰC HÀNH → [pillar].md + [pillar2].md
+        ├─ Hỏi SO SÁNH → đọc 2 sections → bảng so sánh
+        ├─ Hỏi CHIẾN LƯỢC → strategy/advanced sections
+        └─ NGOÀI SCOPE → từ chối + gợi ý
+      - "Confidence Map": Include the provided confidence_map text VERBATIM (do not modify it)
+   c. "Knowledge Pillars" — list all pillars with atom counts and file references
+   d. "Composition Patterns" — Generate 3-4 answer composition patterns for this domain:
+      e.g., Definition + Example + Comparison, Problem → Solution → Tool, Timeline → Current → Future
+   e. "Failure Modes" — Generate 4-5 domain-specific failure modes. Each must have:
+      ### Lỗi N: [Mô tả]
+      WRONG: "..." (example bad response)
+      RIGHT: "..." (example good response)
+      WHY AGENTS FAIL: [root cause]
    f. Expert Tips (if available from unverified-in-docs atoms)
    g. Advanced Strategies (if available from high-confidence atoms)
-   h. "Limitations" — what this skill does NOT cover, scope boundaries
-   i. References (if baseline references exist)
+   h. References (if baseline references exist)
+   i. "Q&A Examples" (if available)
+   j. "Limitations" — what this skill does NOT cover, scope boundaries
    - Keep under 500 lines total — if content is longer, reference knowledge/*.md files
 
 RULES:
@@ -48,6 +63,9 @@ Create a SKILL.md file for this AI knowledge skill.
 **Total verified atoms:** {atom_count}
 **Quality tier:** {quality_tier}
 
+CONFIDENCE MAP (include verbatim in Agent Instructions > Confidence Map):
+{confidence_map}
+
 DESCRIPTION WRITING GUIDE:
 Write a description that would make Claude think "I should definitely use this skill" for any
 related query. Include:
@@ -64,6 +82,11 @@ paid campaigns on Facebook/Instagram/Meta platforms. Also trigger when users men
 performance, iOS tracking changes affecting ads, or budget allocation for social media advertising —
 even if they don't explicitly say 'Facebook Ads'. Do NOT use for organic social media, SEO,
 Google Ads, or non-advertising Meta features."
+
+AGENT-READY SECTIONS — Generate these based on the knowledge pillars:
+1. Agent Instructions with Scope (IN/OUT), Decision Tree (routing based on user intent to correct pillar), and the Confidence Map provided above (verbatim)
+2. Composition Patterns (3-4 patterns suited for {domain})
+3. Failure Modes (4-5 domain-specific mistakes agents commonly make, each with WRONG/RIGHT examples and WHY AGENTS FAIL root cause)
 
 Return a JSON object with this EXACT structure:
 {{
@@ -116,8 +139,23 @@ Example opening:
 ---
 ```
 
+ORGANIZATION INTO 3 TIERS:
+Organize atoms into 3 tiers based on importance and verification status:
+
+## 🔑 Core (read first — answers 80% of questions)
+[Most important atoms, grouped by sub-topic. Prioritize atoms with high confidence + verified status]
+
+## 📚 Detail (read when deeper dive needed)
+[Detailed atoms, technical depth, specific examples]
+
+## 💡 Insights (read when expert perspective needed)
+[Expert analysis, predictions, comparisons — atoms with source="baseline" or gap_filled=true]
+
+Use atom confidence, status, and source fields to determine tier placement.
+Do NOT add per-atom metadata tags — keep knowledge files clean and readable.
+
 ORGANIZATION PRINCIPLES:
-- Order atoms from most fundamental to most advanced (foundational → specialized)
+- Within each tier, order atoms from most fundamental to most advanced
 - Group related atoms with clear section headings
 - Each atom gets its own ## heading with descriptive title
 - Include tags and confidence as metadata (helps AI filter by topic and reliability)

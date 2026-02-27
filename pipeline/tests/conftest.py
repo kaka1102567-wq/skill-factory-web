@@ -285,9 +285,21 @@ class MockClaudeClient:
         if "Knowledge File Writer" in system:
             return {
                 "pillar": "test",
-                "content": "# Test Pillar\n\n## Atom 1\nTest content.\n",
+                "content": (
+                    "# Test Pillar\n\n"
+                    "> Contains test knowledge atoms.\n\n"
+                    "## Table of Contents\n"
+                    "1. Core Concepts\n2. Detailed Analysis\n"
+                    "3. Expert Insights\n\n---\n\n"
+                    "## \U0001f511 Core\n\n"
+                    "### Atom 1\nTest content.\n\n"
+                    "## \U0001f4da Detail\n\n"
+                    "### Detailed Atom\nDetailed content.\n\n"
+                    "## \U0001f4a1 Insights\n\n"
+                    "### Expert Insight\nExpert analysis.\n"
+                ),
                 "atom_ids": ["atom_0001"],
-                "word_count": 10,
+                "word_count": 20,
             }
 
         # P6 Optimize — eval query generation

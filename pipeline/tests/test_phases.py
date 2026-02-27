@@ -1142,6 +1142,113 @@ class TestP5IncludesUnverified:
         assert result.atoms_count == 3
 
 
+class TestP5AgentReadyOutput:
+    """Tests for Sprint 0 agent-ready output features."""
+
+    def _setup_p4_with_baseline(self, output_dir):
+        """Create P4 output + baseline for seekers path (agent-ready sections)."""
+        atoms = [
+            {"id": "atom_0001", "title": "Campaign Structure",
+             "content": "Campaigns have 3 levels.",
+             "category": "campaign_management", "tags": ["campaign"],
+             "confidence": 0.9, "status": "verified",
+             "verification_note": "Verified against ref.md",
+             "baseline_reference": "ref.md", "source": "transcript"},
+            {"id": "atom_0002", "title": "Pixel Setup",
+             "content": "Install pixel on website.",
+             "category": "pixel_tracking", "tags": ["pixel"],
+             "confidence": 0.85, "status": "verified",
+             "verification_note": "", "baseline_reference": "",
+             "source": "transcript"},
+            {"id": "atom_0003", "title": "Expert Tip Budget",
+             "content": "Start with low budget.",
+             "category": "budget", "tags": ["budget"],
+             "confidence": 0.7, "status": "passthrough",
+             "verification_note": "", "baseline_reference": None,
+             "source": "baseline", "gap_filled": True},
+        ]
+        write_json({"atoms": atoms, "total_atoms": 3, "score": 80.0},
+                    os.path.join(output_dir, "atoms_verified.json"))
+        write_json({
+            "source": "auto-discovery",
+            "references": [
+                {"path": "docs/guide.md", "content": "# Guide\nTest guide."},
+            ],
+        }, os.path.join(output_dir, "baseline_summary.json"))
+
+    def test_p5_skill_md_has_agent_sections(
+        self, build_config, mock_claude, logger, seekers_cache, seekers_lookup,
+    ):
+        """SKILL.md must contain all 6 agent-ready sections."""
+        self._setup_p4_with_baseline(build_config.output_dir)
+        result = run_p5(
+            build_config, mock_claude, seekers_cache, seekers_lookup, logger,
+        )
+        assert result.status == "done"
+
+        skill_path = os.path.join(build_config.output_dir, "SKILL.md")
+        with open(skill_path, encoding="utf-8") as f:
+            skill_md = f.read()
+
+        # 6 required agent-ready sections
+        assert "Decision Tree" in skill_md
+        assert "Failure Modes" in skill_md
+        assert "Confidence Map" in skill_md
+        assert "VERIFIED" in skill_md
+        assert "UNVERIFIED" in skill_md
+        assert "Composition Patterns" in skill_md
+        assert "Response Templates" in skill_md
+        assert "Pre-response Checklist" in skill_md
+
+        # Existing sections still present
+        assert "Advanced Strategies" in skill_md or "Expert" in skill_md
+        assert "References" in skill_md
+
+    def test_p5_knowledge_files_have_tiers(
+        self, build_config, mock_claude, logger, seekers_cache, seekers_lookup,
+    ):
+        """Knowledge files must have 3-tier structure."""
+        self._setup_p4_with_baseline(build_config.output_dir)
+        result = run_p5(
+            build_config, mock_claude, seekers_cache, seekers_lookup, logger,
+        )
+        assert result.status == "done"
+
+        knowledge_dir = os.path.join(build_config.output_dir, "knowledge")
+        assert os.path.isdir(knowledge_dir)
+
+        md_files = [
+            f for f in os.listdir(knowledge_dir) if f.endswith(".md")
+        ]
+        assert len(md_files) > 0
+
+        for fname in md_files:
+            fpath = os.path.join(knowledge_dir, fname)
+            with open(fpath, encoding="utf-8") as f:
+                content = f.read()
+            assert "Core" in content or "\U0001f511" in content
+            assert "Detail" in content or "\U0001f4da" in content
+            assert "Insights" in content or "\U0001f4a1" in content
+
+    def test_p5_confidence_map_generation(self):
+        """Confidence map correctly categorizes atoms into 2 levels."""
+        from pipeline.phases.p5_build import _generate_confidence_map
+
+        atoms = [
+            {"title": "A", "baseline_reference": "ref.md",
+             "verification_note": "Verified against ref.md"},
+            {"title": "B", "baseline_reference": "",
+             "verification_note": ""},
+            {"title": "C", "baseline_reference": None,
+             "verification_note": None},
+        ]
+        result = _generate_confidence_map(atoms)
+        assert "VERIFIED (1 atoms" in result
+        assert "UNVERIFIED (2 atoms" in result
+        assert "- A" in result
+        assert "- B" in result
+
+
 class TestP5CompressionReal:
 
     def test_p5_compression_uses_real_transcript(self, build_config, mock_claude, logger, seekers_cache, seekers_lookup):

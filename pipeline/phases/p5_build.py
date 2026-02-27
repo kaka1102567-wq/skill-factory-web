@@ -86,6 +86,195 @@ def _copy_seekers_references(baseline: dict, output_dir: str,
     return refs_copied
 
 
+def _generate_confidence_map(atoms: list) -> str:
+    """Generate 2-level Confidence Map from atoms verification data.
+
+    Only 2 levels because P4 keyword matching doesn't create real gradient:
+    - ~29% atoms have baseline_reference = VERIFIED
+    - ~71% atoms passthrough = UNVERIFIED
+    Upgrade to 3-4 levels after Sprint 3 (embedding verify).
+    """
+    verified = []
+    unverified = []
+
+    for atom in atoms:
+        ref = atom.get('baseline_reference') or ''
+        note = atom.get('verification_note') or ''
+        has_evidence = bool(ref) or 'verified against' in note.lower()
+
+        entry = f"- {atom.get('title', 'Untitled')}"
+        if has_evidence:
+            verified.append(entry)
+        else:
+            unverified.append(entry)
+
+    lines = ["### Confidence Map", ""]
+    lines.append(
+        f"### VERIFIED ({len(verified)} atoms — baseline-backed) "
+        "-> Tra loi confident"
+    )
+    lines.extend(verified[:15])
+    if len(verified) > 15:
+        lines.append(f"- ... va {len(verified) - 15} atoms khac")
+    lines.append("")
+    lines.append(
+        f"### UNVERIFIED ({len(unverified)} atoms — chua cross-check) "
+        '-> Them "theo phan tich chuyen gia..."'
+    )
+    lines.extend(unverified[:10])
+    if len(unverified) > 10:
+        lines.append(f"- ... va {len(unverified) - 10} atoms khac")
+
+    return "\n".join(lines)
+
+
+def _build_agent_instructions_section(
+    config, pillars: dict, confidence_map: str,
+) -> str:
+    """Build Agent Instructions section with Scope, Decision Tree, Confidence Map."""
+    pillar_names = list(pillars.keys())
+    categories_display = ", ".join(
+        name.replace("_", " ").title() for name in pillar_names[:6]
+    )
+
+    lines = [
+        "## Agent Instructions",
+        "",
+        "### Scope",
+        f"IN SCOPE: {config.domain} — {categories_display}",
+        f"OUT OF SCOPE: Cac domain khong lien quan den {config.domain}. "
+        "Neu user hoi ngoai scope -> tu choi va goi y nguon khac.",
+        "",
+        "### Decision Tree",
+        f"User hoi ve {config.domain}?",
+    ]
+
+    # Build routing branches from actual pillars
+    if pillar_names:
+        first = pillar_names[0].replace("_", " ").title()
+        lines.append(
+            f"  |-- Hoi KHAI NIEM -> knowledge/{pillar_names[0]}.md Core"
+        )
+    if len(pillar_names) > 1:
+        second = pillar_names[1].replace("_", " ").title()
+        lines.append(
+            f"  |-- Hoi THUC HANH -> knowledge/{pillar_names[0]}.md "
+            f"+ knowledge/{pillar_names[1]}.md"
+        )
+    else:
+        lines.append(
+            f"  |-- Hoi THUC HANH -> knowledge/{pillar_names[0]}.md Detail"
+            if pillar_names else "  |-- Hoi THUC HANH -> knowledge files"
+        )
+    lines.append("  |-- Hoi SO SANH -> doc 2+ pillars -> bang so sanh")
+    lines.append("  |-- Hoi CHIEN LUOC -> Advanced Strategies section")
+    lines.append("  |-- NGOAI SCOPE -> tu choi + goi y")
+    lines.append("")
+
+    # Confidence Map
+    lines.append(confidence_map)
+    lines.append("")
+
+    return "\n".join(lines)
+
+
+def _build_composition_patterns_section(config) -> str:
+    """Build Composition Patterns section with domain-appropriate templates."""
+    return "\n".join([
+        "## Composition Patterns",
+        "",
+        "- **Definition + Example + Comparison**: "
+        "Dinh nghia khai niem -> vi du cu the -> so sanh",
+        "- **Problem -> Solution -> Tool**: "
+        "Neu van de -> giai phap -> cong cu/tai nguyen",
+        "- **Timeline -> Current -> Future**: "
+        "Boi canh -> hien tai -> xu huong",
+        f"- **{config.domain} Workflow**: "
+        "Buoc thiet lap -> Thuc thi -> Do luong -> Toi uu",
+        "",
+    ])
+
+
+def _build_failure_modes_section(config) -> str:
+    """Build Failure Modes section with common agent mistakes."""
+    return "\n".join([
+        "## Failure Modes",
+        "",
+        "### Loi 1: Tra loi ngoai pham vi skill",
+        'WRONG: "Theo toi nghi..." (bia thong tin)',
+        f'RIGHT: "Dua tren knowledge cua skill {config.domain}, ..."',
+        "WHY AGENTS FAIL: Khong kiem tra scope truoc khi tra loi",
+        "",
+        "### Loi 2: Tra loi qua mong",
+        'WRONG: "[Dinh nghia 1 cau]" (thieu context)',
+        'RIGHT: "[Dinh nghia] + [Vi du] + [Luu y]"',
+        "WHY AGENTS FAIL: Chi doc 1 atom, khong cross-reference",
+        "",
+        "### Loi 3: Khong phan biet verified vs unverified",
+        'WRONG: "Chac chan rang..." (cho unverified data)',
+        'RIGHT: "Theo phan tich chuyen gia, ..." (hedging language)',
+        "WHY AGENTS FAIL: Khong check Confidence Map",
+        "",
+        "### Loi 4: Bo qua context user level",
+        "WRONG: Dung jargon voi beginner",
+        "RIGHT: Adjust complexity theo user level",
+        "WHY AGENTS FAIL: Khong hoi/suy luan user level",
+        "",
+    ])
+
+
+STATIC_RESPONSE_TEMPLATES = """\
+## Response Templates
+
+### Giai thich khai niem:
+**[Ten]** la [dinh nghia 1 cau]. Cu the: [2-3 cau]. **Vi du:** [scenario]. **Luu y:** [hay nham lan].
+
+### So sanh:
+| Tieu chi | [A] | [B] |
+Khuyen nghi: Chon [A] khi... Chon [B] khi...
+
+### Huong dan thuc hanh:
+Buoc 1 -> Buoc 2 -> Buoc 3. Hay mac loi: ... Cach dung: ...
+
+### Ngoai scope:
+"Skill nay khong cover [topic]. Goi y tham khao: [nguon]"
+"""
+
+STATIC_PRE_RESPONSE_CHECKLIST = """\
+## Pre-response Checklist
+
+Truoc khi tra loi, tu hoi:
+- Dua tren kien thuc TRONG skill? Hay tu bia?
+- So lieu co ghi nguon/nam?
+- Co recommend -> da neu trade-off?
+- User level phu hop? (beginner != expert)
+- Trong scope? Neu khong -> thua nhan ro rang
+- Da dung >=2 atoms? (tranh response mong)
+"""
+
+
+def _inject_static_sections(content: str) -> str:
+    """Inject static Response Templates and Pre-response Checklist into SKILL.md.
+
+    Inserts after Failure Modes or before Limitations. Idempotent.
+    """
+    if "## Response Templates" not in content:
+        # Insert before Limitations if exists
+        if "## Limitations" in content:
+            content = content.replace(
+                "## Limitations",
+                STATIC_RESPONSE_TEMPLATES + "\n## Limitations",
+            )
+        else:
+            content += "\n" + STATIC_RESPONSE_TEMPLATES
+
+    if "## Pre-response Checklist" not in content:
+        # Append at end
+        content = content.rstrip() + "\n\n" + STATIC_PRE_RESPONSE_CHECKLIST
+
+    return content
+
+
 def _classify_atoms(atoms: list) -> dict:
     """Classify atoms into expert tips vs verified knowledge."""
     expert_tips = []
@@ -215,7 +404,8 @@ def _build_advanced_section(verified_atoms: list) -> str:
 
 
 def _build_skill_seekers_skill_md(config, baseline, pillars,
-                                  build_atoms, avg_confidence) -> str:
+                                  build_atoms, avg_confidence,
+                                  confidence_map: str = "") -> str:
     """Build production SKILL.md using skill-seekers template + atoms."""
     classified = _classify_atoms(build_atoms)
     references = baseline.get("references", [])
@@ -254,40 +444,10 @@ def _build_skill_seekers_skill_md(config, baseline, pillars,
         "",
     ]
 
-    # Section: When to use this skill
-    lines.append("## When to Use This Skill")
-    lines.append("")
-    for cat_name in list(pillars.keys())[:6]:
-        display = cat_name.replace("_", " ").title()
-        lines.append(f"- When you need information about **{display}**")
-    lines.append(
-        f"- When answering any question related to **{config.domain}**"
-    )
-    lines.append(
-        "- When the user needs comparisons, analysis, or practical advice "
-        "in this domain"
-    )
-    lines.append("")
-
-    # Section: Workflow
-    lines.append("## Workflow")
-    lines.append("")
-    lines.append(
-        "1. Identify which category the question belongs to "
-        "(see Routing Logic below)"
-    )
-    lines.append("2. Read the relevant `knowledge/*.md` file")
-    lines.append(
-        "3. Cross-reference with `references/` if citations are needed"
-    )
-    lines.append(
-        "4. Synthesize answer from skill knowledge — "
-        "do NOT hallucinate beyond what the skill contains"
-    )
-    lines.append("")
-
-    # Routing logic
-    lines.append(_build_routing_section(pillars, references))
+    # Agent Instructions (Scope, Decision Tree, Confidence Map)
+    lines.append(_build_agent_instructions_section(
+        config, pillars, confidence_map,
+    ))
 
     # Knowledge pillars overview
     lines.append("## Knowledge Pillars")
@@ -299,6 +459,12 @@ def _build_skill_seekers_skill_md(config, baseline, pillars,
             f"-> `knowledge/{name}.md`"
         )
     lines.append("")
+
+    # Composition Patterns
+    lines.append(_build_composition_patterns_section(config))
+
+    # Failure Modes
+    lines.append(_build_failure_modes_section(config))
 
     # Expert Tips
     expert_section = _build_expert_section(classified["expert_tips"])
@@ -1040,14 +1206,22 @@ def run_p5(config: BuildConfig, claude: ClaudeClient,
             if build_atoms else 0.0
         )
 
+        # Generate confidence map from atom verification data
+        confidence_map = _generate_confidence_map(build_atoms)
+
         if use_seekers:
             skill_content = _build_skill_seekers_skill_md(
                 config, baseline, pillars, build_atoms, avg_confidence,
+                confidence_map=confidence_map,
             )
         else:
             skill_content = _build_skill_md_via_claude(
                 config, pillars, build_atoms, claude, logger,
+                confidence_map=confidence_map,
             )
+
+        # Inject static sections (Response Templates + Pre-response Checklist)
+        skill_content = _inject_static_sections(skill_content)
 
         # ── Progressive disclosure check ──
         description = ""
@@ -1315,7 +1489,8 @@ def run_p5(config: BuildConfig, claude: ClaudeClient,
 
 
 def _build_skill_md_via_claude(config, pillars, build_atoms,
-                               claude, logger) -> str:
+                               claude, logger,
+                               confidence_map: str = "") -> str:
     """Generate SKILL.md via Claude API (legacy path)."""
     pillars_desc = ", ".join(
         f"{name} ({len(atoms)} atoms)"
@@ -1326,6 +1501,7 @@ def _build_skill_md_via_claude(config, pillars, build_atoms,
         language=config.language, pillars=pillars_desc,
         atom_count=len(build_atoms),
         quality_tier=config.quality_tier,
+        confidence_map=confidence_map,
     )
 
     if config.domain_lessons:
