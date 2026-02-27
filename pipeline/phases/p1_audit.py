@@ -14,7 +14,8 @@ from ..clients.claude_client import ClaudeClient, CreditExhaustedError
 from ..seekers.cache import SeekersCache
 from ..seekers.lookup import SeekersLookup
 from ..seekers.taxonomy import get_all_categories
-from ..prompts.p1_audit_prompts import P1_SYSTEM, P1_USER_TEMPLATE
+from ..prompts.p1_audit_prompts import P1_SYSTEM, P1_USER_TEMPLATE, PROMPT_VERSION as P1_PROMPT_VERSION
+from ..core.build_cache import BuildCache
 
 
 def run_p1(config: BuildConfig, claude: ClaudeClient,
@@ -41,6 +42,47 @@ def run_p1(config: BuildConfig, claude: ClaudeClient,
         valid_transcripts = [t for t in transcripts if t.get("content")]
         if not valid_transcripts:
             raise PhaseError(phase_id, "All transcripts are empty or failed to read")
+
+        # ── Build cache check ──
+        build_cache = _get_build_cache(config)
+        file_hashes = None
+        if build_cache:
+            file_hashes = [
+                BuildCache.file_content_hash(t["path"])
+                for t in valid_transcripts if t.get("path")
+            ]
+            if file_hashes and len(file_hashes) == len(valid_transcripts):
+                cached_inventory = build_cache.get_inventory(
+                    domain=config.domain, file_hashes=file_hashes,
+                    model=config.claude_model, tier=config.quality_tier,
+                )
+                if cached_inventory:
+                    logger.info(
+                        "P1 cache hit: inventory cached for this domain+fileset",
+                        phase=phase_id,
+                    )
+                    # Write cached inventory to output
+                    output_path = f"{config.output_dir}/inventory.json"
+                    write_json(cached_inventory, output_path)
+
+                    score = cached_inventory.get("score", 75.0)
+                    topics_count = cached_inventory.get("total_topics", 0)
+                    logger.phase_complete(
+                        phase_id, phase_name,
+                        score=score, atoms_count=topics_count,
+                    )
+                    cost = claude.get_cost_summary()
+                    return PhaseResult(
+                        phase_id=phase_id, status="done",
+                        started_at=started_at,
+                        completed_at=datetime.now(timezone.utc).isoformat(),
+                        duration_seconds=time.time() - start_time,
+                        quality_score=score, atoms_count=topics_count,
+                        api_cost_usd=cost["cost_usd"],
+                        tokens_used=cost["input_tokens"] + cost["output_tokens"],
+                        output_files=[output_path],
+                        metrics={"cache_hit": True},
+                    )
 
         logger.info(f"Tìm thấy {len(valid_transcripts)} transcripts cần kiểm tra", phase=phase_id)
 
@@ -260,6 +302,15 @@ def run_p1(config: BuildConfig, claude: ClaudeClient,
             output_data["coverage_matrix"] = coverage_matrix
         write_json(output_data, output_path)
 
+        # ── Save inventory to build cache ──
+        if build_cache and file_hashes:
+            build_cache.save_inventory(
+                domain=config.domain, file_hashes=file_hashes,
+                model=config.claude_model, tier=config.quality_tier,
+                inventory=output_data,
+            )
+            logger.info("P1 inventory cached for future builds", phase=phase_id)
+
         logger.phase_progress(phase_id, phase_name, 95)
         logger.phase_complete(phase_id, phase_name, score=score, atoms_count=len(inventory))
 
@@ -290,6 +341,15 @@ def run_p1(config: BuildConfig, claude: ClaudeClient,
             duration_seconds=time.time() - start_time,
             error_message=str(e),
         )
+
+
+def _get_build_cache(config: BuildConfig) -> BuildCache | None:
+    """Get BuildCache instance, or None if unavailable (graceful degradation)."""
+    try:
+        cache_dir = f"{config.seekers_cache_dir}/build_cache"
+        return BuildCache(cache_dir=cache_dir)
+    except Exception:
+        return None
 
 
 def _merge_topics(topics: list[dict]) -> list[dict]:

@@ -74,6 +74,19 @@ def main():
     discover_parser.add_argument("--input-dir", default="", help="Input dir for content-based domain inference")
     discover_parser.add_argument("--jina-api-key", default="", help="Jina Reader API key (optional)")
 
+    # ── cache-stats ──
+    subparsers.add_parser("cache-stats", help="Show build cache statistics")
+
+    # ── cache-clear ──
+    cache_clear_parser = subparsers.add_parser("cache-clear", help="Clear build cache")
+    cache_clear_parser.add_argument(
+        "--older-than", type=int, default=None,
+        help="Clear entries older than N days",
+    )
+    cache_clear_parser.add_argument(
+        "--all", action="store_true", help="Clear all cache entries",
+    )
+
     # ── discover-from-content ──
     dfc_parser = subparsers.add_parser(
         "discover-from-content",
@@ -109,6 +122,10 @@ def main():
         sys.exit(cmd_discover_baseline(args))
     elif args.command == "discover-from-content":
         sys.exit(cmd_discover_from_content(args))
+    elif args.command == "cache-stats":
+        sys.exit(cmd_cache_stats(args))
+    elif args.command == "cache-clear":
+        sys.exit(cmd_cache_clear(args))
 
 
 def cmd_build(args) -> int:
@@ -293,6 +310,38 @@ def cmd_discover_from_content(args) -> int:
         base_url=args.base_url or os.environ.get("CLAUDE_BASE_URL", ""),
         jina_api_key=jina_key,
     )
+
+
+def cmd_cache_stats(args) -> int:
+    """Print build cache statistics as JSON."""
+    from pipeline.core.build_cache import BuildCache
+    cache = BuildCache()
+    stats = cache.get_stats()
+    print(json.dumps({
+        "atom_entries": stats.atom_entries,
+        "inventory_entries": stats.inventory_entries,
+        "embedding_entries": stats.embedding_entries,
+        "total_size_mb": round(stats.total_size_bytes / 1024 / 1024, 2),
+        "oldest_days": round(stats.oldest_entry_age_days, 1),
+        "newest_days": round(stats.newest_entry_age_days, 1),
+    }, indent=2))
+    return 0
+
+
+def cmd_cache_clear(args) -> int:
+    """Clear build cache entries."""
+    from pipeline.core.build_cache import BuildCache
+    cache = BuildCache()
+    if getattr(args, "all", False):
+        cleared = cache.clear(older_than_days=None)
+        print(json.dumps({"cleared": cleared, "scope": "all"}))
+    elif args.older_than:
+        cleared = cache.clear(older_than_days=args.older_than)
+        print(json.dumps({"cleared": cleared, "scope": f"older_than_{args.older_than}_days"}))
+    else:
+        print(json.dumps({"error": "Specify --all or --older-than N"}))
+        return 1
+    return 0
 
 
 def _find_config(output_dir: str) -> str | None:

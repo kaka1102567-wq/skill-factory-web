@@ -15,10 +15,11 @@ from ..seekers.cache import SeekersCache
 from ..seekers.lookup import SeekersLookup
 from ..seekers.taxonomy import get_all_categories
 from ..prompts.p2_extract_prompts import (
-    P2_SYSTEM, P2_USER_TEMPLATE,
+    P2_SYSTEM, P2_USER_TEMPLATE, PROMPT_VERSION as P2_PROMPT_VERSION,
     P2_GAP_SYSTEM, P2_GAP_USER_TEMPLATE,
     P2_CODE_SYSTEM, P2_CODE_USER_TEMPLATE,
 )
+from ..core.build_cache import BuildCache
 
 
 MAX_GAP_FILL_ATOMS = 10
@@ -58,76 +59,140 @@ def run_p2(config: BuildConfig, claude: ClaudeClient,
         transcript_atoms: list[KnowledgeAtom] = []
         atom_counter = 0
 
-        # ── Stream A: Transcript extraction ──
-        all_chunks = []
+        # ── Build cache (graceful — None if unavailable) ──
+        build_cache = _get_build_cache(config)
+        cache_hits = 0
+        cache_misses = 0
+
+        # ── Stream A: Per-file transcript extraction with cache ──
+        total_chunks = 0
         for t in valid_transcripts:
-            chunks = chunk_text(t["content"], max_tokens=3000)
-            for ci, chunk in enumerate(chunks):
-                all_chunks.append({
-                    "filename": t["filename"],
-                    "chunk_index": ci + 1,
-                    "total_chunks": len(chunks),
-                    "chunk": chunk,
-                })
+            total_chunks += len(chunk_text(t["content"], max_tokens=3000))
 
-        total_chunks = len(all_chunks)
         logger.info(f"Tổng số chunks cần xử lý: {total_chunks}", phase=phase_id)
+        processed_chunks = 0
 
-        for i, chunk_info in enumerate(all_chunks):
-            progress = int((i / max(total_chunks, 1)) * 70)
-            logger.phase_progress(phase_id, phase_name, progress)
+        for t in valid_transcripts:
+            filename = t["filename"]
+            file_path = t.get("path", "")
 
-            user_prompt = P2_USER_TEMPLATE.format(
-                chunk_index=chunk_info["chunk_index"],
-                total_chunks=chunk_info["total_chunks"],
-                language=config.language,
-                domain=config.domain,
-                categories=", ".join(categories),
-                filename=chunk_info["filename"],
-                chunk=chunk_info["chunk"],
-            )
-
-            try:
-                result = claude.call_json(
-                    system=P2_SYSTEM, user=user_prompt,
-                    max_tokens=8192, phase=phase_id,
+            # Per-file cache check (Stream A only)
+            if build_cache and file_path:
+                file_hash = BuildCache.file_content_hash(file_path)
+                cached = build_cache.get_atoms(
+                    file_hash=file_hash, model=config.claude_model,
+                    prompt_version=P2_PROMPT_VERSION,
+                    tier=config.quality_tier,
                 )
-
-                raw_atoms = result.get("atoms", [])
-                for raw in raw_atoms:
-                    atom_counter += 1
-                    category = raw.get("category", "")
-                    if not category or not category.strip():
-                        category = "general"
-                    atom = KnowledgeAtom(
-                        id=f"atom_{atom_counter:04d}",
-                        title=raw.get("title", "Untitled"),
-                        content=raw.get("content", ""),
-                        category=category,
-                        tags=raw.get("tags", []),
-                        source_video=chunk_info["filename"],
-                        source_timestamp=raw.get("source_timestamp"),
-                        confidence=float(raw.get("confidence", 0.5)),
-                        status="raw",
-                        created_at=datetime.now(timezone.utc).isoformat(),
-                        source="transcript",
+                if cached:
+                    cache_hits += 1
+                    # Rebuild KnowledgeAtom objects from cached dicts
+                    for raw in cached:
+                        atom_counter += 1
+                        atom = KnowledgeAtom(
+                            id=f"atom_{atom_counter:04d}",
+                            title=raw.get("title", "Untitled"),
+                            content=raw.get("content", ""),
+                            category=raw.get("category", "general"),
+                            tags=raw.get("tags", []),
+                            source_video=raw.get("source_video", filename),
+                            source_timestamp=raw.get("source_timestamp"),
+                            confidence=float(raw.get("confidence", 0.5)),
+                            status="raw",
+                            created_at=raw.get("created_at",
+                                                datetime.now(timezone.utc).isoformat()),
+                            source="transcript",
+                        )
+                        transcript_atoms.append(atom)
+                    # Skip chunks for this file in progress tracking
+                    file_chunks = chunk_text(t["content"], max_tokens=3000)
+                    processed_chunks += len(file_chunks)
+                    logger.info(
+                        f"P2 cache hit: {filename} ({len(cached)} atoms)",
+                        phase=phase_id,
                     )
-                    transcript_atoms.append(atom)
+                    continue
 
-                logger.debug(
-                    f"Chunk {chunk_info['chunk_index']}/{chunk_info['total_chunks']} "
-                    f"của {chunk_info['filename']}: {len(raw_atoms)} atoms",
-                    phase=phase_id,
+            cache_misses += 1
+
+            # Extract atoms from all chunks of this file
+            chunks = chunk_text(t["content"], max_tokens=3000)
+            file_atoms_raw: list[dict] = []
+
+            for ci, chunk in enumerate(chunks):
+                progress = int((processed_chunks / max(total_chunks, 1)) * 70)
+                logger.phase_progress(phase_id, phase_name, progress)
+
+                user_prompt = P2_USER_TEMPLATE.format(
+                    chunk_index=ci + 1,
+                    total_chunks=len(chunks),
+                    language=config.language,
+                    domain=config.domain,
+                    categories=", ".join(categories),
+                    filename=filename,
+                    chunk=chunk,
                 )
 
-            except CreditExhaustedError:
-                raise
-            except Exception as e:
-                logger.warn(
-                    f"Chunk {chunk_info['chunk_index']}/{chunk_info['total_chunks']} "
-                    f"của {chunk_info['filename']} THẤT BẠI — bỏ qua. Lỗi: {e}",
-                    phase=phase_id,
+                try:
+                    result = claude.call_json(
+                        system=P2_SYSTEM, user=user_prompt,
+                        max_tokens=8192, phase=phase_id,
+                    )
+
+                    raw_atoms = result.get("atoms", [])
+                    for raw in raw_atoms:
+                        atom_counter += 1
+                        category = raw.get("category", "")
+                        if not category or not category.strip():
+                            category = "general"
+                        atom = KnowledgeAtom(
+                            id=f"atom_{atom_counter:04d}",
+                            title=raw.get("title", "Untitled"),
+                            content=raw.get("content", ""),
+                            category=category,
+                            tags=raw.get("tags", []),
+                            source_video=filename,
+                            source_timestamp=raw.get("source_timestamp"),
+                            confidence=float(raw.get("confidence", 0.5)),
+                            status="raw",
+                            created_at=datetime.now(timezone.utc).isoformat(),
+                            source="transcript",
+                        )
+                        transcript_atoms.append(atom)
+                        file_atoms_raw.append(atom.to_dict())
+
+                    logger.debug(
+                        f"Chunk {ci + 1}/{len(chunks)} "
+                        f"của {filename}: {len(raw_atoms)} atoms",
+                        phase=phase_id,
+                    )
+
+                except CreditExhaustedError:
+                    raise
+                except Exception as e:
+                    logger.warn(
+                        f"Chunk {ci + 1}/{len(chunks)} "
+                        f"của {filename} THẤT BẠI — bỏ qua. Lỗi: {e}",
+                        phase=phase_id,
+                    )
+
+                processed_chunks += 1
+
+            # Save file atoms to cache
+            if build_cache and file_path and file_atoms_raw:
+                build_cache.save_atoms(
+                    file_hash=file_hash, model=config.claude_model,
+                    prompt_version=P2_PROMPT_VERSION,
+                    tier=config.quality_tier, atoms=file_atoms_raw,
                 )
+
+        if build_cache and (cache_hits + cache_misses) > 0:
+            total_files = cache_hits + cache_misses
+            logger.info(
+                f"P2 cache: {cache_hits}/{total_files} files hit, "
+                f"{cache_misses} processed",
+                phase=phase_id,
+            )
 
         # Fail-safe: all transcript chunks failed → don't produce garbage build
         if not transcript_atoms and valid_transcripts:
@@ -503,6 +568,15 @@ def _extract_code_atoms(
     )
 
     return code_atoms[:MAX_CODE_ATOMS], atom_counter
+
+
+def _get_build_cache(config: BuildConfig) -> BuildCache | None:
+    """Get BuildCache instance, or None if unavailable (graceful degradation)."""
+    try:
+        cache_dir = f"{config.seekers_cache_dir}/build_cache"
+        return BuildCache(cache_dir=cache_dir)
+    except Exception:
+        return None
 
 
 def _extract_gap_atoms(

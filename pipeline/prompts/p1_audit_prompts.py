@@ -1,5 +1,7 @@
 """Phase 1 — Audit: Topic inventory from video transcripts."""
 
+PROMPT_VERSION = "p1_audit_v1"
+
 P1_SYSTEM = """\
 You are a Knowledge Auditor analyzing video transcripts to build a comprehensive topic inventory.
 

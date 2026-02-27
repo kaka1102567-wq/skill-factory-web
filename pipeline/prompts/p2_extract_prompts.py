@@ -1,5 +1,7 @@
 """Phase 2 — Extract: Break transcripts into discrete Knowledge Atoms."""
 
+PROMPT_VERSION = "p2_extract_v1"
+
 P2_SYSTEM = """\
 You are a Knowledge Atom Extractor transforming video transcripts into structured, retrievable knowledge units.
 
