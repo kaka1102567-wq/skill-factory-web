@@ -997,6 +997,61 @@ class TestP4EvidenceBasedScore:
         assert result.quality_score < 80.0
 
 
+class TestClaudeClientMultiProvider:
+    """Unit tests for ClaudeClient multi-provider initialization logic."""
+
+    def test_claude_client_light_separate_provider(self):
+        """When base_url_light + api_key_light provided, light_client should be separate."""
+        from pipeline.clients.claude_client import ClaudeClient
+
+        client = ClaudeClient(
+            api_key="main-key",
+            model="claude-sonnet",
+            model_light="deepseek-chat",
+            base_url_light="https://api.deepseek.com/v1",
+            api_key_light="deepseek-key",
+        )
+        assert client.light_client is not client.main_client
+        assert client.light_sdk_type == "openai"
+
+    def test_claude_client_premium_model_swap(self):
+        """Premium stores model name, no separate client."""
+        from pipeline.clients.claude_client import ClaudeClient
+
+        client = ClaudeClient(
+            api_key="main-key",
+            model="claude-sonnet",
+            model_premium="claude-opus-4-6",
+        )
+        assert client.model_premium == "claude-opus-4-6"
+        assert not hasattr(client, 'premium_client')  # no separate client
+
+    def test_claude_client_backward_compatible(self):
+        """Empty new fields = old behavior: light uses main client."""
+        from pipeline.clients.claude_client import ClaudeClient
+
+        client = ClaudeClient(
+            api_key="main-key",
+            model="claude-sonnet",
+            model_light="claude-haiku",
+        )
+        assert client.light_client is client.main_client
+        assert client.light_sdk_type == client.sdk_type
+        assert client.model_premium == ""
+
+    def test_cache_key_includes_model(self):
+        """Different models → different cache keys."""
+        from pipeline.clients.claude_client import ClaudeClient
+
+        client = ClaudeClient(api_key="main-key", model="claude-sonnet")
+        key_a = client._cache_key("model-a", "sys", "usr")
+        key_b = client._cache_key("model-b", "sys", "usr")
+        assert key_a != key_b
+        # Same model → same key
+        key_c = client._cache_key("model-a", "sys", "usr")
+        assert key_a == key_c
+
+
 class TestP5WeightedScore:
 
     def _setup_full_pipeline_output(self, output_dir, p0_score=90, p2_score=85, p3_score=75, p4_score=40):

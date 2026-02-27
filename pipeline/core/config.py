@@ -65,6 +65,9 @@ def load_config(config_path: str, output_dir: str) -> BuildConfig:
         github_analyze_code=raw.get("github_analyze_code", True),
         claude_base_url=raw.get("claude_base_url", "") or os.environ.get("CLAUDE_BASE_URL", ""),
         claude_model_light=raw.get("claude_model_light", "") or os.environ.get("CLAUDE_MODEL_LIGHT", "claude-haiku-4-5-20251001"),
+        claude_base_url_light=os.environ.get("CLAUDE_BASE_URL_LIGHT", ""),
+        claude_api_key_light=os.environ.get("CLAUDE_API_KEY_LIGHT", ""),
+        claude_model_premium=os.environ.get("CLAUDE_MODEL_PREMIUM", ""),
         domain_lessons=os.environ.get("DOMAIN_LESSONS", ""),
     )
 

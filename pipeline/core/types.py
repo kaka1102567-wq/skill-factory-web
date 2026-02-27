@@ -65,6 +65,12 @@ class KnowledgeAtom:
     source: str = "transcript"  # "transcript" | "baseline"
     gap_filled: bool = False
 
+    def __repr__(self) -> str:
+        """Concise repr for debugging — shows only key identifying fields."""
+        title = self.title[:50] + "..." if len(self.title) > 50 else self.title
+        return (f"KnowledgeAtom(id={self.id!r}, title={title!r}, "
+                f"status={self.status!r}, confidence={self.confidence})")
+
     def to_dict(self) -> dict:
         return asdict(self)
 
@@ -170,6 +176,9 @@ class BuildConfig:
     # API provider
     claude_base_url: str = ""
     claude_model_light: str = "claude-haiku-4-5-20251001"
+    claude_base_url_light: str = ""
+    claude_api_key_light: str = ""
+    claude_model_premium: str = ""
     # Quality
     min_phase_score: float = 70.0
     auto_resolve_threshold: float = 0.8

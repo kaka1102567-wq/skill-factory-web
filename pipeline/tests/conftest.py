@@ -19,26 +19,41 @@ from pipeline.seekers.lookup import SeekersLookup
 class MockClaudeClient:
     """Fake Claude client that returns structurally correct JSON without API calls."""
 
-    def __init__(self):
+    def __init__(self, api_key: str = "mock-key", model: str = "mock-sonnet",
+                 model_light: str = "mock-haiku", base_url: str = None,
+                 base_url_light: str = None, api_key_light: str = None,
+                 model_premium: str = None):
         self.total_input_tokens = 0
         self.total_output_tokens = 0
         self.total_cost_usd = 0.0
         self.call_count = 0
-        self.model = "mock-sonnet"
-        self.model_light = "mock-haiku"
-        self.base_url = None
+        self.model = model
+        self.model_light = model_light
+        self.base_url = base_url
+        self.base_url_light = base_url_light
+        self.api_key_light = api_key_light
+        self.model_premium = model_premium or ""
         self._use_openai_format = False
         self._consecutive_credit_errors = 0
         self.model_usage = {"main": 0, "light": 0}
+        self._call_history = []  # Track calls with their flags
 
     def call(self, system, user, **kwargs):
         self.call_count += 1
         self.total_input_tokens += 100
         self.total_output_tokens += 200
-        if kwargs.get("use_light_model"):
+        use_light = kwargs.get("use_light_model", False)
+        use_premium = kwargs.get("use_premium_model", False)
+        if use_light:
             self.model_usage["light"] += 1
         else:
             self.model_usage["main"] += 1
+        # Track call with flags for test assertions
+        self._call_history.append({
+            "type": "call",
+            "use_light_model": use_light,
+            "use_premium_model": use_premium,
+        })
 
         # Domain Analyzer
         if "Documentation Research Expert" in system:
@@ -109,10 +124,18 @@ class MockClaudeClient:
         self.call_count += 1
         self.total_input_tokens += 100
         self.total_output_tokens += 200
-        if kwargs.get("use_light_model"):
+        use_light = kwargs.get("use_light_model", False)
+        use_premium = kwargs.get("use_premium_model", False)
+        if use_light:
             self.model_usage["light"] += 1
         else:
             self.model_usage["main"] += 1
+        # Track call with flags for test assertions
+        self._call_history.append({
+            "type": "call_json",
+            "use_light_model": use_light,
+            "use_premium_model": use_premium,
+        })
 
         # P1 Audit
         if "Knowledge Auditor" in system:

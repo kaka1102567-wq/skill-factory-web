@@ -152,6 +152,33 @@ export default function SettingsPage() {
             Light model used for P3 (Dedup) and P4 (Verify). Haiku saves 67% cost per request.
           </p>
         </div>
+        <div>
+          <label className="text-xs font-medium text-muted-foreground block mb-1">Light Model Base URL</label>
+          <Input
+            type="text"
+            value={settings.claude_base_url_light || ""}
+            onChange={(e) => update("claude_base_url_light", e.target.value)}
+            placeholder="https://api.deepseek.com/v1"
+            className="text-sm"
+          />
+          <p className="text-xs text-muted-foreground mt-1">
+            Separate provider for light model (e.g. DeepSeek). Leave empty to use the same provider as Main Model.
+          </p>
+        </div>
+        <Field label="Light Model API Key" value={settings.claude_api_key_light} onChange={(v) => update("claude_api_key_light", v)} placeholder="sk-..." type="password" />
+        <div>
+          <label className="text-xs font-medium text-muted-foreground block mb-1">Premium Model</label>
+          <Input
+            type="text"
+            value={settings.claude_model_premium || ""}
+            onChange={(e) => update("claude_model_premium", e.target.value)}
+            placeholder="claude-opus-4-6"
+            className="text-sm"
+          />
+          <p className="text-xs text-muted-foreground mt-1">
+            Uses same API Key &amp; Base URL as Main Model. Used for P5/P6 when quality tier is &quot;premium&quot;.
+          </p>
+        </div>
       </Section>
 
       {/* OCR Settings */}

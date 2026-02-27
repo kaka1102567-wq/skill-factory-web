@@ -1047,6 +1047,7 @@ def run_p5(config: BuildConfig, claude: ClaudeClient,
     logger.phase_start(phase_id, phase_name, tool="Claude")
     started_at = datetime.now(timezone.utc).isoformat()
     start_time = time.time()
+    use_premium = config.quality_tier == "premium"
 
     try:
         # Read P4 output
@@ -1129,6 +1130,7 @@ def run_p5(config: BuildConfig, claude: ClaudeClient,
                         result = claude.call_json(
                             system=P5_KNOWLEDGE_SYSTEM, user=user_prompt,
                             max_tokens=4096, phase=phase_id,
+                            use_premium_model=use_premium,
                         )
                         content = result.get("content", "")
                         if content:
@@ -1171,6 +1173,7 @@ def run_p5(config: BuildConfig, claude: ClaudeClient,
                     result = claude.call_json(
                         system=P5_KNOWLEDGE_SYSTEM, user=user_prompt,
                         max_tokens=4096, phase=phase_id,
+                        use_premium_model=use_premium,
                     )
                     content = result.get("content", "")
                     if content:
@@ -1218,6 +1221,7 @@ def run_p5(config: BuildConfig, claude: ClaudeClient,
             skill_content = _build_skill_md_via_claude(
                 config, pillars, build_atoms, claude, logger,
                 confidence_map=confidence_map,
+                use_premium_model=use_premium,
             )
 
         # Inject static sections (Response Templates + Pre-response Checklist)
@@ -1490,7 +1494,8 @@ def run_p5(config: BuildConfig, claude: ClaudeClient,
 
 def _build_skill_md_via_claude(config, pillars, build_atoms,
                                claude, logger,
-                               confidence_map: str = "") -> str:
+                               confidence_map: str = "",
+                               use_premium_model: bool = False) -> str:
     """Generate SKILL.md via Claude API (legacy path)."""
     pillars_desc = ", ".join(
         f"{name} ({len(atoms)} atoms)"
@@ -1516,6 +1521,7 @@ def _build_skill_md_via_claude(config, pillars, build_atoms,
         result = claude.call_json(
             system=P5_SKILL_SYSTEM, user=user_prompt,
             max_tokens=4096, phase="p5",
+            use_premium_model=use_premium_model,
         )
         content = result.get("content", "")
         if content:

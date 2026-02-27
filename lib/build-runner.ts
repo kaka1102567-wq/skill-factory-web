@@ -20,6 +20,9 @@ interface ApiCredentials {
   baseUrl: string;
   apiKeySource: string;
   jinaApiKey: string;
+  baseUrlLight: string;
+  apiKeyLight: string;
+  modelPremium: string;
 }
 
 function _resolveApiCredentials(configContent?: string): ApiCredentials {
@@ -39,7 +42,11 @@ function _resolveApiCredentials(configContent?: string): ApiCredentials {
 
   const jinaApiKey = getSetting("jina_api_key") || process.env.JINA_API_KEY || "";
 
-  return { apiKey, model, modelLight, baseUrl, apiKeySource, jinaApiKey };
+  const baseUrlLight = getSetting("claude_base_url_light") || process.env.CLAUDE_BASE_URL_LIGHT || "";
+  const apiKeyLight = getSetting("claude_api_key_light") || process.env.CLAUDE_API_KEY_LIGHT || "";
+  const modelPremium = getSetting("claude_model_premium") || process.env.CLAUDE_MODEL_PREMIUM || "";
+
+  return { apiKey, model, modelLight, baseUrl, apiKeySource, jinaApiKey, baseUrlLight, apiKeyLight, modelPremium };
 }
 
 /** Write Google Vision credentials JSON to a temp file. Returns temp path or null. */
@@ -656,6 +663,9 @@ function _spawnPipeline(config: BuildConfig, pythonPath: string, cliPath: string
     SEEKERS_CACHE_DIR: seekersCacheDir,
     CLAUDE_BASE_URL: creds.baseUrl,
     CLAUDE_MODEL_LIGHT: creds.modelLight,
+    CLAUDE_BASE_URL_LIGHT: creds.baseUrlLight,
+    CLAUDE_API_KEY_LIGHT: creds.apiKeyLight,
+    CLAUDE_MODEL_PREMIUM: creds.modelPremium,
     DOMAIN_LESSONS: domainLessons,
     ...(gvTempFile ? { GOOGLE_APPLICATION_CREDENTIALS: gvTempFile } : {}),
   };
@@ -932,6 +942,9 @@ export function resumeAfterResolve(config: ResolveConfig): ChildProcess {
       SEEKERS_CACHE_DIR: seekersCacheDir,
       CLAUDE_BASE_URL: creds.baseUrl,
       CLAUDE_MODEL_LIGHT: creds.modelLight,
+      CLAUDE_BASE_URL_LIGHT: creds.baseUrlLight,
+      CLAUDE_API_KEY_LIGHT: creds.apiKeyLight,
+      CLAUDE_MODEL_PREMIUM: creds.modelPremium,
     },
   });
 

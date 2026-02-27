@@ -134,6 +134,9 @@ export function initializeSchema(db: Database.Database) {
   db.prepare(`INSERT OR IGNORE INTO settings (key, value, description) VALUES ('claude_base_url', '', 'Custom API base URL')`).run();
   db.prepare(`INSERT OR IGNORE INTO settings (key, value, description) VALUES ('claude_model_light', 'claude-haiku-4-5-20251001', 'Light model for P3/P4')`).run();
   db.prepare(`INSERT OR IGNORE INTO settings (key, value, description) VALUES ('google_vision_credentials', '', 'Google Cloud Vision API credentials JSON content')`).run();
+  db.prepare(`INSERT OR IGNORE INTO settings (key, value, description) VALUES ('claude_base_url_light', '', 'Base URL for light model provider (empty = same as main)')`).run();
+  db.prepare(`INSERT OR IGNORE INTO settings (key, value, description) VALUES ('claude_api_key_light', '', 'API key for light model provider (empty = same as main)')`).run();
+  db.prepare(`INSERT OR IGNORE INTO settings (key, value, description) VALUES ('claude_model_premium', '', 'Premium model for P5/P6 when tier=premium (empty = use main model)')`).run();
 
   // Seed templates if empty
   const templateCount = db

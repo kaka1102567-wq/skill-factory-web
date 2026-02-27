@@ -51,21 +51,26 @@ class ClaudeClient:
         "claude-sonnet-4-5-20250929": {"input": 3.0, "output": 15.0},
         "claude-sonnet-4-20250514": {"input": 3.0, "output": 15.0},
         "claude-haiku-4-5-20251001": {"input": 0.80, "output": 4.0},
+        "deepseek-chat": {"input": 0.14, "output": 0.28},
+        "claude-opus-4-6": {"input": 15.0, "output": 75.0},
     }
 
     def __init__(self, api_key: str, model: str = "claude-sonnet-4-5-20250929",
                  model_light: Optional[str] = None, base_url: Optional[str] = None,
-                 logger: Optional[PipelineLogger] = None, cache_dir: Optional[str] = None):
+                 logger: Optional[PipelineLogger] = None, cache_dir: Optional[str] = None,
+                 base_url_light: Optional[str] = None, api_key_light: Optional[str] = None,
+                 model_premium: Optional[str] = None):
         if not api_key:
             raise ClaudeAPIError("CLAUDE_API_KEY not set", retryable=False)
 
         self.model = model
         self.model_light = model_light or model
+        self.model_premium = model_premium or ""
         self.base_url = base_url
         self.logger = logger or PipelineLogger()
         self.cache_dir = cache_dir
 
-        # Choose SDK based on base_url
+        # Build main client — Anthropic SDK or OpenAI-compatible based on base_url
         if base_url:
             if not HAS_OPENAI:
                 raise ImportError(
@@ -75,21 +80,40 @@ class ClaudeClient:
             api_base = base_url.rstrip("/")
             if not api_base.endswith("/v1"):
                 api_base = api_base + "/v1"
-            self.client = OpenAI(api_key=api_key, base_url=api_base)
-            self._use_openai_format = True
+            self.main_client = OpenAI(api_key=api_key, base_url=api_base)
+            self.sdk_type = "openai"
         else:
             if not HAS_ANTHROPIC:
                 raise ImportError(
                     "anthropic package required. Run: pip install anthropic"
                 )
-            self.client = anthropic.Anthropic(api_key=api_key)
-            self._use_openai_format = False
+            self.main_client = anthropic.Anthropic(api_key=api_key)
+            self.sdk_type = "anthropic"
+
+        # Build light client — separate provider when base_url_light is given
+        if base_url_light:
+            if not HAS_OPENAI:
+                raise ImportError(
+                    "openai package required for base_url_light. "
+                    "Run: pip install openai"
+                )
+            light_base = base_url_light.rstrip("/")
+            if not light_base.endswith("/v1"):
+                light_base = light_base + "/v1"
+            effective_light_key = api_key_light if api_key_light else api_key
+            self.light_client = OpenAI(api_key=effective_light_key, base_url=light_base)
+            self.light_sdk_type = "openai"
+        else:
+            # Fall back to main client — backward compatible
+            self.light_client = self.main_client
+            self.light_sdk_type = self.sdk_type
 
         self.total_input_tokens = 0
         self.total_output_tokens = 0
         self.total_cost_usd = 0.0
         self.call_count = 0
-        self._consecutive_credit_errors = 0
+        self._credit_errors_main = 0
+        self._credit_errors_light = 0
         self._MAX_CREDIT_ERRORS = 3
 
     def _sanitize_api_text(self, text: str) -> str:
@@ -120,8 +144,8 @@ class ClaudeClient:
 
         return text
 
-    def _cache_key(self, system: str, user: str) -> str:
-        return hashlib.sha256((system + user).encode()).hexdigest()[:16]
+    def _cache_key(self, model: str, system: str, user: str) -> str:
+        return hashlib.sha256((model + system + user).encode()).hexdigest()[:16]
 
     def _get_cached(self, key: str) -> Optional[str]:
         if not self.cache_dir:
@@ -140,8 +164,12 @@ class ClaudeClient:
         with open(path, 'w') as f:
             json.dump({"response": response}, f)
 
-    def _check_credit_error(self, error: Exception, phase: str = None) -> None:
-        """Detect credit/billing errors and raise CreditExhaustedError after threshold."""
+    def _check_credit_error(self, error: Exception, phase: str = None,
+                            is_light: bool = False) -> None:
+        """Detect credit/billing errors and raise CreditExhaustedError after threshold.
+
+        Tracks separate counters for main/premium (is_light=False) and light (is_light=True).
+        """
         error_msg = str(error).lower()
         credit_phrases = [
             "credit balance is too low",
@@ -152,25 +180,39 @@ class ClaudeClient:
             "quota exceeded",
         ]
         if any(phrase in error_msg for phrase in credit_phrases):
-            self._consecutive_credit_errors += 1
+            if is_light:
+                self._credit_errors_light += 1
+                count = self._credit_errors_light
+                provider = "light"
+            else:
+                self._credit_errors_main += 1
+                count = self._credit_errors_main
+                provider = "main"
             self.logger.warn(
-                f"Credit error ({self._consecutive_credit_errors}/{self._MAX_CREDIT_ERRORS}): {error}",
+                f"Credit error [{provider}] ({count}/{self._MAX_CREDIT_ERRORS}): {error}",
                 phase=phase,
             )
-            if self._consecutive_credit_errors >= self._MAX_CREDIT_ERRORS:
+            if count >= self._MAX_CREDIT_ERRORS:
                 raise CreditExhaustedError(
-                    f"API credits exhausted after {self._consecutive_credit_errors} "
+                    f"API credits exhausted [{provider}] after {count} "
                     f"consecutive failures. Add credits and retry."
                 )
 
     def _call_api(self, system: str, user: str, max_tokens: int,
-                  temperature: float, active_model: str) -> tuple:
+                  temperature: float, active_model: str,
+                  client=None, sdk_type: str = None) -> tuple:
         """Internal: call API using the appropriate SDK format.
 
         Returns (text, input_tokens, output_tokens).
+        client and sdk_type select which provider to use.
         """
-        if self._use_openai_format:
-            response = self.client.chat.completions.create(
+        if client is None:
+            client = self.main_client
+        if sdk_type is None:
+            sdk_type = self.sdk_type
+
+        if sdk_type == "openai":
+            response = client.chat.completions.create(
                 model=active_model,
                 max_tokens=max_tokens,
                 temperature=temperature,
@@ -183,7 +225,7 @@ class ClaudeClient:
             inp_tok = getattr(response.usage, 'prompt_tokens', 0) or 0
             out_tok = getattr(response.usage, 'completion_tokens', 0) or 0
         else:
-            response = self.client.messages.create(
+            response = client.messages.create(
                 model=active_model, max_tokens=max_tokens,
                 temperature=temperature, system=system,
                 messages=[{"role": "user", "content": user}],
@@ -200,28 +242,48 @@ class ClaudeClient:
     )
     def call(self, system: str, user: str, max_tokens: int = 4096,
              temperature: float = 0.0, phase: str = None,
-             use_light_model: bool = False) -> str:
+             use_light_model: bool = False,
+             use_premium_model: bool = False) -> str:
         """Call Claude API. Returns response text.
 
-        use_light_model=True uses self.model_light (e.g. Haiku — cheaper).
+        Model selection priority (highest to lowest):
+          use_premium_model=True + model_premium set → premium model on main_client
+          use_light_model=True                       → light model on light_client
+          else                                       → main model on main_client
         """
         # Sanitize text before cache key and API call
         system = self._sanitize_api_text(system)
         user = self._sanitize_api_text(user)
 
-        # Check cache
-        cache_key = self._cache_key(system, user)
+        # Determine model + client routing
+        if use_premium_model and self.model_premium:
+            active_model = self.model_premium
+            active_client = self.main_client
+            active_sdk = self.sdk_type
+            is_light_call = False
+        elif use_light_model:
+            active_model = self.model_light
+            active_client = self.light_client
+            active_sdk = self.light_sdk_type
+            is_light_call = True
+        else:
+            active_model = self.model
+            active_client = self.main_client
+            active_sdk = self.sdk_type
+            is_light_call = False
+
+        # Check cache — key includes model to avoid cross-model collisions
+        cache_key = self._cache_key(active_model, system, user)
         cached = self._get_cached(cache_key)
         if cached:
-            self.logger.debug(f"Cache hit: {cache_key}", phase=phase)
+            self.logger.debug(f"Cache hit [{active_model}]: {cache_key}", phase=phase)
             return cached
-
-        active_model = self.model_light if use_light_model else self.model
 
         start = time.time()
         try:
             text, inp_tok, out_tok = self._call_api(
-                system, user, max_tokens, temperature, active_model
+                system, user, max_tokens, temperature, active_model,
+                client=active_client, sdk_type=active_sdk,
             )
         except Exception as e:
             is_rate_limit = (
@@ -237,7 +299,7 @@ class ClaudeClient:
                 or (HAS_OPENAI and isinstance(e, _openai_mod.APIStatusError))
             )
             if is_api_error:
-                self._check_credit_error(e, phase)
+                self._check_credit_error(e, phase, is_light=is_light_call)
                 status_code = getattr(e, 'status_code', 0)
                 if status_code >= 500:
                     self.logger.warn(f"Server error ({status_code}), retrying...", phase=phase)
@@ -246,8 +308,11 @@ class ClaudeClient:
 
             raise
 
-        # Reset credit error counter on success
-        self._consecutive_credit_errors = 0
+        # Reset respective credit error counter on success
+        if is_light_call:
+            self._credit_errors_light = 0
+        else:
+            self._credit_errors_main = 0
 
         # Track cost
         self.total_input_tokens += inp_tok
@@ -258,7 +323,7 @@ class ClaudeClient:
         self.call_count += 1
 
         self.logger.debug(
-            f"API #{self.call_count} [{active_model.split('-')[1]}]: "
+            f"API #{self.call_count} [{active_model}]: "
             f"{inp_tok}+{out_tok} tok, ${cost:.4f}, {time.time()-start:.1f}s",
             phase=phase)
         self.logger.report_cost(self.total_cost_usd, self.total_input_tokens + self.total_output_tokens)
@@ -267,10 +332,12 @@ class ClaudeClient:
         return text
 
     def call_json(self, system: str, user: str, max_tokens: int = 4096,
-                  phase: str = None, use_light_model: bool = False) -> dict | list:
+                  phase: str = None, use_light_model: bool = False,
+                  use_premium_model: bool = False) -> dict | list:
         """Call Claude expecting JSON. Strips code fences, retries on parse failure."""
         raw = self.call(system, user, max_tokens=max_tokens, temperature=0.0,
-                        phase=phase, use_light_model=use_light_model)
+                        phase=phase, use_light_model=use_light_model,
+                        use_premium_model=use_premium_model)
         text = raw.strip()
 
         # Strip ```json ... ```

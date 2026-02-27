@@ -55,6 +55,9 @@ class PipelineRunner:
                 base_url=config.claude_base_url or None,
                 logger=self.logger,
                 cache_dir=os.path.join(config.seekers_cache_dir, "claude"),
+                base_url_light=config.claude_base_url_light or None,
+                api_key_light=config.claude_api_key_light or None,
+                model_premium=config.claude_model_premium or None,
             )
 
         # Initialize Seekers

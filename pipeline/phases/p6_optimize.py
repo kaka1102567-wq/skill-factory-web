@@ -69,6 +69,7 @@ def run_p6(
                            error_message="Claude client required for P6")
 
     use_light = config.phase_model_hints.get("p6", False)
+    use_premium = config.quality_tier == "premium"
     cost_before = claude.total_cost_usd
     tokens_before = claude.total_input_tokens + claude.total_output_tokens
 
@@ -102,7 +103,8 @@ def run_p6(
         # Step 3: Generate eval queries
         logger.info("Đang tạo truy vấn đánh giá...", phase=phase)
         eval_set = _generate_eval_queries(
-            claude, config.name, config.domain, current_description, topics, logger
+            claude, config.name, config.domain, current_description, topics, logger,
+            use_premium_model=use_premium,
         )
         pos = sum(1 for e in eval_set if e.get('should_trigger'))
         neg = len(eval_set) - pos
@@ -166,6 +168,7 @@ def run_p6(
             current_description = _improve_description(
                 claude, config.name, config.domain, current_description,
                 train_score, train_results, history, logger,
+                use_premium_model=use_premium,
             )
             logger.info(f"Description mới: {len(current_description)} ký tự", phase=phase)
 
@@ -278,7 +281,8 @@ def _load_topics(output_dir: str) -> str:
     return "Not available"
 
 
-def _generate_eval_queries(claude, name, domain, description, topics, logger):
+def _generate_eval_queries(claude, name, domain, description, topics, logger,
+                           use_premium_model: bool = False):
     result = claude.call_json(
         system=P6_GENERATE_EVALS_SYSTEM.format(
             count=EVAL_COUNT, positive_count=EVAL_COUNT // 2, negative_count=EVAL_COUNT // 2,
@@ -287,6 +291,7 @@ def _generate_eval_queries(claude, name, domain, description, topics, logger):
             name=name, domain=domain, description=description, topics=topics,
         ),
         max_tokens=4096, phase="p6",
+        use_premium_model=use_premium_model,
     )
     if isinstance(result, list):
         return result
@@ -347,7 +352,8 @@ def _calc_score(results):
     return sum(1 for r in results if r["pass"]) / len(results)
 
 
-def _improve_description(claude, name, domain, current, score, results, history, logger):
+def _improve_description(claude, name, domain, current, score, results, history, logger,
+                         use_premium_model: bool = False):
     failed = [r for r in results if not r["pass"]]
     lines = []
     for r in failed:
@@ -371,6 +377,7 @@ def _improve_description(claude, name, domain, current, score, results, history,
             score=f"{score:.0%}", results_detail=results_detail, history=history_str,
         ),
         max_tokens=2048, phase="p6",
+        use_premium_model=use_premium_model,
     )
 
     match = re.search(r'<description>(.*?)</description>', response, re.DOTALL)
