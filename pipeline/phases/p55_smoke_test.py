@@ -25,17 +25,24 @@ from ..seekers.lookup import SeekersLookup
 
 SMOKE_TEST_COUNT = 5
 PASS_THRESHOLD = 0.6
+TIER_WEIGHTS = {"basic": 0.30, "applied": 0.40, "advanced": 0.30}
 
 GENERATE_PROMPTS_SYSTEM = """\
-You are creating realistic test prompts to validate an AI knowledge skill.
+You are creating test prompts to validate an AI knowledge skill.
 
-Generate {count} test prompts that a real user would ask. Each prompt should:
-1. Be specific enough that a good answer REQUIRES the skill's knowledge
-2. Cover different knowledge pillars/categories
-3. Vary in complexity (1 simple, 2 medium, 2 complex)
-4. Use natural language (not "test the skill about X")
+Generate {count} test prompts following a 3-tier system:
+- "basic" (2 prompts): Direct question answerable by 1 atom. E.g., "What is X?"
+- "applied" (2 prompts): Practical scenario needing 2-3 atoms. E.g., "How to apply X in Y?"
+- "advanced" (1 prompt): Analysis or comparison across atoms. E.g., "Compare A vs B"
 
-For each prompt, write 2-3 KEY FACTS that a correct answer must include.
+CRITICAL RULES:
+- EVERY question MUST be answerable using ONLY the provided sample atoms below
+- Do NOT ask about external events, company strategies, news, or real-time data
+- Do NOT ask about topics not covered in the sample atoms
+- Each expected_fact MUST come directly from content in the provided atoms
+- Use natural language (not "test the skill about X")
+
+For each prompt, include 2-3 KEY FACTS from the atoms that a correct answer must contain.
 OUTPUT: JSON array only.\
 """
 
@@ -45,16 +52,17 @@ Generate {count} test prompts for this skill:
 **Skill name:** {name}
 **Domain:** {domain}
 
-**Sample knowledge atoms:**
+**Sample knowledge atoms (ONLY ask about these):**
 {sample_atoms}
 
-Return JSON array:
+Return JSON array with EXACTLY 2 basic + 2 applied + 1 advanced:
 [
   {{
     "prompt": "A realistic user question",
-    "expected_facts": ["Fact the answer must include", "Another required fact"],
-    "category": "Which knowledge pillar this tests",
-    "complexity": "simple|medium|complex"
+    "tier": "basic|applied|advanced",
+    "expected_facts": ["Fact directly from atom content", "Another fact from atoms"],
+    "source_atom_titles": ["Title of atom that contains the answer"],
+    "category": "Which knowledge pillar this tests"
   }}
 ]
 """
@@ -168,14 +176,27 @@ def run_p55(
                 "grade_notes": grade.get("notes", ""),
                 "grade_results": grade.get("results", []),
                 "category": test.get("category", ""),
+                "tier": test.get("tier", "applied"),
+                "source_atom_titles": test.get("source_atom_titles", []),
                 "complexity": test.get("complexity", ""),
             })
             logger.info(f"  {'PASS' if passed else 'FAIL'} Score: {score:.0%}", phase=phase)
 
-        # Step 3: Overall result
-        pass_count = sum(1 for r in results if r["passed"])
+        # Step 3: Overall result — weighted continuous scoring by tier
+        pass_count = sum(1 for r in results if r.get("score", 0) >= 0.6)
         total = len(results)
-        overall_score = pass_count / total if total > 0 else 0
+
+        if results:
+            total_weight = 0.0
+            weighted_sum = 0.0
+            for r in results:
+                tier = r.get("tier", "applied")  # backward compat
+                w = TIER_WEIGHTS.get(tier, 0.33)
+                weighted_sum += float(r.get("score", 0)) * w
+                total_weight += w
+            overall_score = weighted_sum / total_weight if total_weight > 0 else 0
+        else:
+            overall_score = 0
 
         report = {
             "pass_count": pass_count, "total": total,

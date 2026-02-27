@@ -219,14 +219,25 @@ def _build_skill_seekers_skill_md(config, baseline, pillars,
     classified = _classify_atoms(build_atoms)
     references = baseline.get("references", [])
 
+    # Build rich description from actual content
+    categories_display = ", ".join(
+        name.replace("_", " ") for name in list(pillars.keys())[:5]
+    )
+    top_topics = ", ".join(
+        a.get("title", "") for a in build_atoms[:5] if a.get("title")
+    )
+
     # YAML frontmatter
     lines = [
         "---",
         f"name: {config.name}",
         "description: >",
-        f"  Use this skill when working with {config.domain}.",
-        f"  Covers {len(build_atoms)} verified knowledge atoms across",
-        f"  {len(pillars)} categories with reference documentation.",
+        f"  Expert knowledge on {config.domain} covering {categories_display}.",
+        f"  Key topics include {top_topics}.",
+        f"  Use this skill whenever the user asks about {config.domain},",
+        f"  related concepts, practical applications, or comparisons",
+        f"  — even if they don't use exact domain terminology.",
+        f"  Do NOT use for unrelated domains.",
         'version: "1.0"',
         "metadata:",
         "  author: Skill Factory",
@@ -241,6 +252,38 @@ def _build_skill_seekers_skill_md(config, baseline, pillars,
         f"generated from official documentation and expert analysis.",
         "",
     ]
+
+    # Section: When to use this skill
+    lines.append("## When to Use This Skill")
+    lines.append("")
+    for cat_name in list(pillars.keys())[:6]:
+        display = cat_name.replace("_", " ").title()
+        lines.append(f"- When you need information about **{display}**")
+    lines.append(
+        f"- When answering any question related to **{config.domain}**"
+    )
+    lines.append(
+        "- When the user needs comparisons, analysis, or practical advice "
+        "in this domain"
+    )
+    lines.append("")
+
+    # Section: Workflow
+    lines.append("## Workflow")
+    lines.append("")
+    lines.append(
+        "1. Identify which category the question belongs to "
+        "(see Routing Logic below)"
+    )
+    lines.append("2. Read the relevant `knowledge/*.md` file")
+    lines.append(
+        "3. Cross-reference with `references/` if citations are needed"
+    )
+    lines.append(
+        "4. Synthesize answer from skill knowledge — "
+        "do NOT hallucinate beyond what the skill contains"
+    )
+    lines.append("")
 
     # Routing logic
     lines.append(_build_routing_section(pillars, references))
@@ -276,6 +319,22 @@ def _build_skill_seekers_skill_md(config, baseline, pillars,
             if ref_basename:
                 lines.append(f"- `references/{ref_basename}`")
         lines.append("")
+
+    # Section: Limitations
+    lines.append("## Limitations")
+    lines.append("")
+    lines.append(
+        f"- This skill covers **{config.domain}** only — "
+        "do not use for unrelated topics"
+    )
+    lines.append(
+        "- Knowledge may not reflect the very latest changes or updates"
+    )
+    lines.append(
+        "- If the question is outside scope, "
+        "guide the user to find other sources"
+    )
+    lines.append("")
 
     return "\n".join(lines)
 

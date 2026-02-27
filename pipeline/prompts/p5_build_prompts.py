@@ -19,12 +19,17 @@ Your task is to create a SKILL.md with TWO critical sections:
    - Keep between 80-200 words — enough to be comprehensive but not bloated
    - MUST be under 1024 characters total
 
-2. SKILL.md BODY (the main content):
-   - Clear purpose statement explaining what knowledge this skill contains
-   - List all knowledge pillars with descriptions and file references
-   - Usage instructions for AI assistants
-   - Keep under 500 lines — if content is longer, reference knowledge/*.md files
-   - Structure with proper Markdown headings for easy scanning
+2. SKILL.md BODY must include these sections IN THIS ORDER:
+   a. Purpose statement (1-2 sentences explaining what this skill contains)
+   b. "When to Use This Skill" — list 3-6 specific trigger scenarios
+   c. "Workflow" — numbered steps the AI should follow when using this skill
+   d. "Routing Logic" — which knowledge/*.md or references/ file to read for which topic
+   e. "Knowledge Pillars" — list all pillars with atom counts and file references
+   f. Expert Tips (if available from unverified-in-docs atoms)
+   g. Advanced Strategies (if available from high-confidence atoms)
+   h. "Limitations" — what this skill does NOT cover, scope boundaries
+   i. References (if baseline references exist)
+   - Keep under 500 lines total — if content is longer, reference knowledge/*.md files
 
 RULES:
 - Write in the specified language (body), but description can mix languages if it helps triggering
@@ -85,6 +90,31 @@ WHY THIS STRUCTURE MATTERS:
 AI assistants retrieve knowledge by scanning headings and content sequentially. If atoms are
 randomly ordered or poorly formatted, the assistant may miss relevant information or return
 incomplete answers. Your organization directly affects answer quality.
+
+REQUIRED FILE STRUCTURE:
+Every knowledge file MUST begin with these 3 elements in order:
+
+1. HEADING: # {Pillar Title}
+2. SUMMARY LINE: > 1-sentence description of what this file contains and when to read it.
+3. TABLE OF CONTENTS: ## Table of Contents with numbered links to each section below.
+
+Then a --- separator, followed by the detailed atom sections.
+
+Example opening:
+```
+# Campaign Management
+
+> Contains 8 concepts about campaign setup, budgeting, and optimization.
+> Read this file when the user asks about creating, managing, or improving ad campaigns.
+
+## Table of Contents
+1. Campaign Structure Best Practices
+2. Budget Allocation Strategy
+3. A/B Testing Framework
+...
+
+---
+```
 
 ORGANIZATION PRINCIPLES:
 - Order atoms from most fundamental to most advanced (foundational → specialized)
