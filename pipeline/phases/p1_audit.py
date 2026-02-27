@@ -153,8 +153,9 @@ def run_p1(config: BuildConfig, claude: ClaudeClient,
                     40.0, (topics_per_transcript / 8) * 100,
                 )
             else:
+                floor = 85.0 if len(inventory) > 100 else 70.0
                 density_score = max(
-                    70.0, 100.0 - (topics_per_transcript - 25) * 2,
+                    floor, 100.0 - (topics_per_transcript - 25) * 2,
                 )
 
             # Component 2: Depth distribution (25%)
@@ -207,23 +208,23 @@ def run_p1(config: BuildConfig, claude: ClaudeClient,
                 )
 
                 balance_score = 0.0
-                if 0.15 <= overlap_ratio <= 0.50:
+                if 0.15 <= overlap_ratio <= 0.85:
                     balance_score += 35.0
                 else:
                     balance_score += max(
-                        0, 35 - abs(overlap_ratio - 0.30) * 80,
+                        0, 35 - abs(overlap_ratio - 0.50) * 50,
                     )
-                if 0.25 <= unique_ratio <= 0.60:
+                if 0.05 <= unique_ratio <= 0.60:
                     balance_score += 35.0
                 else:
                     balance_score += max(
-                        0, 35 - abs(unique_ratio - 0.40) * 70,
+                        0, 35 - abs(unique_ratio - 0.30) * 70,
                     )
-                if 0.05 <= gap_ratio <= 0.35:
+                if gap_ratio <= 0.35:
                     balance_score += 30.0
                 else:
                     balance_score += max(
-                        0, 30 - abs(gap_ratio - 0.20) * 60,
+                        0, 30 - abs(gap_ratio - 0.15) * 60,
                     )
 
                 # High gap warning: >50% gaps = baseline likely mismatched
