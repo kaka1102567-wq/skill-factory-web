@@ -6,6 +6,7 @@ import { cn, formatCost, formatNumber, formatDuration } from "@/lib/utils";
 import type { Build } from "@/types/build";
 import type { PhaseState } from "@/hooks/use-build-stream";
 import { SmokeTestDetail, type SmokeReport } from "./smoke-test-detail";
+import { PhaseInsights } from "./phase-insights";
 
 interface P6Report {
   best_train_score?: number;
@@ -26,7 +27,6 @@ export function QualityReport({
   build: Build;
   phases: PhaseState[];
 }) {
-  const phasesWithScores = phases.filter((p) => p.score !== null);
   const [smokeReport, setSmokeReport] = useState<SmokeReport | null>(null);
   const [p6Report, setP6Report] = useState<P6Report | null>(null);
   const [breakdown, setBreakdown] = useState<FinalScoreBreakdown | null>(null);
@@ -180,35 +180,8 @@ export function QualityReport({
         />
       </div>
 
-      {/* Phase Scores */}
-      {phasesWithScores.length > 0 && (
-        <div className="p-4 rounded-xl bg-card border border-border">
-          <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-            Quality Gates per Phase
-          </h4>
-          <div className="grid grid-cols-3 lg:grid-cols-6 gap-2">
-            {phases.map((p) => (
-              <div key={p.id} className="text-center">
-                <p className="text-xs text-muted-foreground mb-1">{p.name}</p>
-                <div
-                  className={cn(
-                    "text-lg font-bold",
-                    p.score === null
-                      ? "text-muted-foreground"
-                      : p.score >= 80
-                        ? "text-emerald-400"
-                        : p.score >= 60
-                          ? "text-amber-400"
-                          : "text-red-400"
-                  )}
-                >
-                  {p.score !== null ? Math.round(p.score) : "—"}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* Phase Insights Dashboard */}
+      <PhaseInsights buildId={build.id} phases={phases} buildStatus={build.status} />
 
       {/* Smoke Tests */}
       {smokeReport && smokeReport.results && smokeReport.results.length > 0 && (
