@@ -7,7 +7,7 @@ from datetime import datetime
 
 from ..core.types import BuildConfig, PipelineState, PHASE_MODEL_MAP
 from ..core.logger import PipelineLogger
-from ..core.utils import read_json
+from ..core.utils import read_json, write_json
 from ..clients.claude_client import ClaudeClient, CreditExhaustedError
 from ..seekers.cache import SeekersCache
 from ..seekers.lookup import SeekersLookup
@@ -315,4 +315,72 @@ def _emit_final_score(config: BuildConfig, state: PipelineState,
         "pipeline_score": round(pipeline_score, 1),
         "smoke_test_avg": round(smoke_avg, 1),
         "trigger_test_score": round(trigger_score, 1),
+    })
+
+    # ── Quality Recommendation ──
+    if final >= 80:
+        grade, verdict = "A", "Production-ready"
+    elif final >= 65:
+        grade, verdict = "B", "Usable — minor improvements possible"
+    elif final >= 50:
+        grade, verdict = "C", "Usable with caveats — consider rebuilding"
+    elif final >= 35:
+        grade, verdict = "D", "Below standard — rebuild recommended"
+    else:
+        grade, verdict = "F", "Not usable — needs significant rework"
+
+    strengths = []
+    weaknesses = []
+
+    if pipeline_score >= 80:
+        strengths.append(f"Strong pipeline quality ({pipeline_score:.0f}/100)")
+    elif pipeline_score < 60:
+        weaknesses.append(f"Low pipeline quality ({pipeline_score:.0f}/100)")
+
+    if smoke_avg >= 70:
+        strengths.append(f"Good smoke test results ({smoke_avg:.0f}%)")
+    elif smoke_avg > 0 and smoke_avg < 50:
+        weaknesses.append(
+            f"Low smoke test ({smoke_avg:.0f}%) — skill may answer incorrectly"
+        )
+    elif smoke_avg == 0:
+        weaknesses.append("No smoke test results — quality unverified")
+
+    if trigger_score >= 80:
+        strengths.append(f"Excellent trigger accuracy ({trigger_score:.0f}%)")
+    elif trigger_score > 0 and trigger_score < 60:
+        weaknesses.append(
+            f"Low trigger accuracy ({trigger_score:.0f}%) — skill may not activate"
+        )
+
+    recommendation = {
+        "composite_score": final,
+        "grade": grade,
+        "verdict": verdict,
+        "strengths": strengths,
+        "weaknesses": weaknesses,
+        "components": {
+            "pipeline_score": round(pipeline_score, 1),
+            "smoke_test_avg": round(smoke_avg, 1),
+            "trigger_test_score": round(trigger_score, 1),
+        },
+    }
+
+    # Write recommendation into existing metadata.json
+    meta_path = os.path.join(out, "metadata.json")
+    try:
+        meta = read_json(meta_path)
+        meta["quality_recommendation"] = recommendation
+        write_json(meta, meta_path)
+        logger.info(
+            f"Quality: {grade} ({final:.1f}) — {verdict}",
+            phase="final",
+        )
+    except Exception as e:
+        logger.warn(f"Could not update metadata.json with recommendation: {e}")
+
+    # Emit recommendation event
+    logger._emit({
+        "event": "quality_recommendation",
+        "recommendation": recommendation,
     })

@@ -834,6 +834,20 @@ function handleParsedLog(buildId: string, parsed: Record<string, unknown>): void
     }
   }
 
+  // Quality Recommendation — from _emit_final_score()
+  if (event === "quality_recommendation") {
+    const rec = parsed.recommendation as Record<string, unknown> | undefined;
+    if (rec) {
+      sseManager.broadcast(buildId, "quality_recommendation", {
+        recommendation: rec,
+        timestamp,
+      });
+      console.log(
+        `[Build ${buildId}] Quality: ${rec.grade} (${rec.composite_score}) — ${rec.verdict}`
+      );
+    }
+  }
+
   if (event === "cost" || parsed.api_cost_usd) {
     updateBuild(buildId, {
       api_cost_usd: parsed.api_cost_usd as number,

@@ -148,3 +148,42 @@ Return a JSON object with this EXACT structure:
   "word_count": 0
 }}\
 """
+
+P5_QA_EXAMPLES_SYSTEM = """\
+You are generating realistic Q&A examples for an AI knowledge skill.
+These examples will be included in the skill package so that AI assistants
+can see HOW to answer questions using this skill's knowledge.
+
+RULES:
+- Generate exactly {count} Q&A pairs
+- Each question must sound like a real user asking naturally
+- Each answer must be derived ONLY from the provided knowledge atoms
+- Answers should be concise (2-4 sentences), demonstrating how the skill's knowledge is applied
+- Cover different categories/pillars to show the skill's breadth
+- Include 1 simple, 1 applied, and 1 comparison question
+- Write in the specified language
+- Respond ONLY with valid JSON\
+"""
+
+P5_QA_EXAMPLES_USER = """\
+Generate {count} Q&A examples for this skill:
+
+**Skill name:** {name}
+**Domain:** {domain}
+**Language:** {language}
+
+**Top knowledge atoms (use ONLY these as source):**
+{atoms_json}
+
+Return JSON:
+{{
+  "examples": [
+    {{
+      "question": "A natural user question",
+      "answer": "Concise answer using knowledge from the atoms above",
+      "source_atoms": ["atom_id_1"],
+      "type": "simple|applied|comparison"
+    }}
+  ]
+}}\
+"""

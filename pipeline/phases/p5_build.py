@@ -19,6 +19,7 @@ from ..seekers.lookup import SeekersLookup
 from ..prompts.p5_build_prompts import (
     P5_SKILL_SYSTEM, P5_SKILL_USER,
     P5_KNOWLEDGE_SYSTEM, P5_KNOWLEDGE_USER,
+    P5_QA_EXAMPLES_SYSTEM, P5_QA_EXAMPLES_USER,
 )
 
 # Max atoms per single Claude API call to avoid 524 timeout on proxy
@@ -422,6 +423,139 @@ def _update_skill_md_with_examples(output_dir: str) -> None:
         content = content.replace("## References", examples_section + "\n## References")
     else:
         content += examples_section
+
+    write_file(skill_md_path, content)
+
+
+QA_EXAMPLE_COUNT = 3
+
+
+def _generate_qa_examples(
+    build_atoms: list, output_dir: str, config: BuildConfig,
+    claude: ClaudeClient, logger: PipelineLogger,
+) -> bool:
+    """Generate examples/qa_examples.md from top knowledge atoms via Claude.
+
+    Returns True if examples were generated.
+    """
+    if not claude or not build_atoms:
+        return False
+
+    # Select top atoms by confidence, diverse categories
+    sorted_atoms = sorted(
+        build_atoms,
+        key=lambda a: float(a.get("confidence", 0)),
+        reverse=True,
+    )
+
+    # Pick top atoms, try to cover different categories
+    seen_cats: set[str] = set()
+    selected: list[dict] = []
+    for atom in sorted_atoms:
+        cat = atom.get("category", "general")
+        if cat not in seen_cats and len(selected) < 8:
+            selected.append(atom)
+            seen_cats.add(cat)
+    # Fill remaining slots with highest confidence
+    for atom in sorted_atoms:
+        if atom not in selected and len(selected) < 8:
+            selected.append(atom)
+
+    atoms_json = json.dumps(
+        [
+            {
+                "id": a.get("id", ""),
+                "title": a.get("title", ""),
+                "content": a.get("content", "")[:300],
+                "category": a.get("category", ""),
+            }
+            for a in selected
+        ],
+        ensure_ascii=False,
+        indent=2,
+    )
+
+    try:
+        result = claude.call_json(
+            system=P5_QA_EXAMPLES_SYSTEM.format(count=QA_EXAMPLE_COUNT),
+            user=P5_QA_EXAMPLES_USER.format(
+                count=QA_EXAMPLE_COUNT,
+                name=config.name,
+                domain=config.domain,
+                language=config.language,
+                atoms_json=atoms_json,
+            ),
+            max_tokens=2048,
+            phase="p5",
+            use_light_model=True,
+        )
+    except Exception as e:
+        logger.warn(f"Q&A examples generation failed: {e}", phase="p5")
+        return False
+
+    examples = result.get("examples", []) if isinstance(result, dict) else []
+    if not examples:
+        logger.warn("Claude returned no Q&A examples", phase="p5")
+        return False
+
+    # Build markdown content
+    lines = [
+        f"# Q&A Examples — {config.name}",
+        "",
+        f"> {len(examples)} example Q&A pairs demonstrating how to use this skill.",
+        "",
+    ]
+    for i, ex in enumerate(examples, 1):
+        q = ex.get("question", "")
+        a = ex.get("answer", "")
+        ex_type = ex.get("type", "")
+        if not q or not a:
+            continue
+        lines.append(f"## Example {i}" + (f" ({ex_type})" if ex_type else ""))
+        lines.append("")
+        lines.append(f"**Question:** {q}")
+        lines.append("")
+        lines.append(f"**Answer:** {a}")
+        lines.append("")
+        lines.append("---")
+        lines.append("")
+
+    examples_dir = os.path.join(output_dir, "examples")
+    os.makedirs(examples_dir, exist_ok=True)
+    write_file(os.path.join(examples_dir, "qa_examples.md"), "\n".join(lines))
+
+    logger.info(
+        f"Generated examples/qa_examples.md ({len(examples)} Q&A pairs)",
+        phase="p5",
+    )
+    return True
+
+
+def _update_skill_md_with_qa_examples(output_dir: str) -> None:
+    """Add Q&A examples routing to SKILL.md if qa_examples exist."""
+    skill_md_path = os.path.join(output_dir, "SKILL.md")
+    if not os.path.exists(skill_md_path):
+        return
+
+    with open(skill_md_path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    qa_section = (
+        "\n## Q&A Examples\n\n"
+        "For example questions and answers showing how to use this skill's knowledge:\n"
+        "-> Read `examples/qa_examples.md`\n"
+    )
+
+    if "## Q&A Examples" in content:
+        return  # Already has Q&A section
+
+    # Insert before Limitations if exists, otherwise before References, otherwise append
+    if "## Limitations" in content:
+        content = content.replace("## Limitations", qa_section + "\n## Limitations")
+    elif "## References" in content:
+        content = content.replace("## References", qa_section + "\n## References")
+    else:
+        content += qa_section
 
     write_file(skill_md_path, content)
 
@@ -945,14 +1079,25 @@ def run_p5(config: BuildConfig, claude: ClaudeClient,
         write_file(skill_path, skill_content)
         output_files.append(skill_path)
 
-        # ── Step 2.3: Generate examples/ from code atoms ──
-        has_examples = _generate_examples(
+        # ── Step 2.3: Generate examples/ ──
+        # Code patterns from code_pattern atoms
+        has_code_examples = _generate_examples(
             build_atoms, config.output_dir, config, logger,
         )
-        if has_examples:
+        if has_code_examples:
             _update_skill_md_with_examples(config.output_dir)
             output_files.append(
                 os.path.join(config.output_dir, "examples", "code_patterns.md")
+            )
+
+        # Q&A examples from top atoms (always attempt)
+        has_qa_examples = _generate_qa_examples(
+            build_atoms, config.output_dir, config, claude, logger,
+        )
+        if has_qa_examples:
+            _update_skill_md_with_qa_examples(config.output_dir)
+            output_files.append(
+                os.path.join(config.output_dir, "examples", "qa_examples.md")
             )
 
         # ── Step 2.5: Multi-platform packaging ──
