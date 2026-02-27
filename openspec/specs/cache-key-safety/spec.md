@@ -4,18 +4,21 @@
 TBD - created by archiving change multi-provider-opus-tier. Update Purpose after archive.
 ## Requirements
 ### Requirement: Cache key MUST include model name
+Cache keys for all cache layers (Claude response cache, build cache atoms, build cache inventory, build cache embeddings) MUST include the model identifier. Different models SHALL produce different cache keys. Additionally, build-level cache keys MUST include `prompt_version` and `quality_tier` to prevent stale results when prompts or tier settings change.
 
-Cache key computation MUST include the active model name to prevent cross-model/cross-provider cache collisions.
+#### Scenario: Different models produce different keys
+- **WHEN** the same input is processed with model A then model B
+- **THEN** each SHALL have a separate cache entry (no cross-model collision)
 
-#### Scenario: Different models produce different cache keys
+#### Scenario: Same model returns cached response
+- **WHEN** a second call uses the same model, input, prompt version, and tier
+- **THEN** the system SHALL return the cached response
 
-- **WHEN** the same system+user prompt is called with model A then model B
-- **THEN** the cache keys MUST be different
-- **AND** model B call SHALL NOT return model A's cached response
+#### Scenario: Prompt version change invalidates cache
+- **WHEN** `PROMPT_VERSION` is bumped in a prompt file
+- **THEN** all cache entries using the old version SHALL be treated as misses
 
-#### Scenario: Same model produces same cache key
-
-- **WHEN** the same system+user prompt is called twice with the same model
-- **THEN** the cache key MUST be identical
-- **AND** the second call SHALL return the cached response
+#### Scenario: Tier change invalidates cache
+- **WHEN** `quality_tier` changes between builds (e.g., standard → premium)
+- **THEN** cache entries from the previous tier SHALL be treated as misses
 
