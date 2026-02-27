@@ -94,10 +94,42 @@ export function useBuildStream(buildId: string) {
       }
     });
 
-    // Log events
+    // Log events — also extract embedded quality/phase JSON for completed builds
     es.addEventListener("log", (e) => {
       const data = JSON.parse(e.data);
       setLogs((prev) => [...prev, data]);
+
+      // Parse quality events embedded in log messages (for historical replay)
+      try {
+        const parsed = JSON.parse(data.message);
+        if (parsed.event === "quality" && parsed.phase && parsed.score != null) {
+          setPhases((prev) =>
+            prev.map((p) => (p.id === parsed.phase ? { ...p, score: parsed.score } : p))
+          );
+        }
+        if (parsed.event === "phase" && parsed.phase) {
+          setPhases((prev) =>
+            prev.map((p) => {
+              if (p.id === parsed.phase) {
+                return {
+                  ...p,
+                  status: parsed.status === "done" ? "done" : parsed.status === "failed" ? "failed" : "running",
+                  progress: parsed.progress ?? p.progress,
+                  name: parsed.name || p.name,
+                };
+              }
+              const incomingRank = phaseRank(parsed.phase);
+              const thisRank = phaseRank(p.id);
+              if (thisRank < incomingRank && p.status !== "done") {
+                return { ...p, status: "done", progress: 100 };
+              }
+              return p;
+            })
+          );
+        }
+      } catch {
+        // Not JSON — plain log message, ignore
+      }
     });
 
     // Phase updates
