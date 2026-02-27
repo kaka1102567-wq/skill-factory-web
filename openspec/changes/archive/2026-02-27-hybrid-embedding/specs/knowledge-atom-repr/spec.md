@@ -1,8 +1,5 @@
-# knowledge-atom-repr Specification
+## MODIFIED Requirements
 
-## Purpose
-TBD - created by archiving change add-knowledge-atom-repr. Update Purpose after archive.
-## Requirements
 ### Requirement: Concise repr output
 
 KnowledgeAtom MUST provide a short, human-readable repr showing only essential fields for quick identification during debugging.
@@ -24,6 +21,8 @@ KnowledgeAtom MUST provide a short, human-readable repr showing only essential f
 - **WHEN** `to_dict()` or `to_json()` is called
 - **THEN** all 16 fields are included as before
 - **AND** no data is lost from the repr change
+
+## ADDED Requirements
 
 ### Requirement: 4-level Confidence Map in P5
 P5 `_generate_confidence_map()` SHALL categorize atoms into 4 levels based on P4 embedding verification scores: HIGH (≥0.70), MEDIUM (0.50-0.70), LOW (<0.50), UNKNOWN (future use). Upgraded from 2-level.

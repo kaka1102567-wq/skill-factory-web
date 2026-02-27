@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import {
   Key, Terminal, Bell, Trash2, Save, Loader2,
-  Check, AlertCircle, TestTube, HardDrive, ScanText
+  Check, AlertCircle, TestTube, HardDrive, ScanText, Layers
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -179,6 +179,37 @@ export default function SettingsPage() {
             Uses same API Key &amp; Base URL as Main Model. Used for P5/P6 when quality tier is &quot;premium&quot;.
           </p>
         </div>
+      </Section>
+
+      {/* Embedding Model */}
+      <Section icon={Layers} title="Embedding Model (P3 Dedup + P4 Verify)">
+        <div>
+          <label className="text-xs font-medium text-muted-foreground block mb-1">Model</label>
+          <Input
+            type="text"
+            value={settings.embedding_model || ""}
+            onChange={(e) => update("embedding_model", e.target.value)}
+            placeholder="text-embedding-3-small"
+            className="text-sm"
+          />
+          <p className="text-xs text-muted-foreground mt-1">
+            OpenAI-compatible embedding model. Used for P3 dedup and P4 verify semantic similarity.
+          </p>
+        </div>
+        <div>
+          <label className="text-xs font-medium text-muted-foreground block mb-1">Base URL</label>
+          <Input
+            type="text"
+            value={settings.embedding_base_url || ""}
+            onChange={(e) => update("embedding_base_url", e.target.value)}
+            placeholder="https://api.openai.com/v1"
+            className="text-sm"
+          />
+          <p className="text-xs text-muted-foreground mt-1">
+            Embedding API base URL. Leave empty or use default for OpenAI.
+          </p>
+        </div>
+        <Field label="API Key" value={settings.embedding_api_key} onChange={(v) => update("embedding_api_key", v)} placeholder="sk-..." type="password" />
       </Section>
 
       {/* OCR Settings */}

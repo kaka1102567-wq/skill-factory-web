@@ -98,7 +98,12 @@ def run_p3(config: BuildConfig, claude: ClaudeClient,
             f"(tự động điều chỉnh, {len(raw_atoms)} atoms)",
             phase=phase_id,
         )
-        cross_result = _cross_source_dedup(raw_atoms, logger, dup_threshold=adaptive)
+        embedding_client = getattr(config, "embedding_client", None)
+        cross_result = _cross_source_dedup(
+            raw_atoms, logger,
+            dup_threshold=adaptive,
+            embedding_client=embedding_client,
+        )
         raw_atoms = cross_result["atoms"]
         cross_conflicts = cross_result["conflicts"]
         cross_stats = cross_result["stats"]
@@ -581,11 +586,84 @@ def _detect_issue_type(
     return None
 
 
+def _build_atom_text(atom: dict) -> str:
+    """Build text representation of an atom for embedding."""
+    title = atom.get("title", "")
+    content = atom.get("content", "")[:200]
+    return f"{title}: {content}"
+
+
+def _embedding_pre_filter(
+    transcript_atoms: list[dict],
+    baseline_atoms: list[dict],
+    embedding_client,
+    logger,
+    phase_id: str,
+) -> dict:
+    """Use embedding similarity to pre-classify cross-source atom pairs.
+
+    Returns:
+      - auto_merge: list of (transcript_id, baseline_id, similarity) for pairs >= 0.85
+      - uncertain: list of (transcript_id, baseline_id, similarity) for pairs 0.60-0.85
+      - skip count: int (pairs < 0.60, handled as unique)
+    """
+    t_texts = [_build_atom_text(a) for a in transcript_atoms]
+    b_texts = [_build_atom_text(a) for a in baseline_atoms]
+
+    try:
+        matrix = embedding_client.similarity_matrix(t_texts, b_texts)
+    except Exception as exc:
+        logger.warn(
+            f"Embedding similarity_matrix failed: {exc} — falling back to keyword dedup",
+            phase=phase_id,
+        )
+        return None  # Signal to caller to use fallback
+
+    auto_merge = []
+    uncertain = []
+    skip_count = 0
+
+    for ti, row in enumerate(matrix):
+        for bi, sim in enumerate(row):
+            if sim >= 0.85:
+                auto_merge.append((
+                    transcript_atoms[ti].get("id", ""),
+                    baseline_atoms[bi].get("id", ""),
+                    sim,
+                ))
+            elif sim >= 0.60:
+                uncertain.append((
+                    transcript_atoms[ti].get("id", ""),
+                    baseline_atoms[bi].get("id", ""),
+                    sim,
+                ))
+            else:
+                skip_count += 1
+
+    emb_stats = embedding_client.get_stats()
+    logger.info(
+        f"Embedding pre-filter: {len(auto_merge)} auto-merge, "
+        f"{len(uncertain)} uncertain (-> LLM), {skip_count} unique (skipped) "
+        f"| model={emb_stats.get('api_available') and 'api' or 'tfidf-fallback'}",
+        phase=phase_id,
+    )
+
+    return {"auto_merge": auto_merge, "uncertain": uncertain, "skip_count": skip_count}
+
+
 def _cross_source_dedup(
     atoms: list[dict], logger,
     dup_threshold: float = 0.6,
+    embedding_client=None,
 ) -> dict:
     """Compare transcript vs baseline atoms, detect issues.
+
+    When embedding_client is provided and _api_available:
+      - >= 0.85 similarity: auto-merge as duplicate (keep higher confidence)
+      - 0.60-0.85: send to existing keyword-based dedup logic (CONTRADICTION/OUTDATED/UNIQUE)
+      - < 0.60: skip (UNIQUE), no LLM needed
+
+    When no embedding_client: existing keyword-only dedup (backward compatible).
 
     Returns dict with:
       - atoms: cleaned atom list (after merges/replacements)
@@ -609,7 +687,7 @@ def _cross_source_dedup(
             "stats": _empty_stats(),
         }
 
-    # Pre-compute keywords
+    # Pre-compute keywords (used in both embedding and keyword-only paths)
     kw_map = {}
     for a in atoms:
         text = f"{a.get('title', '')} {a.get('content', '')}"
@@ -620,6 +698,70 @@ def _cross_source_dedup(
     replaced_ids = set()
     stats = _empty_stats()
 
+    # ── Embedding pre-filter (cross-source only) ──────────────────────────
+    use_embedding = (
+        embedding_client is not None
+        and getattr(embedding_client, "_api_available", False)
+    )
+
+    # Track which pairs are covered by embedding results
+    embedding_covered_pairs: set[tuple[str, str]] = set()  # (t_id, b_id)
+
+    if use_embedding:
+        pre = _embedding_pre_filter(
+            transcript_atoms, baseline_atoms, embedding_client, logger, phase_id
+        )
+
+        if pre is not None:
+            # Auto-merge pairs with >= 0.85 similarity
+            for t_id, b_id, sim in pre["auto_merge"]:
+                if t_id in merged_ids or t_id in replaced_ids:
+                    continue
+                if b_id in merged_ids or b_id in replaced_ids:
+                    continue
+
+                # Find atom objects for confidence comparison
+                at = next((a for a in transcript_atoms if a.get("id") == t_id), None)
+                ab = next((a for a in baseline_atoms if a.get("id") == b_id), None)
+                if not at or not ab:
+                    continue
+
+                conf_t = float(at.get("confidence", 0))
+                conf_b = float(ab.get("confidence", 0))
+                if conf_t >= conf_b:
+                    merged_ids.add(b_id)
+                    keeper = t_id
+                else:
+                    merged_ids.add(t_id)
+                    keeper = b_id
+
+                conflicts.append({
+                    "type": "duplicate",
+                    "atom_a": t_id,
+                    "atom_b": b_id,
+                    "action": "merged",
+                    "kept": keeper,
+                    "overlap": round(sim, 2),
+                    "method": "embedding",
+                })
+                stats["duplicates_merged"] += 1
+                title = at.get("title", "")[:50]
+                logger.debug(
+                    f"Embedding auto-merge: '{title}' (sim={sim:.2f})",
+                    phase=phase_id,
+                )
+                embedding_covered_pairs.add((t_id, b_id))
+
+            # Mark uncertain pairs as covered — they go through keyword logic below
+            for t_id, b_id, _sim in pre["uncertain"]:
+                embedding_covered_pairs.add((t_id, b_id))
+
+            # Pairs < 0.60 are NOT in embedding_covered_pairs — they are skipped as UNIQUE
+            # (no entry added means they won't be processed by keyword loop)
+
+    # ── Keyword-based dedup ────────────────────────────────────────────────
+    # When embedding is active: only process uncertain pairs (0.60-0.85)
+    # When embedding is inactive or failed: process all pairs (backward compatible)
     for at in transcript_atoms:
         at_id = at.get("id", "")
         if at_id in merged_ids or at_id in replaced_ids:
@@ -629,6 +771,17 @@ def _cross_source_dedup(
             ab_id = ab.get("id", "")
             if ab_id in merged_ids or ab_id in replaced_ids:
                 continue
+
+            # Skip: already auto-merged by embedding at >= 0.85
+            if at_id in merged_ids or ab_id in merged_ids:
+                continue
+
+            # When embedding is active: only handle uncertain pairs here
+            # Skip pairs that embedding classified as UNIQUE (< 0.60) — not in covered set
+            if use_embedding and pre is not None:
+                pair_key = (at_id, ab_id)
+                if pair_key not in embedding_covered_pairs:
+                    continue  # embedding said < 0.60 — skip (unique)
 
             kw_a = kw_map.get(at_id, set())
             kw_b = kw_map.get(ab_id, set())

@@ -125,6 +125,9 @@ export function initializeSchema(db: Database.Database) {
       insertSetting.run("claude_base_url", "", "Custom API base URL (e.g. https://claudible.io)");
       insertSetting.run("claude_model_light", "claude-haiku-4-5-20251001", "Light model for P3/P4 (cost saving)");
       insertSetting.run("google_vision_credentials", "", "Google Cloud Vision API credentials JSON content");
+      insertSetting.run("embedding_api_key", "", "API key for embedding (default: OpenAI)");
+      insertSetting.run("embedding_model", "text-embedding-3-small", "Embedding model name");
+      insertSetting.run("embedding_base_url", "https://api.openai.com/v1", "Embedding API base URL");
     });
     seedSettings();
   }
@@ -137,6 +140,9 @@ export function initializeSchema(db: Database.Database) {
   db.prepare(`INSERT OR IGNORE INTO settings (key, value, description) VALUES ('claude_base_url_light', '', 'Base URL for light model provider (empty = same as main)')`).run();
   db.prepare(`INSERT OR IGNORE INTO settings (key, value, description) VALUES ('claude_api_key_light', '', 'API key for light model provider (empty = same as main)')`).run();
   db.prepare(`INSERT OR IGNORE INTO settings (key, value, description) VALUES ('claude_model_premium', '', 'Premium model for P5/P6 when tier=premium (empty = use main model)')`).run();
+  db.prepare(`INSERT OR IGNORE INTO settings (key, value, description) VALUES ('embedding_api_key', '', 'API key for embedding (default: OpenAI)')`).run();
+  db.prepare(`INSERT OR IGNORE INTO settings (key, value, description) VALUES ('embedding_model', 'text-embedding-3-small', 'Embedding model name')`).run();
+  db.prepare(`INSERT OR IGNORE INTO settings (key, value, description) VALUES ('embedding_base_url', 'https://api.openai.com/v1', 'Embedding API base URL')`).run();
 
   // Seed templates if empty
   const templateCount = db

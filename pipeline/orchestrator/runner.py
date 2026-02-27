@@ -6,6 +6,7 @@ import uuid
 from datetime import datetime
 
 from ..core.types import BuildConfig, PipelineState, PHASE_MODEL_MAP
+from ..core.embeddings import EmbeddingClient
 from ..core.logger import PipelineLogger
 from ..core.utils import read_json, write_json
 from ..clients.claude_client import ClaudeClient, CreditExhaustedError
@@ -59,6 +60,14 @@ class PipelineRunner:
                 api_key_light=config.claude_api_key_light or None,
                 model_premium=config.claude_model_premium or None,
             )
+
+        # Initialize EmbeddingClient (always created; falls back to TF-IDF if no key)
+        embedding_client = EmbeddingClient(
+            api_key=config.embedding_api_key,
+            model=config.embedding_model,
+            base_url=config.embedding_base_url,
+        )
+        config.embedding_client = embedding_client  # type: ignore[attr-defined]
 
         # Initialize Seekers
         self.cache = SeekersCache(

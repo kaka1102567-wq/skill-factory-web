@@ -70,6 +70,9 @@ def load_config(config_path: str, output_dir: str) -> BuildConfig:
         claude_model_premium=os.environ.get("CLAUDE_MODEL_PREMIUM", ""),
         domain_lessons=os.environ.get("DOMAIN_LESSONS", ""),
         clean_input=raw.get('clean_input', True),
+        embedding_api_key=os.environ.get("EMBEDDING_API_KEY", ""),
+        embedding_model=os.environ.get("EMBEDDING_MODEL", "text-embedding-3-small"),
+        embedding_base_url=os.environ.get("EMBEDDING_BASE_URL", "https://api.openai.com/v1"),
     )
 
 

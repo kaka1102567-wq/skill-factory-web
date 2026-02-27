@@ -127,6 +127,103 @@ def _load_skill_seekers_baseline(output_dir: str) -> list[dict] | None:
     return None
 
 
+def _verify_with_embeddings(atoms_to_verify, ss_references, embedding_client, logger):
+    """Verify atoms via embedding similarity against baseline references.
+
+    Classifies:
+    - score >= 0.70 -> "verified"
+    - score 0.50-0.70 -> "partially_verified"
+    - score < 0.50 -> "expert_insight"
+
+    Score written into verification_note as: "Verified (score X.XX) against ref.md"
+    Returns (verified_count, unverified_count, verified_ids).
+    """
+    phase_id = "p4"
+    verified_count = 0
+    unverified_count = 0
+    verified_ids = set()
+
+    ref_texts = [
+        f"{ref.get('path', '')}: {ref.get('content', '')[:300]}"
+        for ref in ss_references
+    ]
+    if not ref_texts:
+        return 0, len(atoms_to_verify), {a.get("id", "") for a in atoms_to_verify}
+
+    for atom in atoms_to_verify:
+        atom_id = atom.get("id", "")
+        atom_title = atom.get("title", "")
+        atom_content = atom.get("content", "")
+        atom_text = f"{atom_title}: {atom_content[:300]}"
+
+        try:
+            scores = embedding_client.similarity_matrix([atom_text], ref_texts)[0]
+        except Exception as e:
+            logger.warn(f"Embedding similarity failed for atom {atom_id}: {e}", phase=phase_id)
+            atom["status"] = "unverified"
+            atom["verification_note"] = "Expert insight — embedding verify failed"
+            unverified_count += 1
+            verified_ids.add(atom_id)
+            continue
+
+        best_score = max(scores) if scores else 0.0
+        best_ref_idx = scores.index(best_score) if scores else 0
+        best_ref_path = ss_references[best_ref_idx].get("path", "ref") if ss_references else "ref"
+
+        if best_score >= 0.70:
+            atom["status"] = "verified"
+            atom["confidence"] = min(1.0, float(atom.get("confidence", 0.5)) + 0.05)
+            atom["verification_note"] = (
+                f"Verified (score {best_score:.2f}) against {best_ref_path}"
+            )
+            atom["baseline_reference"] = best_ref_path
+            atom["evidence"] = {
+                "found": True,
+                "file": best_ref_path,
+                "match_score": round(best_score * 100, 1),
+                "method": "embedding",
+            }
+            verified_count += 1
+        elif best_score >= 0.50:
+            atom["status"] = "verified"
+            atom["confidence"] = float(atom.get("confidence", 0.5))
+            atom["verification_note"] = (
+                f"Partially verified (score {best_score:.2f}) against {best_ref_path}"
+            )
+            atom["baseline_reference"] = best_ref_path
+            atom["evidence"] = {
+                "found": True,
+                "file": best_ref_path,
+                "match_score": round(best_score * 100, 1),
+                "method": "embedding_partial",
+            }
+            verified_count += 1
+        else:
+            atom["status"] = "unverified"
+            atom["confidence"] = float(atom.get("confidence", 0.5))
+            atom["verification_note"] = (
+                f"Expert insight (score {best_score:.2f}) — below threshold"
+            )
+            atom["evidence"] = {
+                "found": False,
+                "closest_score": round(best_score * 100, 1),
+                "method": "embedding",
+            }
+            unverified_count += 1
+
+        verified_ids.add(atom_id)
+
+    total = verified_count + unverified_count
+    if total > 0:
+        pct = round(verified_count / total * 100, 1)
+        logger.info(
+            f"Embedding verify: {verified_count}/{total} atoms ({pct}%)",
+            phase=phase_id,
+        )
+
+    return verified_count, unverified_count, verified_ids
+
+
 def _verify_with_skill_seekers(atoms_to_verify, ss_references, logger):
     """Verify atoms against skill-seekers baseline references."""
     phase_id = "p4"
@@ -389,18 +486,30 @@ def run_p4(config: BuildConfig, claude: ClaudeClient,
         # Try skill-seekers baseline first
         ss_references = _load_skill_seekers_baseline(config.output_dir)
 
+        # Check for embedding client (optional, enables semantic similarity)
+        embedding_client = getattr(config, 'embedding_client', None)
+
         if ss_references:
             logger.info(
                 f"Sử dụng baseline Skill Seekers ({len(ss_references)} tài liệu tham khảo)",
                 phase=phase_id,
             )
-            verified_count, unverified_count, verified_ids = (
-                _verify_with_skill_seekers(
-                    atoms_to_verify, ss_references, logger,
+            if embedding_client:
+                logger.info("Sử dụng embedding similarity cho verification", phase=phase_id)
+                verified_count, unverified_count, verified_ids = (
+                    _verify_with_embeddings(
+                        atoms_to_verify, ss_references, embedding_client, logger,
+                    )
                 )
-            )
+                flagged_count = unverified_count
+            else:
+                verified_count, unverified_count, verified_ids = (
+                    _verify_with_skill_seekers(
+                        atoms_to_verify, ss_references, logger,
+                    )
+                )
+                flagged_count = unverified_count
             updated_count = 0
-            flagged_count = unverified_count
         else:
             verified_count, updated_count, flagged_count, verified_ids = (
                 _verify_with_claude_batch(

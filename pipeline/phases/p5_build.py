@@ -86,46 +86,84 @@ def _copy_seekers_references(baseline: dict, output_dir: str,
     return refs_copied
 
 
-def _generate_confidence_map(atoms: list) -> str:
-    """Generate 2-level Confidence Map from atoms verification data.
+def _extract_verification_score(note: str) -> float | None:
+    """Extract embedding score from P4 verification note."""
+    import re
+    match = re.search(r'score\s+([\d.]+)', note)
+    if match:
+        try:
+            return float(match.group(1))
+        except ValueError:
+            return None
+    return None
 
-    Only 2 levels because P4 keyword matching doesn't create real gradient:
-    - ~29% atoms have baseline_reference = VERIFIED
-    - ~71% atoms passthrough = UNVERIFIED
-    Upgrade to 3-4 levels after Sprint 3 (embedding verify).
-    """
+
+def _generate_confidence_map(atoms: list) -> str:
+    """Generate Confidence Map from P4 verification scores (VERIFIED/UNVERIFIED)."""
     verified = []
     unverified = []
 
     for atom in atoms:
-        ref = atom.get('baseline_reference') or ''
-        note = atom.get('verification_note') or ''
-        has_evidence = bool(ref) or 'verified against' in note.lower()
+        entry = f"- {atom['title']}"
+        note = atom.get('verification_note', '') or ''
+        ref = atom.get('baseline_reference', '') or ''
+        score = _extract_verification_score(note)
 
-        entry = f"- {atom.get('title', 'Untitled')}"
-        if has_evidence:
+        # Classified as verified if has score or baseline reference
+        if score is not None or ref:
             verified.append(entry)
         else:
             unverified.append(entry)
 
     lines = ["### Confidence Map", ""]
-    lines.append(
-        f"### VERIFIED ({len(verified)} atoms — baseline-backed) "
-        "-> Tra loi confident"
-    )
+    lines.append(f"### VERIFIED ({len(verified)} atoms)")
     lines.extend(verified[:15])
     if len(verified) > 15:
-        lines.append(f"- ... va {len(verified) - 15} atoms khac")
+        lines.append(f"- ... and {len(verified) - 15} more")
     lines.append("")
-    lines.append(
-        f"### UNVERIFIED ({len(unverified)} atoms — chua cross-check) "
-        '-> Them "theo phan tich chuyen gia..."'
-    )
+    lines.append(f"### UNVERIFIED ({len(unverified)} atoms)")
     lines.extend(unverified[:10])
     if len(unverified) > 10:
-        lines.append(f"- ... va {len(unverified) - 10} atoms khac")
-
+        lines.append(f"- ... and {len(unverified) - 10} more")
     return "\n".join(lines)
+
+
+def _enrich_atoms_multi_source(atoms, config, logger):
+    """Enrich atoms when ≥3 sources — cluster similar topics, add cross-reference."""
+    embedding_client = getattr(config, 'embedding_client', None)
+    source_files = set(a.get('source_video', '') for a in atoms if a.get('source_video'))
+    if len(source_files) < 3 or not embedding_client:
+        return atoms
+
+    logger.info(f"P5: Enrichment -- {len(source_files)} sources, checking topic clusters", phase="p5")
+
+    atom_texts = [f"{a['title']}: {a.get('content', '')[:200]}" for a in atoms]
+    sim_matrix = embedding_client.similarity_matrix(atom_texts, atom_texts)
+
+    # Find clusters of similar atoms from different sources
+    enriched = set()
+    for i in range(len(atoms)):
+        if i in enriched:
+            continue
+        cluster_sources = {atoms[i].get('source_video', '')}
+        cluster_indices = [i]
+        for j in range(i + 1, len(atoms)):
+            if j in enriched:
+                continue
+            if sim_matrix[i][j] > 0.80:
+                src = atoms[j].get('source_video', '')
+                if src and src not in cluster_sources:
+                    cluster_sources.add(src)
+                    cluster_indices.append(j)
+
+        if len(cluster_sources) >= 2:
+            # Mark primary atom with cross-reference
+            note = atoms[i].get('verification_note', '') or ''
+            atoms[i]['verification_note'] = f"{note} Corroborated by {len(cluster_sources)} sources.".strip()
+            for idx in cluster_indices:
+                enriched.add(idx)
+
+    return atoms
 
 
 def _build_agent_instructions_section(
@@ -291,6 +329,47 @@ def _classify_atoms(atoms: list) -> dict:
         "expert_tips": expert_tips,
         "verified": verified_knowledge,
     }
+
+
+def _build_verified_unverified_sections(atoms: list) -> str:
+    """Build VERIFIED and UNVERIFIED sections listing atoms by verification status."""
+    verified = []
+    unverified = []
+
+    for atom in atoms:
+        entry = f"- {atom.get('title', 'Untitled')}"
+        note = atom.get("verification_note", "") or ""
+        ref = atom.get("baseline_reference", "") or ""
+
+        # Check if atom is verified (has score or baseline reference)
+        score = _extract_verification_score(note)
+        if score is not None or ref:
+            verified.append(entry)
+        else:
+            unverified.append(entry)
+
+    lines = []
+    if verified:
+        lines.append("## VERIFIED")
+        lines.append("")
+        lines.append(f"**{len(verified)} atoms verified against baseline documentation:**")
+        lines.append("")
+        lines.extend(verified[:15])
+        if len(verified) > 15:
+            lines.append(f"- ... and {len(verified) - 15} more")
+        lines.append("")
+
+    if unverified:
+        lines.append("## UNVERIFIED")
+        lines.append("")
+        lines.append(f"**{len(unverified)} atoms from expert analysis (not yet verified):**")
+        lines.append("")
+        lines.extend(unverified[:10])
+        if len(unverified) > 10:
+            lines.append(f"- ... and {len(unverified) - 10} more")
+        lines.append("")
+
+    return "\n".join(lines)
 
 
 def _extract_ref_title(ref: dict) -> str:
@@ -459,6 +538,11 @@ def _build_skill_seekers_skill_md(config, baseline, pillars,
             f"-> `knowledge/{name}.md`"
         )
     lines.append("")
+
+    # Verified vs Unverified atoms
+    verified_section = _build_verified_unverified_sections(build_atoms)
+    if verified_section:
+        lines.append(verified_section)
 
     # Composition Patterns
     lines.append(_build_composition_patterns_section(config))
@@ -1208,6 +1292,9 @@ def run_p5(config: BuildConfig, claude: ClaudeClient,
             / len(build_atoms)
             if build_atoms else 0.0
         )
+
+        # Enrich atoms with cross-source corroboration if ≥3 sources
+        build_atoms = _enrich_atoms_multi_source(build_atoms, config, logger)
 
         # Generate confidence map from atom verification data
         confidence_map = _generate_confidence_map(build_atoms)

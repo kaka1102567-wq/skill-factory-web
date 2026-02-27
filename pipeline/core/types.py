@@ -195,6 +195,10 @@ class BuildConfig:
     template_optimized_description: str = ""
     # Lessons from previous builds (self-improving pipeline)
     domain_lessons: str = ""
+    # Embedding model for hybrid dedup/verify (empty = TF-IDF fallback)
+    embedding_api_key: str = ""
+    embedding_model: str = "text-embedding-3-small"
+    embedding_base_url: str = "https://api.openai.com/v1"
 
 
 @dataclass

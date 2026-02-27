@@ -667,6 +667,9 @@ function _spawnPipeline(config: BuildConfig, pythonPath: string, cliPath: string
     CLAUDE_API_KEY_LIGHT: creds.apiKeyLight,
     CLAUDE_MODEL_PREMIUM: creds.modelPremium,
     DOMAIN_LESSONS: domainLessons,
+    EMBEDDING_API_KEY: getSetting("embedding_api_key") || "",
+    EMBEDDING_MODEL: getSetting("embedding_model") || "text-embedding-3-small",
+    EMBEDDING_BASE_URL: getSetting("embedding_base_url") || "https://api.openai.com/v1",
     ...(gvTempFile ? { GOOGLE_APPLICATION_CREDENTIALS: gvTempFile } : {}),
   };
 
