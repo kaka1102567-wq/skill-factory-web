@@ -23,6 +23,47 @@ from ..clients.claude_client import ClaudeClient
 from ..seekers.cache import SeekersCache
 from ..seekers.lookup import SeekersLookup
 
+def _build_atoms_context(test: dict, atoms: list) -> str:
+    """Build atom knowledge context for smoke test, prioritizing relevant atoms.
+
+    Strategy: pick atoms matching test category first, then fill with top atoms.
+    Budget: ~4000 chars to stay within token limits.
+    """
+    MAX_CONTEXT_CHARS = 4000
+    category = test.get("category", "").lower().strip()
+    source_titles = [t.lower() for t in test.get("source_atom_titles", [])]
+
+    # Priority 1: atoms matching source_atom_titles or category
+    priority = []
+    rest = []
+    for a in atoms:
+        title = a.get("title", "").lower()
+        cat = a.get("category", "").lower()
+        if title in source_titles or any(st in title for st in source_titles if st):
+            priority.append(a)
+        elif category and cat == category:
+            priority.append(a)
+        else:
+            rest.append(a)
+
+    # Sort rest by confidence
+    rest.sort(key=lambda a: float(a.get("confidence", 0)), reverse=True)
+    ordered = priority + rest
+
+    lines = []
+    char_count = 0
+    for a in ordered:
+        title = a.get("title", "N/A")
+        content = a.get("content", "")[:400]
+        entry = f"### {title}\n{content}\n"
+        if char_count + len(entry) > MAX_CONTEXT_CHARS:
+            break
+        lines.append(entry)
+        char_count += len(entry)
+
+    return "\n".join(lines) if lines else "No knowledge atoms available."
+
+
 SMOKE_TEST_COUNT = 5
 PASS_THRESHOLD = 0.6
 TIER_WEIGHTS = {"basic": 0.30, "applied": 0.40, "advanced": 0.30}
@@ -68,23 +109,33 @@ Return JSON array with EXACTLY 2 basic + 2 applied + 1 advanced:
 """
 
 GRADE_RESPONSE_SYSTEM = """\
-You are grading an AI assistant's response to check if it correctly used knowledge from a skill.
-Check if the response contains the expected facts. Be generous — facts don't need to be verbatim.
+Bạn đang chấm điểm câu trả lời của AI assistant.
+
+QUY TẮC CHẤM ĐIỂM:
+- Đánh giá theo NGỮ NGHĨA, không đòi hỏi từ ngữ y hệt
+- Nếu câu trả lời diễn đạt ĐÚNG Ý nhưng dùng thuật ngữ khác (VD: "Cảm nhận" vs "Perception") → vẫn tính là ĐÚNG
+- Nếu câu trả lời dùng tiếng Anh cho khái niệm tiếng Việt (hoặc ngược lại) nhưng đúng ý → vẫn tính ĐÚNG
+- Nếu thứ tự các bước khác nhưng nội dung đầy đủ → tính ĐÚNG, chỉ trừ nhẹ
+- "present": true khi ý chính được truyền tải, dù cách diễn đạt khác
+- "present": false CHỈ khi ý hoàn toàn thiếu hoặc sai lệch nghiêm trọng
+
+VIẾT NHẬN XÉT BẰNG TIẾNG VIỆT.
 OUTPUT: JSON only.\
 """
 
 GRADE_RESPONSE_USER = """\
-**Question:** {prompt}
-**Expected facts:** {expected_facts}
-**AI response:** {response}
+**Câu hỏi:** {prompt}
+**Kiến thức cần có:** {expected_facts}
+**Câu trả lời của AI:** {response}
 
+Chấm điểm theo ngữ nghĩa (đúng ý = đúng, dù khác từ ngữ):
 {{
   "results": [
-    {{"fact": "expected fact", "present": true, "evidence": "where in response"}}
+    {{"fact": "kiến thức cần kiểm tra", "present": true, "evidence": "trích dẫn hoặc diễn giải từ câu trả lời"}}
   ],
   "overall_pass": true,
   "score": 0.8,
-  "notes": "Brief assessment"
+  "notes": "Nhận xét ngắn gọn bằng tiếng Việt"
 }}
 """
 
@@ -144,6 +195,15 @@ def run_p55(
             logger.warn("Could not generate test prompts — skipping", phase=phase)
             return PhaseResult(phase_id="p55", status="skipped")
 
+        # Load full atoms for test context (not just sample)
+        all_atoms_for_test = []
+        for atoms_file in ["atoms_verified.json", "atoms_deduplicated.json"]:
+            atoms_path = os.path.join(config.output_dir, atoms_file)
+            if os.path.exists(atoms_path):
+                data = read_json(atoms_path)
+                all_atoms_for_test = data.get("atoms", [])
+                break
+
         # Step 2: Run and grade each test
         results = []
         for i, test in enumerate(test_prompts[:SMOKE_TEST_COUNT]):
@@ -153,8 +213,19 @@ def run_p55(
                 continue
             logger.info(f"  Test {i+1}/{min(len(test_prompts), SMOKE_TEST_COUNT)}: {prompt[:60]}...", phase=phase)
 
+            # Build context: SKILL.md overview + actual atom knowledge
+            # skill_content[:3000] only has routing, not knowledge
+            skill_overview = skill_content[:1500]
+            atoms_context = _build_atoms_context(test, all_atoms_for_test)
+            test_system = (
+                "You are an AI assistant using a knowledge skill to answer questions.\n"
+                "Answer ONLY based on the knowledge provided below. "
+                "If the information is not in the provided knowledge, say so.\n\n"
+                f"## Skill Overview\n{skill_overview}\n\n"
+                f"## Knowledge Content\n{atoms_context}"
+            )
             response = claude.call(
-                system=f"You have access to this knowledge skill:\n\n{skill_content[:3000]}",
+                system=test_system,
                 user=prompt, max_tokens=1024, phase=phase,
             )
             grade = claude.call_json(
