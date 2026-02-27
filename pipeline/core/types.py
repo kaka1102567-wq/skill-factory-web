@@ -189,6 +189,8 @@ class BuildConfig:
     phase_model_hints: dict = field(default_factory=dict)
     # Skip P6 optimization phase
     skip_optimize: bool = False
+    # Pre-filter OCR/PDF noise from transcripts before pipeline processing
+    clean_input: bool = True
     # Template pre-optimized description (from enhanced template library)
     template_optimized_description: str = ""
     # Lessons from previous builds (self-improving pipeline)

@@ -1,5 +1,6 @@
 """File I/O, text processing, and packaging utilities."""
 
+import dataclasses
 import json
 import os
 import re
@@ -7,23 +8,42 @@ import zipfile
 from pathlib import Path
 from typing import Any
 
+from .text_cleaner import clean_transcript
 
-def read_transcript(path: str) -> str:
+
+def read_transcript(path: str, clean: bool = True) -> str:
+    """Read transcript file. When clean=True, removes OCR/PDF noise."""
     with open(path, 'r', encoding='utf-8') as f:
-        return f.read()
+        raw = f.read()
+    if clean:
+        cleaned, _ = clean_transcript(raw)
+        return cleaned
+    return raw
 
 
-def read_all_transcripts(paths: list[str]) -> list[dict]:
+def read_all_transcripts(paths: list[str], clean: bool = True) -> list[dict]:
+    """Read all transcripts. When clean=True, each result includes clean_stats."""
     results = []
     for p in paths:
         try:
-            content = read_transcript(p)
-            results.append({
-                "filename": os.path.basename(p),
-                "path": p,
-                "content": content,
-                "word_count": len(content.split()),
-            })
+            with open(p, 'r', encoding='utf-8') as f:
+                raw = f.read()
+            if clean:
+                content, stats = clean_transcript(raw)
+                results.append({
+                    "filename": os.path.basename(p),
+                    "path": p,
+                    "content": content,
+                    "word_count": len(content.split()),
+                    "clean_stats": dataclasses.asdict(stats),
+                })
+            else:
+                results.append({
+                    "filename": os.path.basename(p),
+                    "path": p,
+                    "content": raw,
+                    "word_count": len(raw.split()),
+                })
         except Exception as e:
             results.append({"filename": os.path.basename(p), "path": p,
                            "content": "", "word_count": 0, "error": str(e)})

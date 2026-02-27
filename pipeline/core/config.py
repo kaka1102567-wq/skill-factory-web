@@ -69,6 +69,7 @@ def load_config(config_path: str, output_dir: str) -> BuildConfig:
         claude_api_key_light=os.environ.get("CLAUDE_API_KEY_LIGHT", ""),
         claude_model_premium=os.environ.get("CLAUDE_MODEL_PREMIUM", ""),
         domain_lessons=os.environ.get("DOMAIN_LESSONS", ""),
+        clean_input=raw.get('clean_input', True),
     )
 
 
